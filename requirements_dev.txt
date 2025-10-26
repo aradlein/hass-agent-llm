@@ -1,0 +1,31 @@
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-homeassistant-custom-component>=0.13.0
+pytest-timeout>=2.1.0
+
+# Code Quality
+black>=23.7.0
+isort>=5.12.0
+pylint>=2.17.0
+flake8>=6.1.0
+mypy>=1.5.0
+
+# Type Stubs
+types-aiofiles>=23.1.0
+types-requests>=2.31.0
+
+# Pre-commit
+pre-commit>=3.3.0
+
+# Home Assistant (for testing)
+homeassistant>=2024.1.0
+
+# Development tools
+ipython>=8.14.0
+ipdb>=0.13.13
+
+# Documentation
+mkdocs>=1.5.0
+mkdocs-material>=9.1.0
