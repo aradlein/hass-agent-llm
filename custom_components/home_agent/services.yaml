@@ -1,0 +1,93 @@
+# Home Agent Services
+# Service definitions for the Home Agent custom component
+
+process:
+  name: Process message
+  description: Process a conversation message through the Home Agent
+  fields:
+    text:
+      name: Text
+      description: The user's message text to process
+      required: true
+      example: "Turn on the living room lights"
+      selector:
+        text:
+          multiline: true
+    conversation_id:
+      name: Conversation ID
+      description: Optional conversation ID for history tracking
+      required: false
+      example: "living_room_conversation"
+      selector:
+        text:
+    user_id:
+      name: User ID
+      description: Optional user ID for the conversation
+      required: false
+      example: "user123"
+      selector:
+        text:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+clear_history:
+  name: Clear history
+  description: Clear conversation history for a specific conversation or all conversations
+  fields:
+    conversation_id:
+      name: Conversation ID
+      description: Specific conversation to clear (omit to clear all)
+      required: false
+      example: "living_room_conversation"
+      selector:
+        text:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+reload_context:
+  name: Reload context
+  description: Reload entity context (useful after entity changes)
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+execute_tool:
+  name: Execute tool (debug)
+  description: Manually execute a tool for testing and debugging purposes
+  fields:
+    tool_name:
+      name: Tool name
+      description: The name of the tool to execute (e.g., ha_control, ha_query)
+      required: true
+      example: "ha_query"
+      selector:
+        text:
+    parameters:
+      name: Parameters
+      description: Tool parameters as a JSON object
+      required: true
+      example: '{"entity_id": "light.living_room"}'
+      selector:
+        object:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:

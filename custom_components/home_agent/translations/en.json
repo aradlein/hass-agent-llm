@@ -1,0 +1,139 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Home Agent",
+        "description": "Configure your Home Agent with an OpenAI-compatible LLM endpoint.",
+        "data": {
+          "name": "Name",
+          "llm_base_url": "LLM Base URL",
+          "llm_api_key": "API Key",
+          "llm_model": "Model Name",
+          "llm_temperature": "Temperature",
+          "llm_max_tokens": "Max Tokens"
+        },
+        "data_description": {
+          "name": "Friendly name for this Home Agent instance",
+          "llm_base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1)",
+          "llm_api_key": "API key for authentication",
+          "llm_model": "Model to use (e.g., gpt-4o-mini)",
+          "llm_temperature": "Creativity level (0.0-2.0)",
+          "llm_max_tokens": "Maximum tokens per response"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the LLM API",
+      "invalid_auth": "Invalid API key",
+      "invalid_url": "Invalid URL format",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This Home Agent instance is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Home Agent Options",
+        "description": "Configure advanced settings for Home Agent.",
+        "data": {
+          "llm_temperature": "Temperature",
+          "llm_max_tokens": "Max Tokens",
+          "context_mode": "Context Mode",
+          "context_format": "Context Format",
+          "history_enabled": "Enable History",
+          "history_max_messages": "Max History Messages",
+          "history_max_tokens": "Max History Tokens",
+          "prompt_use_default": "Use Default Prompt",
+          "prompt_custom_additions": "Custom Prompt Additions",
+          "tools_max_calls_per_turn": "Max Tool Calls Per Turn",
+          "tools_timeout": "Tool Timeout (seconds)",
+          "debug_logging": "Debug Logging",
+          "emit_events": "Emit Events"
+        },
+        "data_description": {
+          "llm_temperature": "Creativity level (0.0-2.0)",
+          "llm_max_tokens": "Maximum tokens per response",
+          "context_mode": "How to inject entity context",
+          "context_format": "Format for entity context",
+          "history_enabled": "Track conversation history",
+          "history_max_messages": "Maximum conversation turns to keep",
+          "history_max_tokens": "Maximum tokens for history",
+          "prompt_use_default": "Use the built-in system prompt",
+          "prompt_custom_additions": "Additional instructions for the agent",
+          "tools_max_calls_per_turn": "Maximum tool executions per message",
+          "tools_timeout": "Timeout for each tool execution",
+          "debug_logging": "Enable detailed debug logs",
+          "emit_events": "Fire Home Assistant events for monitoring"
+        }
+      }
+    }
+  },
+  "services": {
+    "process": {
+      "name": "Process message",
+      "description": "Process a conversation message through the Home Agent",
+      "fields": {
+        "text": {
+          "name": "Text",
+          "description": "The user's message text to process"
+        },
+        "conversation_id": {
+          "name": "Conversation ID",
+          "description": "Optional conversation ID for history tracking"
+        },
+        "user_id": {
+          "name": "User ID",
+          "description": "Optional user ID for the conversation"
+        },
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Optional config entry ID to use"
+        }
+      }
+    },
+    "clear_history": {
+      "name": "Clear history",
+      "description": "Clear conversation history",
+      "fields": {
+        "conversation_id": {
+          "name": "Conversation ID",
+          "description": "Specific conversation to clear (omit to clear all)"
+        },
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Optional config entry ID to use"
+        }
+      }
+    },
+    "reload_context": {
+      "name": "Reload context",
+      "description": "Reload entity context",
+      "fields": {
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Optional config entry ID to use"
+        }
+      }
+    },
+    "execute_tool": {
+      "name": "Execute tool",
+      "description": "Manually execute a tool for testing",
+      "fields": {
+        "tool_name": {
+          "name": "Tool name",
+          "description": "The name of the tool to execute"
+        },
+        "parameters": {
+          "name": "Parameters",
+          "description": "Tool parameters as a JSON object"
+        },
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Optional config entry ID to use"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "domain": "home_agent",
+  "name": "Home Agent",
+  "codeowners": ["@yourusername"],
+  "config_flow": true,
+  "documentation": "https://github.com/yourusername/home-agent",
+  "issue_tracker": "https://github.com/yourusername/home-agent/issues",
+  "dependencies": ["conversation", "llm"],
+  "requirements": ["aiohttp>=3.9.0"],
+  "iot_class": "cloud_polling",
+  "version": "0.1.0"
+}

@@ -17,6 +17,36 @@ def hass(event_loop):
 
 
 @pytest.fixture
+def mock_hass():
+    """Create a mock Home Assistant instance for unit tests.
+
+    This fixture provides a properly mocked HomeAssistant instance
+    with commonly used methods and attributes pre-configured for testing.
+    """
+    mock = MagicMock(spec=HomeAssistant)
+    mock.data = {}
+
+    # Mock states
+    mock.states = MagicMock()
+    mock.states.get = MagicMock(return_value=None)
+    mock.states.async_entity_ids = MagicMock(return_value=[])
+
+    # Mock services
+    mock.services = MagicMock()
+    mock.services.async_call = AsyncMock()
+
+    # Mock config
+    mock.config = MagicMock()
+    mock.config.config_dir = "/config"
+
+    # Mock bus
+    mock.bus = MagicMock()
+    mock.bus.async_fire = AsyncMock()
+
+    return mock
+
+
+@pytest.fixture
 def mock_llm_client():
     """Mock LLM API client."""
     client = AsyncMock()
