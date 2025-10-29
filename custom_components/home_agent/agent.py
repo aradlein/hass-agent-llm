@@ -80,6 +80,8 @@ class HomeAgent:
         self.conversation_manager = ConversationHistoryManager(
             max_messages=config.get(CONF_HISTORY_MAX_MESSAGES),
             max_tokens=config.get(CONF_HISTORY_MAX_TOKENS),
+            hass=hass,
+            persist=config.get(CONF_HISTORY_PERSIST, True),
         )
         self.tool_handler = ToolHandler(
             hass,
@@ -264,6 +266,22 @@ class HomeAgent:
         start_time = time.time()
         conversation_id = conversation_id or "default"
 
+        # Initialize metrics tracking
+        metrics = {
+            "tokens": {
+                "prompt": 0,
+                "completion": 0,
+                "total": 0,
+            },
+            "performance": {
+                "llm_latency_ms": 0,
+                "tool_latency_ms": 0,
+                "context_latency_ms": 0,
+            },
+            "context": {},
+            "tool_calls": 0,
+        }
+
         # Fire conversation started event
         if self.config.get(CONF_EMIT_EVENTS, True):
             self.hass.bus.async_fire(
@@ -277,22 +295,35 @@ class HomeAgent:
             )
 
         try:
-            response = await self._process_conversation(text, conversation_id)
+            response = await self._process_conversation(text, conversation_id, metrics)
 
-            # Calculate duration
+            # Calculate total duration
             duration_ms = int((time.time() - start_time) * 1000)
 
-            # Fire conversation finished event
+            # Get tool metrics
+            tool_metrics = self.tool_handler.get_metrics()
+            tool_breakdown = {}
+            for tool_name in self.tool_handler.get_registered_tools():
+                count = tool_metrics.get(f"{tool_name}_executions", 0)
+                if count > 0:
+                    tool_breakdown[tool_name] = count
+
+            # Fire conversation finished event with enhanced metrics
             if self.config.get(CONF_EMIT_EVENTS, True):
-                self.hass.bus.async_fire(
-                    EVENT_CONVERSATION_FINISHED,
-                    {
+                try:
+                    event_data = {
                         "conversation_id": conversation_id,
                         "user_id": user_id,
                         "duration_ms": duration_ms,
-                        "tool_calls": self.tool_handler.get_metrics().get("total_executions", 0),
-                    },
-                )
+                        "tokens": metrics["tokens"],
+                        "performance": metrics["performance"],
+                        "context": metrics.get("context", {}),
+                        "tool_calls": metrics["tool_calls"],
+                        "tool_breakdown": tool_breakdown,
+                    }
+                    self.hass.bus.async_fire(EVENT_CONVERSATION_FINISHED, event_data)
+                except Exception as event_err:
+                    _LOGGER.warning("Failed to fire conversation finished event: %s", event_err)
 
             return response
 
@@ -301,15 +332,21 @@ class HomeAgent:
 
             # Fire error event
             if self.config.get(CONF_EMIT_EVENTS, True):
-                self.hass.bus.async_fire(
-                    EVENT_ERROR,
-                    {
-                        "error_type": type(err).__name__,
-                        "error_message": str(err),
-                        "conversation_id": conversation_id,
-                        "component": "agent",
-                    },
-                )
+                try:
+                    self.hass.bus.async_fire(
+                        EVENT_ERROR,
+                        {
+                            "error_type": type(err).__name__,
+                            "error_message": str(err),
+                            "conversation_id": conversation_id,
+                            "component": "agent",
+                            "context": {
+                                "text_length": len(text),
+                            },
+                        },
+                    )
+                except Exception as event_err:
+                    _LOGGER.warning("Failed to fire error event: %s", event_err)
 
             raise
 
@@ -317,20 +354,30 @@ class HomeAgent:
         self,
         user_message: str,
         conversation_id: str,
+        metrics: dict[str, Any] | None = None,
     ) -> str:
         """Process a conversation with tool calling loop.
 
         Args:
             user_message: User's message
             conversation_id: Conversation ID for history
+            metrics: Optional metrics dictionary to populate
 
         Returns:
             Final response text
         """
-        # Get context from context manager
+        if metrics is None:
+            metrics = {}
+
+        # Get context from context manager with timing
+        context_start = time.time()
         context = await self.context_manager.get_formatted_context(
-            user_message, conversation_id
+            user_message, conversation_id, metrics
         )
+        context_latency_ms = int((time.time() - context_start) * 1000)
+
+        if "performance" in metrics:
+            metrics["performance"]["context_latency_ms"] = context_latency_ms
 
         # Build system prompt
         system_prompt = self._build_system_prompt()
@@ -360,12 +407,24 @@ class HomeAgent:
         # Tool calling loop
         max_iterations = self.config.get(CONF_TOOLS_MAX_CALLS_PER_TURN, 5)
         iteration = 0
+        total_llm_latency_ms = 0
+        total_tool_latency_ms = 0
 
         while iteration < max_iterations:
             iteration += 1
 
-            # Call LLM
+            # Call LLM with timing
+            llm_start = time.time()
             llm_response = await self._call_llm(messages, tools=tool_definitions)
+            llm_latency_ms = int((time.time() - llm_start) * 1000)
+            total_llm_latency_ms += llm_latency_ms
+
+            # Track token usage from LLM response
+            usage = llm_response.get("usage", {})
+            if usage and "tokens" in metrics:
+                metrics["tokens"]["prompt"] += usage.get("prompt_tokens", 0)
+                metrics["tokens"]["completion"] += usage.get("completion_tokens", 0)
+                metrics["tokens"]["total"] += usage.get("total_tokens", 0)
 
             # Extract response message
             response_message = llm_response.get("choices", [{}])[0].get("message", {})
@@ -376,6 +435,11 @@ class HomeAgent:
             if not tool_calls:
                 # No tool calls, we're done
                 final_content = response_message.get("content", "")
+
+                # Update final performance metrics
+                if "performance" in metrics:
+                    metrics["performance"]["llm_latency_ms"] = total_llm_latency_ms
+                    metrics["performance"]["tool_latency_ms"] = total_tool_latency_ms
 
                 # Save to conversation history
                 if self.config.get(CONF_HISTORY_ENABLED, True):
@@ -390,6 +454,7 @@ class HomeAgent:
 
             # Execute tool calls
             _LOGGER.debug("LLM requested %d tool calls", len(tool_calls))
+            metrics["tool_calls"] = metrics.get("tool_calls", 0) + len(tool_calls)
 
             # Add assistant message with tool calls to messages
             messages.append(response_message)
@@ -404,10 +469,13 @@ class HomeAgent:
                     # Parse tool arguments
                     tool_args = json.loads(tool_args_str)
 
-                    # Execute tool
+                    # Execute tool with timing
+                    tool_start = time.time()
                     result = await self.tool_handler.execute_tool(
                         tool_name, tool_args, conversation_id
                     )
+                    tool_latency_ms = int((time.time() - tool_start) * 1000)
+                    total_tool_latency_ms += tool_latency_ms
 
                     # Add tool result to messages
                     messages.append({
@@ -431,6 +499,11 @@ class HomeAgent:
                     })
 
             # Continue loop to get LLM's response with tool results
+
+        # Update final performance metrics
+        if "performance" in metrics:
+            metrics["performance"]["llm_latency_ms"] = total_llm_latency_ms
+            metrics["performance"]["tool_latency_ms"] = total_tool_latency_ms
 
         # Max iterations reached
         _LOGGER.warning("Max tool calling iterations reached")

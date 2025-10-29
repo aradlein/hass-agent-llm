@@ -14,7 +14,7 @@ Home Agent extends Home Assistant's native conversation platform to provide:
 
 ## Features
 
-### Phase 1 (Current - MVP) ✅
+### Phase 1 (MVP) ✅
 
 - ✅ OpenAI-compatible LLM API integration
 - ✅ Direct entity context injection
@@ -25,12 +25,14 @@ Home Agent extends Home Assistant's native conversation platform to provide:
 - ✅ Event system for monitoring
 - ✅ Comprehensive unit tests (376+ passing tests)
 
-### Phase 2 (Planned)
+### Phase 2 (Current) ✅
 
-- Vector DB (ChromaDB) integration for semantic context retrieval
-- Enhanced history management with persistence
-- Context optimization and compression
-- Advanced event system
+- ✅ **Vector DB (ChromaDB) Integration** - Semantic entity search using embeddings
+- ✅ **History Persistence** - Conversations saved across HA restarts
+- ✅ **Context Optimization** - Intelligent compression to stay within token limits
+- ✅ **Enhanced Events** - Detailed metrics including tokens, latency, and compression ratios
+- ✅ **Smart Truncation** - Preserves important information when context is large
+- ✅ **Entity Prioritization** - Ranks entities by relevance to user query
 
 ### Phase 3 (Planned)
 
@@ -207,6 +209,43 @@ context_entities:
   - entity_id: climate.*  # Wildcard support
 ```
 
+### Vector DB Mode (Phase 2) 🆕
+
+Use semantic search to dynamically find relevant entities based on user query:
+
+**Setup:**
+1. Install and run ChromaDB server
+2. Configure Vector DB settings in integration options
+3. Index entities: Call `home_agent.index_entities` service (coming soon)
+
+**Configuration:**
+```yaml
+context_mode: vector_db
+vector_db:
+  host: localhost
+  port: 8000
+  collection: home_entities
+  embedding_model: text-embedding-3-small
+  top_k: 5  # Number of entities to retrieve
+  similarity_threshold: 0.7
+```
+
+**How it works:**
+- User query is embedded using the configured model
+- ChromaDB finds semantically similar entities
+- Only relevant entities are included in context
+- More efficient token usage compared to direct mode
+
+### Context Optimization (Phase 2) 🆕
+
+Automatically compresses context when approaching token limits:
+
+- **Smart Truncation** - Preserves entity IDs and critical information
+- **Entity Prioritization** - Ranks by relevance to user query
+- **Whitespace Removal** - Removes redundant formatting
+- **Compression Levels** - Low, medium, high
+- **Metrics Tracking** - Monitor compression ratios via events
+
 ## Events
 
 Home Agent fires events for monitoring and automation:
@@ -223,12 +262,14 @@ Fired when a conversation begins.
 ### `home_agent.conversation.finished`
 Fired when a conversation completes.
 
-**Data:**
+**Data (Enhanced in Phase 2):**
 - `conversation_id`
 - `user_id`
 - `duration_ms`
 - `tool_calls`
-- `tokens_used`
+- `tokens` - Breakdown: `prompt`, `completion`, `total` 🆕
+- `performance` - Latency: `llm_latency_ms`, `tool_latency_ms`, `context_latency_ms` 🆕
+- `context` - Optimization metrics: `original_tokens`, `optimized_tokens`, `compression_ratio` 🆕
 
 ### `home_agent.tool.executed`
 Fired after each tool execution.
@@ -248,6 +289,24 @@ Fired when context is injected.
 - `mode`
 - `entities_included`
 - `token_count`
+
+### `home_agent.context.optimized` 🆕
+Fired when context is compressed (Phase 2).
+
+**Data:**
+- `original_tokens`
+- `optimized_tokens`
+- `compression_ratio`
+- `was_truncated`
+
+### `home_agent.history.saved` 🆕
+Fired when history is persisted (Phase 2).
+
+**Data:**
+- `conversation_count`
+- `message_count`
+- `size_bytes`
+- `timestamp`
 
 ### `home_agent.error`
 Fired on errors.

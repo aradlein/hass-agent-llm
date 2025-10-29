@@ -5,13 +5,15 @@ entity context to be injected into LLM prompts.
 
 Available Providers:
     - DirectContextProvider: Directly fetches configured entities
-    - (VectorDBContextProvider: Coming in Phase 2)
+    - VectorDBContextProvider: Semantic search using ChromaDB
 """
 
 from .base import ContextProvider
 from .direct import DirectContextProvider
+from .vector_db import VectorDBContextProvider
 
 __all__ = [
     "ContextProvider",
     "DirectContextProvider",
+    "VectorDBContextProvider",
 ]

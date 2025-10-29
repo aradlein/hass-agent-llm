@@ -38,6 +38,12 @@ CONF_HISTORY_MAX_MESSAGES: Final = "history_max_messages"
 CONF_HISTORY_MAX_TOKENS: Final = "history_max_tokens"
 CONF_HISTORY_PERSIST: Final = "history_persist"
 
+# Configuration keys - Context Optimization
+CONF_COMPRESSION_LEVEL: Final = "compression_level"
+CONF_PRESERVE_RECENT_MESSAGES: Final = "preserve_recent_messages"
+CONF_SUMMARIZATION_ENABLED: Final = "summarization_enabled"
+CONF_ENTITY_PRIORITY_WEIGHTS: Final = "entity_priority_weights"
+
 # Configuration keys - System Prompt
 CONF_PROMPT_USE_DEFAULT: Final = "prompt_use_default"
 CONF_PROMPT_CUSTOM: Final = "prompt_custom"
@@ -72,6 +78,12 @@ CONTEXT_FORMAT_JSON: Final = "json"
 CONTEXT_FORMAT_NATURAL_LANGUAGE: Final = "natural_language"
 CONTEXT_FORMAT_HYBRID: Final = "hybrid"
 
+# Context compression levels
+COMPRESSION_LEVEL_NONE: Final = "none"
+COMPRESSION_LEVEL_LOW: Final = "low"
+COMPRESSION_LEVEL_MEDIUM: Final = "medium"
+COMPRESSION_LEVEL_HIGH: Final = "high"
+
 # Default values - LLM Configuration
 DEFAULT_LLM_MODEL: Final = "gpt-4o-mini"
 DEFAULT_TEMPERATURE: Final = 0.7
@@ -95,6 +107,11 @@ DEFAULT_HISTORY_ENABLED: Final = True
 DEFAULT_HISTORY_MAX_MESSAGES: Final = 10
 DEFAULT_HISTORY_MAX_TOKENS: Final = 4000
 DEFAULT_HISTORY_PERSIST: Final = True
+
+# Default values - Context Optimization
+DEFAULT_COMPRESSION_LEVEL: Final = "medium"
+DEFAULT_PRESERVE_RECENT_MESSAGES: Final = 3
+DEFAULT_SUMMARIZATION_ENABLED: Final = False
 
 # Default values - System Prompt
 DEFAULT_PROMPT_USE_DEFAULT: Final = True
@@ -124,6 +141,9 @@ EVENT_CONVERSATION_STARTED: Final = f"{DOMAIN}.conversation.started"
 EVENT_CONVERSATION_FINISHED: Final = f"{DOMAIN}.conversation.finished"
 EVENT_TOOL_EXECUTED: Final = f"{DOMAIN}.tool.executed"
 EVENT_CONTEXT_INJECTED: Final = f"{DOMAIN}.context.injected"
+EVENT_CONTEXT_OPTIMIZED: Final = f"{DOMAIN}.context.optimized"
+EVENT_HISTORY_SAVED: Final = f"{DOMAIN}.history.saved"
+EVENT_VECTOR_DB_QUERIED: Final = f"{DOMAIN}.vector_db.queried"
 EVENT_ERROR: Final = f"{DOMAIN}.error"
 
 # Tool names

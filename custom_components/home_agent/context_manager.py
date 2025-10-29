@@ -24,6 +24,7 @@ from .const import (
     DEFAULT_CONTEXT_FORMAT,
     DEFAULT_CONTEXT_MODE,
     EVENT_CONTEXT_INJECTED,
+    EVENT_CONTEXT_OPTIMIZED,
     MAX_CONTEXT_TOKENS,
     TOKEN_WARNING_THRESHOLD,
 )
@@ -205,6 +206,7 @@ class ContextManager:
         self,
         user_input: str,
         conversation_id: str | None = None,
+        metrics: dict[str, Any] | None = None,
     ) -> str:
         """Get context formatted and optimized for LLM injection.
 
@@ -214,6 +216,7 @@ class ContextManager:
         Args:
             user_input: The user's query or message
             conversation_id: Optional conversation ID for event tracking
+            metrics: Optional metrics dictionary to populate
 
         Returns:
             Formatted and optimized context string ready for LLM
@@ -225,11 +228,23 @@ class ContextManager:
         # Get raw context
         context = await self.get_context(user_input, conversation_id)
 
+        # Store original context size for metrics
+        original_tokens = len(context) // 4
+
         # Optimize context size
         optimized_context = self._optimize_context_size(context)
 
         # Estimate token count (rough approximation: ~4 chars per token)
         estimated_tokens = len(optimized_context) // 4
+
+        # Populate metrics if provided
+        if metrics is not None and "context" not in metrics:
+            metrics["context"] = {
+                "mode": self.config.get("mode", DEFAULT_CONTEXT_MODE),
+                "original_tokens": original_tokens,
+                "optimized_tokens": estimated_tokens,
+                "compression_ratio": round(estimated_tokens / original_tokens if original_tokens > 0 else 1.0, 3),
+            }
 
         # Check if we're approaching token limits
         if estimated_tokens > self._max_context_tokens:
@@ -283,11 +298,15 @@ class ContextManager:
         Returns:
             Optimized context string
         """
+        original_length = len(context)
+        original_tokens = original_length // 4  # Rough estimate
+
         # Remove excessive whitespace and normalize
         optimized = " ".join(context.split())
 
         # Check if truncation is needed
         max_chars = self._max_context_tokens * 4  # Rough char-to-token ratio
+        was_truncated = False
         if len(optimized) > max_chars:
             _LOGGER.warning(
                 "Context truncated from %d to %d characters",
@@ -295,6 +314,34 @@ class ContextManager:
                 max_chars
             )
             optimized = optimized[:max_chars] + "... [truncated]"
+            was_truncated = True
+
+        optimized_tokens = len(optimized) // 4
+        compression_ratio = len(optimized) / original_length if original_length > 0 else 1.0
+
+        # Fire optimization event if context was changed
+        if was_truncated or len(optimized) < original_length:
+            if self._emit_events:
+                try:
+                    self.hass.bus.async_fire(
+                        EVENT_CONTEXT_OPTIMIZED,
+                        {
+                            "original_tokens": original_tokens,
+                            "optimized_tokens": optimized_tokens,
+                            "compression_ratio": round(compression_ratio, 3),
+                            "was_truncated": was_truncated,
+                            "original_size_bytes": original_length,
+                            "optimized_size_bytes": len(optimized),
+                        },
+                    )
+                    _LOGGER.debug(
+                        "Context optimized: %d -> %d tokens (ratio: %.2f)",
+                        original_tokens,
+                        optimized_tokens,
+                        compression_ratio,
+                    )
+                except Exception as err:
+                    _LOGGER.warning("Failed to fire context optimized event: %s", err)
 
         return optimized
 
