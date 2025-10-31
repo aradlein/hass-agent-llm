@@ -70,12 +70,12 @@ class ContextOptimizer:
 
         if self.compression_level in ["medium", "high"]:
             # Remove extra whitespace
-            compressed = re.sub(r'\s+', ' ', compressed)
-            compressed = re.sub(r'\n\s*\n', '\n', compressed)
+            compressed = re.sub(r"\s+", " ", compressed)
+            compressed = re.sub(r"\n\s*\n", "\n", compressed)
 
         if self.compression_level == "high":
             # More aggressive: remove attribute descriptions
-            compressed = re.sub(r'\s*\([^)]+\)', '', compressed)
+            compressed = re.sub(r"\s*\([^)]+\)", "", compressed)
 
         # If still too large, truncate
         compressed_tokens = estimate_tokens(compressed)
@@ -90,7 +90,9 @@ class ContextOptimizer:
         return compressed, {
             "original_tokens": original_tokens,
             "compressed_tokens": final_tokens,
-            "compression_ratio": final_tokens / original_tokens if original_tokens > 0 else 1.0,
+            "compression_ratio": final_tokens / original_tokens
+            if original_tokens > 0
+            else 1.0,
             "was_compressed": True,
         }
 
@@ -129,8 +131,8 @@ class ContextOptimizer:
         )
 
         # Keep recent messages, compress or remove old ones
-        preserved = messages[-self.preserve_recent_messages:]
-        older = messages[:-self.preserve_recent_messages]
+        preserved = messages[-self.preserve_recent_messages :]
+        older = messages[: -self.preserve_recent_messages]
 
         # Start with recent messages
         result = preserved.copy()
@@ -150,7 +152,9 @@ class ContextOptimizer:
         return result, {
             "original_tokens": original_tokens,
             "compressed_tokens": final_tokens,
-            "compression_ratio": final_tokens / original_tokens if original_tokens > 0 else 1.0,
+            "compression_ratio": final_tokens / original_tokens
+            if original_tokens > 0
+            else 1.0,
             "was_compressed": True,
             "messages_removed": len(messages) - len(result),
         }

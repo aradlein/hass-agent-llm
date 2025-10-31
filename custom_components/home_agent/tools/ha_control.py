@@ -15,7 +15,7 @@ from homeassistant.const import (
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
 )
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 
@@ -30,7 +30,7 @@ from ..exceptions import PermissionDenied, ToolExecutionError, ValidationError
 from .registry import BaseTool
 
 if TYPE_CHECKING:
-    from homeassistant.helpers.entity import Entity
+    pass
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -116,7 +116,12 @@ class HomeAssistantControlTool(BaseTool):
                         "'toggle' to switch between states, or 'set_value' to set "
                         "specific attributes like brightness or temperature."
                     ),
-                    "enum": [ACTION_TURN_ON, ACTION_TURN_OFF, ACTION_TOGGLE, ACTION_SET_VALUE],
+                    "enum": [
+                        ACTION_TURN_ON,
+                        ACTION_TURN_OFF,
+                        ACTION_TOGGLE,
+                        ACTION_SET_VALUE,
+                    ],
                 },
                 "entity_id": {
                     "type": "string",
@@ -172,7 +177,12 @@ class HomeAssistantControlTool(BaseTool):
             raise ValidationError("Parameter 'entity_id' is required")
 
         # Validate action
-        valid_actions = [ACTION_TURN_ON, ACTION_TURN_OFF, ACTION_TOGGLE, ACTION_SET_VALUE]
+        valid_actions = [
+            ACTION_TURN_ON,
+            ACTION_TURN_OFF,
+            ACTION_TOGGLE,
+            ACTION_SET_VALUE,
+        ]
         if action not in valid_actions:
             raise ValidationError(
                 f"Invalid action '{action}'. Must be one of: {', '.join(valid_actions)}"

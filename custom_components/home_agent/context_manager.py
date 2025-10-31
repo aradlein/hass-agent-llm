@@ -8,17 +8,13 @@ and caching.
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 import time
-from typing import Any, Literal
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 
 from .const import (
-    CONTEXT_FORMAT_JSON,
-    CONTEXT_FORMAT_NATURAL_LANGUAGE,
     CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
     DEFAULT_CONTEXT_FORMAT,
@@ -105,11 +101,12 @@ class ContextManager:
                 self._provider = self._create_direct_provider()
 
             _LOGGER.info(
-                "Initialized context provider: %s",
-                self._provider.__class__.__name__
+                "Initialized context provider: %s", self._provider.__class__.__name__
             )
         except Exception as error:
-            _LOGGER.error("Failed to initialize context provider: %s", error, exc_info=True)
+            _LOGGER.error(
+                "Failed to initialize context provider: %s", error, exc_info=True
+            )
             raise ContextInjectionError(
                 f"Failed to initialize context provider: {error}"
             ) from error
@@ -140,10 +137,7 @@ class ContextManager:
             >>> context_manager.set_provider(custom_provider)
         """
         self._provider = provider
-        _LOGGER.info(
-            "Context provider set to: %s",
-            provider.__class__.__name__
-        )
+        _LOGGER.info("Context provider set to: %s", provider.__class__.__name__)
         # Clear cache when provider changes
         self._clear_cache()
 
@@ -185,19 +179,12 @@ class ContextManager:
             if self._cache_enabled:
                 self._cache_context(user_input, context)
 
-            _LOGGER.debug(
-                "Retrieved context: %d characters",
-                len(context)
-            )
+            _LOGGER.debug("Retrieved context: %d characters", len(context))
 
             return context
 
         except Exception as error:
-            _LOGGER.error(
-                "Failed to get context: %s",
-                error,
-                exc_info=True
-            )
+            _LOGGER.error("Failed to get context: %s", error, exc_info=True)
             raise ContextInjectionError(
                 f"Failed to retrieve context: {error}"
             ) from error
@@ -243,7 +230,10 @@ class ContextManager:
                 "mode": self.config.get("mode", DEFAULT_CONTEXT_MODE),
                 "original_tokens": original_tokens,
                 "optimized_tokens": estimated_tokens,
-                "compression_ratio": round(estimated_tokens / original_tokens if original_tokens > 0 else 1.0, 3),
+                "compression_ratio": round(
+                    estimated_tokens / original_tokens if original_tokens > 0 else 1.0,
+                    3,
+                ),
             }
 
         # Check if we're approaching token limits
@@ -251,7 +241,7 @@ class ContextManager:
             _LOGGER.error(
                 "Context size %d tokens exceeds maximum %d tokens",
                 estimated_tokens,
-                self._max_context_tokens
+                self._max_context_tokens,
             )
             raise TokenLimitExceeded(
                 f"Context size {estimated_tokens} tokens exceeds limit "
@@ -266,7 +256,7 @@ class ContextManager:
                 "Context size %d tokens is approaching limit of %d tokens (%d%%)",
                 estimated_tokens,
                 self._max_context_tokens,
-                int((estimated_tokens / self._max_context_tokens) * 100)
+                int((estimated_tokens / self._max_context_tokens) * 100),
             )
 
         # Fire event if enabled
@@ -280,7 +270,7 @@ class ContextManager:
         _LOGGER.debug(
             "Formatted context ready: %d characters (~%d tokens)",
             len(optimized_context),
-            estimated_tokens
+            estimated_tokens,
         )
 
         return optimized_context
@@ -309,15 +299,15 @@ class ContextManager:
         was_truncated = False
         if len(optimized) > max_chars:
             _LOGGER.warning(
-                "Context truncated from %d to %d characters",
-                len(optimized),
-                max_chars
+                "Context truncated from %d to %d characters", len(optimized), max_chars
             )
             optimized = optimized[:max_chars] + "... [truncated]"
             was_truncated = True
 
         optimized_tokens = len(optimized) // 4
-        compression_ratio = len(optimized) / original_length if original_length > 0 else 1.0
+        compression_ratio = (
+            len(optimized) / original_length if original_length > 0 else 1.0
+        )
 
         # Fire optimization event if context was changed
         if was_truncated or len(optimized) < original_length:
@@ -404,6 +394,7 @@ class ContextManager:
         else:
             # Vector DB mode is input-specific
             import hashlib
+
             return hashlib.md5(user_input.encode()).hexdigest()
 
     def _clear_cache(self) -> None:
@@ -456,7 +447,7 @@ class ContextManager:
             "Fired context.injected event: mode=%s, entities=%d, tokens=%d",
             mode,
             len(entities_included),
-            token_count
+            token_count,
         )
 
     async def update_config(self, config: dict[str, Any]) -> None:
@@ -490,8 +481,7 @@ class ContextManager:
         self._cache_ttl = config.get("cache_ttl", self._cache_ttl)
         self._emit_events = config.get("emit_events", self._emit_events)
         self._max_context_tokens = config.get(
-            "max_context_tokens",
-            self._max_context_tokens
+            "max_context_tokens", self._max_context_tokens
         )
 
         # Reinitialize provider if mode changed
@@ -499,7 +489,7 @@ class ContextManager:
             _LOGGER.info(
                 "Context mode changed from %s to %s, reinitializing provider",
                 old_mode,
-                new_mode
+                new_mode,
             )
             self._initialize_provider()
 
@@ -542,9 +532,11 @@ class ContextManager:
 
         # Add provider-specific info
         if isinstance(self._provider, DirectContextProvider):
-            info.update({
-                "format": self._provider.format_type,
-                "entity_count": len(self._provider.entities_config),
-            })
+            info.update(
+                {
+                    "format": self._provider.format_type,
+                    "entity_count": len(self._provider.entities_config),
+                }
+            )
 
         return info

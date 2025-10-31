@@ -101,6 +101,26 @@ class BaseTool(ABC):
             ValidationError: If parameters are invalid
         """
 
+    def get_definition(self) -> dict[str, Any]:
+        """Get the tool definition in a format suitable for the LLM.
+
+        This returns a simplified format with name, description, and parameters
+        that the ToolHandler expects.
+
+        Returns:
+            Dict containing tool definition:
+            {
+                "name": "tool_name",
+                "description": "Tool description",
+                "parameters": {...}
+            }
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
+        }
+
     def to_openai_format(self) -> dict[str, Any]:
         """Convert tool definition to OpenAI function format.
 
@@ -120,11 +140,7 @@ class BaseTool(ABC):
         """
         return {
             "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.parameters,
-            },
+            "function": self.get_definition(),
         }
 
 
@@ -326,9 +342,7 @@ class ToolRegistry:
         required_params = schema.get("required", [])
 
         # Check for missing required parameters
-        missing_params = [
-            param for param in required_params if param not in parameters
-        ]
+        missing_params = [param for param in required_params if param not in parameters]
 
         if missing_params:
             raise ValidationError(

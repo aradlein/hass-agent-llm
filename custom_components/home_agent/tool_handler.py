@@ -23,7 +23,7 @@ from .const import (
     EVENT_TOOL_EXECUTED,
 )
 from .exceptions import ToolExecutionError, ValidationError
-from .helpers import redact_sensitive_data, truncate_text
+from .helpers import truncate_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,9 +101,7 @@ class ToolHandler:
             raise ValidationError("Tool must have a 'name' attribute")
 
         if not hasattr(tool, "execute"):
-            raise ValidationError(
-                f"Tool '{tool.name}' must have an 'execute' method"
-            )
+            raise ValidationError(f"Tool '{tool.name}' must have an 'execute' method")
 
         if not hasattr(tool, "get_definition"):
             raise ValidationError(
@@ -146,7 +144,7 @@ class ToolHandler:
 
         for tool_name, tool in self.tools.items():
             try:
-                definition = tool.get_definition()
+                definition = tool.to_openai_format()
                 definitions.append(definition)
                 _LOGGER.debug("Added definition for tool: %s", tool_name)
             except Exception as error:
@@ -160,9 +158,7 @@ class ToolHandler:
         _LOGGER.debug("Returning %d tool definitions", len(definitions))
         return definitions
 
-    def validate_tool_call(
-        self, tool_name: str, parameters: dict[str, Any]
-    ) -> None:
+    def validate_tool_call(self, tool_name: str, parameters: dict[str, Any]) -> None:
         """Validate a tool call before execution.
 
         Checks that the tool exists, has required parameters, and that
@@ -269,7 +265,7 @@ class ToolHandler:
 
             try:
                 result = await asyncio.wait_for(
-                    tool.execute(parameters), timeout=self.timeout
+                    tool.execute(**parameters), timeout=self.timeout
                 )
                 success = True
                 self._success_count += 1

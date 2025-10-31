@@ -69,7 +69,7 @@ class DirectContextProvider(ContextProvider):
         """
         self._logger.debug(
             "Getting direct context for %d entity configurations",
-            len(self.entities_config)
+            len(self.entities_config),
         )
 
         # Gather all entity states
@@ -104,17 +104,13 @@ class DirectContextProvider(ContextProvider):
 
             for matched_entity_id in matching_entities:
                 state_data = self._get_entity_state(
-                    matched_entity_id,
-                    attributes_filter
+                    matched_entity_id, attributes_filter
                 )
 
                 if state_data:
                     entity_states.append(state_data)
 
-        self._logger.debug(
-            "Gathered state for %d entities",
-            len(entity_states)
-        )
+        self._logger.debug("Gathered state for %d entities", len(entity_states))
 
         return entity_states
 
@@ -127,17 +123,11 @@ class DirectContextProvider(ContextProvider):
         Returns:
             JSON formatted string
         """
-        result = {
-            "entities": entity_states,
-            "count": len(entity_states)
-        }
+        result = {"entities": entity_states, "count": len(entity_states)}
 
         return json.dumps(result, indent=2, default=str)
 
-    def _format_as_natural_language(
-        self,
-        entity_states: list[dict[str, Any]]
-    ) -> str:
+    def _format_as_natural_language(self, entity_states: list[dict[str, Any]]) -> str:
         """Format entity states as natural language description.
 
         Args:
@@ -159,16 +149,12 @@ class DirectContextProvider(ContextProvider):
             # Extract domain and friendly name
             domain = entity_id.split(".")[0]
             friendly_name = attributes.get(
-                "friendly_name",
-                entity_id.split(".")[1].replace("_", " ").title()
+                "friendly_name", entity_id.split(".")[1].replace("_", " ").title()
             )
 
             # Format based on domain for better readability
             line = self._format_entity_natural_language(
-                domain,
-                friendly_name,
-                state,
-                attributes
+                domain, friendly_name, state, attributes
             )
 
             lines.append(f"- {line}")
@@ -176,11 +162,7 @@ class DirectContextProvider(ContextProvider):
         return "\n".join(lines)
 
     def _format_entity_natural_language(
-        self,
-        domain: str,
-        friendly_name: str,
-        state: str,
-        attributes: dict[str, Any]
+        self, domain: str, friendly_name: str, state: str, attributes: dict[str, Any]
     ) -> str:
         """Format a single entity in natural language.
 
@@ -210,12 +192,7 @@ class DirectContextProvider(ContextProvider):
             # Generic formatting for unknown domains
             return f"{friendly_name} is {state}"
 
-    def _format_light(
-        self,
-        name: str,
-        state: str,
-        attributes: dict[str, Any]
-    ) -> str:
+    def _format_light(self, name: str, state: str, attributes: dict[str, Any]) -> str:
         """Format light entity in natural language."""
         if state == "off":
             return f"{name} is off"
@@ -232,12 +209,7 @@ class DirectContextProvider(ContextProvider):
 
         return " ".join(parts)
 
-    def _format_sensor(
-        self,
-        name: str,
-        state: str,
-        attributes: dict[str, Any]
-    ) -> str:
+    def _format_sensor(self, name: str, state: str, attributes: dict[str, Any]) -> str:
         """Format sensor entity in natural language."""
         unit = attributes.get("unit_of_measurement", "")
         device_class = attributes.get("device_class", "")
@@ -250,10 +222,7 @@ class DirectContextProvider(ContextProvider):
             return f"{name} is {state}"
 
     def _format_binary_sensor(
-        self,
-        name: str,
-        state: str,
-        attributes: dict[str, Any]
+        self, name: str, state: str, attributes: dict[str, Any]
     ) -> str:
         """Format binary sensor entity in natural language."""
         device_class = attributes.get("device_class", "")
@@ -270,12 +239,7 @@ class DirectContextProvider(ContextProvider):
         else:
             return f"{name} is {state}"
 
-    def _format_climate(
-        self,
-        name: str,
-        state: str,
-        attributes: dict[str, Any]
-    ) -> str:
+    def _format_climate(self, name: str, state: str, attributes: dict[str, Any]) -> str:
         """Format climate entity in natural language."""
         parts = [f"{name} is {state}"]
 
@@ -291,20 +255,10 @@ class DirectContextProvider(ContextProvider):
 
         return " ".join(parts)
 
-    def _format_switch(
-        self,
-        name: str,
-        state: str,
-        attributes: dict[str, Any]
-    ) -> str:
+    def _format_switch(self, name: str, state: str, attributes: dict[str, Any]) -> str:
         """Format switch entity in natural language."""
         return f"{name} is {state}"
 
-    def _format_lock(
-        self,
-        name: str,
-        state: str,
-        attributes: dict[str, Any]
-    ) -> str:
+    def _format_lock(self, name: str, state: str, attributes: dict[str, Any]) -> str:
         """Format lock entity in natural language."""
         return f"{name} is {state}"

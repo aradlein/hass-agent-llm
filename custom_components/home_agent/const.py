@@ -1,4 +1,5 @@
 """Constants for the Home Agent integration."""
+
 from typing import Final
 
 # Domain and component info

@@ -132,6 +132,7 @@ class ContextProvider(ABC):
 
         # Handle wildcards
         import fnmatch
+
         all_entity_ids = self.hass.states.async_entity_ids()
         matching = [
             entity_id
@@ -139,10 +140,6 @@ class ContextProvider(ABC):
             if fnmatch.fnmatch(entity_id, pattern)
         ]
 
-        self._logger.debug(
-            "Pattern '%s' matched %d entities",
-            pattern,
-            len(matching)
-        )
+        self._logger.debug("Pattern '%s' matched %d entities", pattern, len(matching))
 
         return matching

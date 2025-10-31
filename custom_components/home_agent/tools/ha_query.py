@@ -19,6 +19,7 @@ from homeassistant.util import dt as dt_util
 try:
     from homeassistant.components import recorder
     from homeassistant.components.recorder import history
+
     RECORDER_AVAILABLE = True
 except ImportError:
     RECORDER_AVAILABLE = False
@@ -250,7 +251,9 @@ class HomeAssistantQueryTool(BaseTool):
                 "entity_id": entity_id_pattern,
                 "entities": entity_data,
                 "count": len(entity_data),
-                "message": self._build_success_message(entity_id_pattern, len(entity_data)),
+                "message": self._build_success_message(
+                    entity_id_pattern, len(entity_data)
+                ),
             }
 
             _LOGGER.info(
@@ -422,9 +425,7 @@ class HomeAssistantQueryTool(BaseTool):
         # Validate max duration (30 days)
         max_duration = timedelta(days=30)
         if duration > max_duration:
-            raise ValidationError(
-                f"Duration {duration_str} exceeds maximum of 30 days"
-            )
+            raise ValidationError(f"Duration {duration_str} exceeds maximum of 30 days")
 
         # Get aggregation type
         aggregate = history_params.get("aggregate", HISTORY_AGGREGATE_AVG)
@@ -452,14 +453,16 @@ class HomeAssistantQueryTool(BaseTool):
                         aggregate,
                     )
 
-                    entity_history_data.append({
-                        "entity_id": entity_id,
-                        "aggregate": aggregate,
-                        "value": aggregated_value,
-                        "data_points": len(entity_history),
-                        "start_time": start_time.isoformat(),
-                        "end_time": end_time.isoformat(),
-                    })
+                    entity_history_data.append(
+                        {
+                            "entity_id": entity_id,
+                            "aggregate": aggregate,
+                            "value": aggregated_value,
+                            "data_points": len(entity_history),
+                            "start_time": start_time.isoformat(),
+                            "end_time": end_time.isoformat(),
+                        }
+                    )
 
             except Exception as error:
                 _LOGGER.warning(

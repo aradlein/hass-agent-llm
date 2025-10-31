@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 
@@ -34,6 +34,7 @@ from .base import ContextProvider
 try:
     import chromadb
     from chromadb.config import Settings
+
     CHROMADB_AVAILABLE = True
 except ImportError:
     CHROMADB_AVAILABLE = False
@@ -41,6 +42,7 @@ except ImportError:
 # Conditional imports for OpenAI embeddings
 try:
     import openai
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -79,7 +81,9 @@ class VectorDBContextProvider(ContextProvider):
 
         _LOGGER.info(
             "Vector DB provider initialized (host=%s:%s, collection=%s)",
-            self.host, self.port, self.collection_name,
+            self.host,
+            self.port,
+            self.collection_name,
         )
 
     async def get_context(self, user_input: str) -> str:
@@ -90,8 +94,7 @@ class VectorDBContextProvider(ContextProvider):
             results = await self._query_vector_db(query_embedding, self.top_k)
 
             filtered_results = [
-                r for r in results
-                if r.get("distance", 0) >= self.similarity_threshold
+                r for r in results if r.get("distance", 0) >= self.similarity_threshold
             ]
 
             if not filtered_results:
@@ -99,7 +102,7 @@ class VectorDBContextProvider(ContextProvider):
 
             entity_ids = [r["entity_id"] for r in filtered_results]
             entities = []
-            
+
             for entity_id in entity_ids:
                 try:
                     entity_state = await self._get_entity_state(entity_id)
@@ -157,7 +160,8 @@ class VectorDBContextProvider(ContextProvider):
 
                 response = await self.hass.async_add_executor_job(
                     lambda: openai.Embedding.create(
-                        model=self.embedding_model, input=text,
+                        model=self.embedding_model,
+                        input=text,
                     )
                 )
                 embedding = response["data"][0]["embedding"]
@@ -182,7 +186,8 @@ class VectorDBContextProvider(ContextProvider):
         try:
             results = await self.hass.async_add_executor_job(
                 lambda: self._collection.query(
-                    query_embeddings=[embedding], n_results=top_k,
+                    query_embeddings=[embedding],
+                    n_results=top_k,
                 )
             )
 
@@ -190,12 +195,14 @@ class VectorDBContextProvider(ContextProvider):
             if results and "ids" in results and results["ids"]:
                 ids = results["ids"][0]
                 distances = results.get("distances", [[]])[0]
-                
+
                 for i, entity_id in enumerate(ids):
-                    parsed_results.append({
-                        "entity_id": entity_id,
-                        "distance": distances[i] if i < len(distances) else 0,
-                    })
+                    parsed_results.append(
+                        {
+                            "entity_id": entity_id,
+                            "distance": distances[i] if i < len(distances) else 0,
+                        }
+                    )
 
             return parsed_results
 

@@ -11,7 +11,6 @@ from typing import Any
 
 from homeassistant.const import ATTR_FRIENDLY_NAME, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import State
-from homeassistant.helpers import entity_registry as er
 
 from .exceptions import ValidationError
 
@@ -58,16 +57,13 @@ def format_entity_state(
     """
     if format_type not in ("json", "natural_language"):
         raise ValidationError(
-            f"Invalid format_type: {format_type}. "
-            f"Must be 'json' or 'natural_language'"
+            f"Invalid format_type: {format_type}. Must be 'json' or 'natural_language'"
         )
 
     # Get attributes to include
     if attributes is None:
         # Include all non-internal attributes
-        attrs = {
-            k: v for k, v in state.attributes.items() if not k.startswith("_")
-        }
+        attrs = {k: v for k, v in state.attributes.items() if not k.startswith("_")}
     else:
         # Include only specified attributes, plus friendly_name if available
         attrs = {}
@@ -355,11 +351,7 @@ def merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     result = base.copy()
 
     for key, value in override.items():
-        if (
-            key in result
-            and isinstance(result[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = merge_dicts(result[key], value)
         else:
             result[key] = value

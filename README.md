@@ -73,27 +73,48 @@ Home Agent extends Home Assistant's native conversation platform to provide:
 
 Access via: Settings > Devices & Services > Home Agent > Configure
 
-- **Context Settings**:
-  - Mode: Direct (Phase 1) or Vector DB (Phase 2)
-  - Format: JSON or natural language
-  - Entities to include in context
+Home Agent provides a menu-based options flow with the following categories:
 
-- **History Settings**:
-  - Enable/disable conversation history
-  - Max messages to keep (default: 10)
-  - Max tokens for history (default: 4000)
+#### LLM Settings
+Edit the primary LLM connection and parameters:
+- **LLM Base URL**: OpenAI-compatible API endpoint
+- **API Key**: Authentication key for the LLM service
+- **Model**: Model name to use
+- **Temperature**: Creativity level, 0.0-2.0 (default: 0.7)
+- **Max Tokens**: Maximum response length (default: 500)
 
-- **System Prompt**:
-  - Use default prompt
-  - Add custom instructions
+#### Context Settings
+Configure how entity context is provided to the LLM:
+- **Context Mode**: Direct (Phase 1) or Vector DB (Phase 2)
+- **Context Format**: JSON, Natural Language, or Hybrid
+- **Entities to Include**: Comma-separated list of entity IDs or patterns
 
-- **Tool Settings**:
-  - Max tool calls per turn (default: 5)
-  - Tool timeout in seconds (default: 30)
+#### Conversation History
+Manage conversation history:
+- **Enable History**: Track conversation context across turns
+- **Max Messages**: Maximum conversation turns to retain (default: 10)
+- **Max Tokens**: Token-based limit for history (default: 4000)
 
-- **Debugging**:
-  - Enable debug logging
-  - Enable/disable event firing
+#### System Prompt
+Customize the agent's behavior:
+- **Use Default Prompt**: Use Home Agent's built-in system prompt
+- **Custom Additions**: Additional instructions to append
+
+#### Tool Configuration
+Control tool execution limits:
+- **Max Tool Calls Per Turn**: Maximum executions per message (default: 5)
+- **Tool Timeout**: Timeout in seconds for each tool call (default: 30)
+
+#### External LLM (Phase 3)
+Configure an optional external LLM for complex queries:
+- **Enable External LLM**: Expose query_external_llm tool
+- **Base URL, API Key, Model**: External LLM connection details
+- **Tool Description**: When to use the external LLM
+- **Auto-include Context**: Pass conversation history automatically
+
+#### Debug Settings
+Enable detailed logging:
+- **Debug Logging**: Enable verbose logging for troubleshooting
 
 ## Usage
 
@@ -351,6 +372,23 @@ automation:
 ```
 
 ## Development
+
+### Code Quality
+
+Home Agent follows Home Assistant's code quality standards using `ruff` for linting and formatting.
+
+```bash
+# Quick format (auto-fix + format)
+./scripts/format.sh
+
+# Full linting (includes pylint)
+./scripts/lint.sh
+
+# Or run tools individually:
+python3 -m ruff check --fix custom_components/home_agent/
+python3 -m ruff format custom_components/home_agent/
+python3 -m pylint custom_components/home_agent/
+```
 
 ### Running Tests
 
