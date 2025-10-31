@@ -617,6 +617,12 @@ class HomeAgent(AbstractConversationAgent):
             # Check if LLM wants to call tools
             tool_calls = response_message.get("tool_calls", [])
 
+            # Always log tool call detection for debugging
+            if tool_calls:
+                _LOGGER.info("Detected %d tool call(s) from LLM", len(tool_calls))
+            else:
+                _LOGGER.info("No tool calls in LLM response")
+
             if not tool_calls:
                 # No tool calls, we're done
                 final_content = response_message.get("content") or ""
@@ -648,7 +654,7 @@ class HomeAgent(AbstractConversationAgent):
                 return final_content
 
             # Execute tool calls
-            _LOGGER.debug("LLM requested %d tool calls", len(tool_calls))
+            _LOGGER.info("Executing %d tool call(s)", len(tool_calls))
             metrics["tool_calls"] = metrics.get("tool_calls", 0) + len(tool_calls)
 
             # Add assistant message with tool calls to messages
@@ -664,25 +670,34 @@ class HomeAgent(AbstractConversationAgent):
                     # Parse tool arguments - handle both string (OpenAI) and dict (Ollama) formats
                     if isinstance(tool_args_raw, str):
                         tool_args = json.loads(tool_args_raw)
-                        _LOGGER.debug(
-                            "Parsed tool arguments from string for %s", tool_name
+                        _LOGGER.info(
+                            "Tool '%s': parsed arguments from JSON string", tool_name
                         )
                     elif isinstance(tool_args_raw, dict):
                         tool_args = tool_args_raw
-                        _LOGGER.debug(
-                            "Using tool arguments as dict (Ollama format) for %s",
-                            tool_name,
+                        _LOGGER.info(
+                            "Tool '%s': using dict arguments (Ollama format)", tool_name
                         )
                     else:
                         _LOGGER.error(
-                            "Invalid tool arguments type: %s", type(tool_args_raw)
+                            "Invalid tool arguments type for '%s': %s",
+                            tool_name,
+                            type(tool_args_raw),
                         )
                         tool_args = {}
 
                     # Execute tool with timing
+                    _LOGGER.info(
+                        "Calling tool '%s' with args: %s", tool_name, tool_args
+                    )
                     tool_start = time.time()
                     result = await self.tool_handler.execute_tool(
                         tool_name, tool_args, conversation_id
+                    )
+                    _LOGGER.info(
+                        "Tool '%s' completed successfully in %.2fms",
+                        tool_name,
+                        (time.time() - tool_start) * 1000,
                     )
                     tool_latency_ms = int((time.time() - tool_start) * 1000)
                     total_tool_latency_ms += tool_latency_ms
