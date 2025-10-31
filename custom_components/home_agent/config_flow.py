@@ -17,6 +17,7 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_CONTEXT_FORMAT,
@@ -347,6 +348,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options=[
+                "llm_settings",
                 "context_settings",
                 "history_settings",
                 "prompt_settings",
@@ -354,6 +356,85 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 "external_llm_settings",
                 "debug_settings",
             ],
+        )
+
+    async def async_step_llm_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Configure LLM settings.
+
+        Args:
+            user_input: User-provided configuration
+
+        Returns:
+            FlowResult indicating completion or next step
+        """
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            # Validate LLM configuration
+            try:
+                # Merge user input with entry data (not options)
+                # LLM settings should update the entry.data
+                test_config = dict(self._config_entry.data) | user_input
+
+                # Create a temporary config flow instance to validate
+                temp_flow = HomeAgentConfigFlow()
+                temp_flow.hass = self.hass
+                await temp_flow._validate_llm_config(test_config)
+
+                # Update the config entry data with new LLM settings
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data={**self._config_entry.data, **user_input}
+                )
+
+                return self.async_create_entry(title="", data={})
+
+            except ValidationError as err:
+                _LOGGER.error("LLM validation error: %s", err)
+                errors["base"] = "invalid_config"
+            except AuthenticationError as err:
+                _LOGGER.error("LLM authentication error: %s", err)
+                errors["base"] = "invalid_auth"
+            except Exception as err:  # pylint: disable=broad-except
+                _LOGGER.exception("Unexpected error updating LLM settings: %s", err)
+                errors["base"] = "unknown"
+
+        # Get current values from entry.data (not options)
+        current_data = self._config_entry.data
+
+        return self.async_show_form(
+            step_id="llm_settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_LLM_BASE_URL,
+                        default=current_data.get(CONF_LLM_BASE_URL, OPENAI_BASE_URL),
+                    ): str,
+                    vol.Required(
+                        CONF_LLM_API_KEY,
+                        default=current_data.get(CONF_LLM_API_KEY, ""),
+                    ): str,
+                    vol.Required(
+                        CONF_LLM_MODEL,
+                        default=current_data.get(CONF_LLM_MODEL, DEFAULT_LLM_MODEL),
+                    ): str,
+                    vol.Optional(
+                        CONF_LLM_TEMPERATURE,
+                        default=current_data.get(CONF_LLM_TEMPERATURE, DEFAULT_TEMPERATURE),
+                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
+                    vol.Optional(
+                        CONF_LLM_MAX_TOKENS,
+                        default=current_data.get(CONF_LLM_MAX_TOKENS, DEFAULT_MAX_TOKENS),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100000)),
+                }
+            ),
+            errors=errors,
+            description_placeholders={
+                "openai_url": OPENAI_BASE_URL,
+                "ollama_url": "http://localhost:11434/v1",
+            },
         )
 
     async def async_step_context_settings(
@@ -481,8 +562,10 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     ): bool,
                     vol.Optional(
                         CONF_PROMPT_CUSTOM_ADDITIONS,
-                        default=current_options.get(CONF_PROMPT_CUSTOM_ADDITIONS, ""),
-                    ): str,
+                        description={
+                            "suggested_value": current_options.get(CONF_PROMPT_CUSTOM_ADDITIONS, "")
+                        },
+                    ): selector.TemplateSelector(),
                 }
             ),
             description_placeholders={
@@ -626,11 +709,13 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100000)),
                 vol.Optional(
                     CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
-                    default=current_options.get(
-                        CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
-                        DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION,
-                    ),
-                ): str,
+                    description={
+                        "suggested_value": current_options.get(
+                            CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
+                            DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION,
+                        )
+                    },
+                ): selector.TemplateSelector(),
                 vol.Optional(
                     CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
                     default=current_options.get(

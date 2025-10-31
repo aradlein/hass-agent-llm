@@ -111,7 +111,7 @@ class ConversationHistoryManager:
 
         # Apply message limit
         effective_max_messages = max_messages if max_messages is not None else self._max_messages
-        if len(history) > effective_max_messages:
+        if effective_max_messages is not None and len(history) > effective_max_messages:
             history = history[-effective_max_messages:]
             _LOGGER.debug(
                 "Truncated conversation %s to %d messages (from %d)",

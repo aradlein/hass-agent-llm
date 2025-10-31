@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from homeassistant.components import conversation as ha_conversation
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -19,7 +20,7 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = []  # Add platforms like "conversation" when ready
+PLATFORMS: list[Platform] = []  # No additional platforms needed for conversation agent
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -58,14 +59,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = agent
 
+    # Register as a conversation agent
+    ha_conversation.async_set_agent(hass, entry, agent)
+
     # Register services
     await async_setup_services(hass, agent, entry.entry_id)
 
-    # Set up platforms (when implemented)
-    # await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Register update listener to reload on config changes
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     _LOGGER.info("Home Agent setup complete")
     return True
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the config entry when it's updated.
+
+    Args:
+        hass: Home Assistant instance
+        entry: Config entry that was updated
+    """
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -80,8 +94,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     _LOGGER.info("Unloading Home Agent config entry: %s", entry.entry_id)
 
-    # Unload platforms
-    # unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    # Unregister conversation agent
+    ha_conversation.async_unset_agent(hass, entry)
 
     # Clean up agent
     if entry.entry_id in hass.data[DOMAIN]:
