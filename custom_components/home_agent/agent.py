@@ -15,6 +15,7 @@ from typing import Any
 import aiohttp
 
 from homeassistant.components import conversation as ha_conversation
+from homeassistant.components.conversation.models import AbstractConversationAgent
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, intent, template
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
@@ -62,7 +63,7 @@ from .tools import HomeAssistantControlTool, HomeAssistantQueryTool
 _LOGGER = logging.getLogger(__name__)
 
 
-class HomeAgent(ha_conversation.AbstractConversationAgent):
+class HomeAgent(AbstractConversationAgent):
     """Main conversation agent that orchestrates all Home Agent components.
 
     This class integrates with Home Assistant's conversation platform and provides
