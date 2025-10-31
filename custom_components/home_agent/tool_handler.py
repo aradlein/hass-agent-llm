@@ -146,7 +146,7 @@ class ToolHandler:
 
         for tool_name, tool in self.tools.items():
             try:
-                definition = tool.get_definition()
+                definition = tool.to_openai_format()
                 definitions.append(definition)
                 _LOGGER.debug("Added definition for tool: %s", tool_name)
             except Exception as error:
@@ -269,7 +269,7 @@ class ToolHandler:
 
             try:
                 result = await asyncio.wait_for(
-                    tool.execute(parameters), timeout=self.timeout
+                    tool.execute(**parameters), timeout=self.timeout
                 )
                 success = True
                 self._success_count += 1

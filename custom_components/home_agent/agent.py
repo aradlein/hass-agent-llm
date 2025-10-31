@@ -14,7 +14,10 @@ from typing import Any
 
 import aiohttp
 
+from homeassistant.components import conversation as ha_conversation
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er, intent, template
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 
 from .const import (
     CONF_CONTEXT_ENTITIES,
@@ -37,6 +40,8 @@ from .const import (
     CONF_PROMPT_USE_DEFAULT,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
+    DEFAULT_HISTORY_MAX_MESSAGES,
+    DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_SYSTEM_PROMPT,
     EVENT_CONVERSATION_FINISHED,
     EVENT_CONVERSATION_STARTED,
@@ -57,7 +62,7 @@ from .tools import HomeAssistantControlTool, HomeAssistantQueryTool
 _LOGGER = logging.getLogger(__name__)
 
 
-class HomeAgent:
+class HomeAgent(ha_conversation.AbstractConversationAgent):
     """Main conversation agent that orchestrates all Home Agent components.
 
     This class integrates with Home Assistant's conversation platform and provides
@@ -78,8 +83,8 @@ class HomeAgent:
         # Initialize components
         self.context_manager = ContextManager(hass, config)
         self.conversation_manager = ConversationHistoryManager(
-            max_messages=config.get(CONF_HISTORY_MAX_MESSAGES),
-            max_tokens=config.get(CONF_HISTORY_MAX_TOKENS),
+            max_messages=config.get(CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES),
+            max_tokens=config.get(CONF_HISTORY_MAX_TOKENS, DEFAULT_HISTORY_MAX_TOKENS),
         )
         self.tool_handler = ToolHandler(
             hass,
@@ -98,17 +103,85 @@ class HomeAgent:
 
         _LOGGER.info("Home Agent initialized with model %s", config.get(CONF_LLM_MODEL))
 
+    @property
+    def supported_languages(self) -> list[str]:
+        """Return list of supported languages."""
+        return ["en"]
+
+    async def async_process(
+        self, user_input: ha_conversation.ConversationInput
+    ) -> ha_conversation.ConversationResult:
+        """Process a conversation turn.
+
+        This method is required by AbstractConversationAgent and bridges the
+        Home Assistant conversation platform with Home Agent's processing logic.
+
+        Args:
+            user_input: Conversation input from Home Assistant
+
+        Returns:
+            ConversationResult with the agent's response
+        """
+        try:
+            # Process the message using our internal method
+            response_text = await self.process_message(
+                text=user_input.text,
+                conversation_id=user_input.conversation_id,
+                user_id=user_input.context.user_id if user_input.context else None,
+                device_id=user_input.device_id,
+            )
+
+            # Create and return conversation result
+            intent_response = intent.IntentResponse(language=user_input.language)
+            intent_response.async_set_speech(response_text)
+
+            return ha_conversation.ConversationResult(
+                response=intent_response,
+                conversation_id=user_input.conversation_id,
+            )
+
+        except Exception as err:
+            _LOGGER.error("Error in async_process: %s", err, exc_info=True)
+
+            # Return error response
+            intent_response = intent.IntentResponse(language=user_input.language)
+            intent_response.async_set_error(
+                intent.IntentResponseErrorCode.UNKNOWN,
+                f"Sorry, I encountered an error: {err}",
+            )
+
+            return ha_conversation.ConversationResult(
+                response=intent_response,
+                conversation_id=user_input.conversation_id,
+            )
+
     def _register_tools(self) -> None:
         """Register core Home Assistant tools."""
-        # Get exposed entities from config (for security)
-        exposed_entities = set(self._get_exposed_entities())
+        # Get exposed entities from voice assistant settings
+        # Use async_should_expose to respect Home Assistant's exposure settings
+        from homeassistant.components import conversation as ha_conversation
+        from homeassistant.components.homeassistant.exposed_entities import (
+            async_should_expose,
+        )
+
+        exposed_entity_ids = {
+            state.entity_id
+            for state in self.hass.states.async_all()
+            if async_should_expose(self.hass, ha_conversation.DOMAIN, state.entity_id)
+        }
+
+        _LOGGER.debug(
+            "Found %d exposed entities for tools: %s",
+            len(exposed_entity_ids),
+            sorted(exposed_entity_ids),
+        )
 
         # Register ha_control tool
-        ha_control = HomeAssistantControlTool(self.hass, exposed_entities)
+        ha_control = HomeAssistantControlTool(self.hass, exposed_entity_ids)
         self.tool_handler.register_tool(ha_control)
 
         # Register ha_query tool
-        ha_query = HomeAssistantQueryTool(self.hass, exposed_entities)
+        ha_query = HomeAssistantQueryTool(self.hass, exposed_entity_ids)
         self.tool_handler.register_tool(ha_query)
 
         _LOGGER.debug("Registered %d tools", len(self.tool_handler.get_registered_tools()))
@@ -141,6 +214,39 @@ class HomeAgent:
 
         return list(exposed)
 
+    def get_exposed_entities(self) -> list[dict[str, Any]]:
+        """Get exposed entities as structured dictionaries for template rendering.
+
+        Returns:
+            List of entity dictionaries with entity_id, name, state, and aliases
+        """
+        # Get all states that should be exposed to conversation
+        states = [
+            state
+            for state in self.hass.states.async_all()
+            if async_should_expose(self.hass, ha_conversation.DOMAIN, state.entity_id)
+        ]
+
+        entity_registry = er.async_get(self.hass)
+        exposed_entities = []
+
+        for state in states:
+            entity_id = state.entity_id
+            entity = entity_registry.async_get(entity_id)
+
+            aliases = []
+            if entity and entity.aliases:
+                aliases = list(entity.aliases)
+
+            exposed_entities.append({
+                "entity_id": entity_id,
+                "name": state.name,
+                "state": state.state,
+                "aliases": aliases,
+            })
+
+        return exposed_entities
+
     async def _ensure_session(self) -> aiohttp.ClientSession:
         """Ensure HTTP session exists.
 
@@ -157,25 +263,76 @@ class HomeAgent:
         if self._session and not self._session.closed:
             await self._session.close()
 
-    def _build_system_prompt(self) -> str:
+    def _build_system_prompt(
+        self,
+        entity_context: str = "",
+        conversation_id: str | None = None,
+        device_id: str | None = None,
+        user_message: str | None = None,
+    ) -> str:
         """Build the system prompt for the LLM.
+
+        Args:
+            entity_context: Formatted entity context to inject into template
+            conversation_id: Current conversation ID
+            device_id: Device that triggered the conversation
+            user_message: User's current message
 
         Returns:
             Complete system prompt string
         """
+        # Template variables available to custom prompts
+        template_vars = {
+            "entity_context": entity_context,
+            "exposed_entities": self.get_exposed_entities(),
+            "ha_name": self.hass.config.location_name,
+            "current_device_id": device_id,
+            "conversation_id": conversation_id,
+            "user_message": user_message,
+        }
+
         if not self.config.get(CONF_PROMPT_USE_DEFAULT, True):
             # Use only custom prompt if default is disabled
-            return self.config.get(CONF_PROMPT_CUSTOM_ADDITIONS, "")
+            custom_prompt = self.config.get(CONF_PROMPT_CUSTOM_ADDITIONS, "")
+            return self._render_template(custom_prompt, template_vars)
 
-        # Start with default prompt
-        prompt = DEFAULT_SYSTEM_PROMPT
+        # Start with default prompt and render with entity_context
+        prompt = self._render_template(DEFAULT_SYSTEM_PROMPT, template_vars)
 
         # Add custom additions if provided
         custom_additions = self.config.get(CONF_PROMPT_CUSTOM_ADDITIONS, "")
         if custom_additions:
-            prompt += f"\n\n## Additional Context\n\n{custom_additions}"
+            rendered_additions = self._render_template(custom_additions, template_vars)
+            prompt += f"\n\n## Additional Context\n\n{rendered_additions}"
 
         return prompt
+
+    def _render_template(
+        self, template_str: str, variables: dict[str, Any] | None = None
+    ) -> str:
+        """Render a Jinja2 template string.
+
+        Args:
+            template_str: Template string to render
+            variables: Optional variables to pass to template
+
+        Returns:
+            Rendered template string
+
+        Note:
+            Templates have access to Home Assistant state via the template context.
+            Available variables: states, state_attr, is_state, etc.
+            Plus any custom variables passed via the variables parameter.
+        """
+        if not template_str:
+            return ""
+
+        try:
+            tpl = template.Template(template_str, self.hass)
+            return tpl.async_render(variables or {})
+        except template.TemplateError as err:
+            _LOGGER.warning("Template rendering failed: %s. Using raw template.", err)
+            return template_str
 
     async def _call_llm(
         self,
@@ -245,6 +402,7 @@ class HomeAgent:
         text: str,
         conversation_id: str | None = None,
         user_id: str | None = None,
+        device_id: str | None = None,
     ) -> str:
         """Process a user message and return the agent's response.
 
@@ -254,6 +412,7 @@ class HomeAgent:
             text: User's message text
             conversation_id: Optional conversation ID for history tracking
             user_id: Optional user ID for the conversation
+            device_id: Optional device ID that triggered the conversation
 
         Returns:
             Agent's response text
@@ -271,13 +430,16 @@ class HomeAgent:
                 {
                     "conversation_id": conversation_id,
                     "user_id": user_id,
+                    "device_id": device_id,
                     "timestamp": time.time(),
                     "context_mode": self.config.get(CONF_CONTEXT_MODE),
                 },
             )
 
         try:
-            response = await self._process_conversation(text, conversation_id)
+            response = await self._process_conversation(
+                text, conversation_id, device_id
+            )
 
             # Calculate duration
             duration_ms = int((time.time() - start_time) * 1000)
@@ -317,12 +479,14 @@ class HomeAgent:
         self,
         user_message: str,
         conversation_id: str,
+        device_id: str | None = None,
     ) -> str:
         """Process a conversation with tool calling loop.
 
         Args:
             user_message: User's message
             conversation_id: Conversation ID for history
+            device_id: Device ID that triggered the conversation
 
         Returns:
             Final response text
@@ -332,11 +496,13 @@ class HomeAgent:
             user_message, conversation_id
         )
 
-        # Build system prompt
-        system_prompt = self._build_system_prompt()
-
-        # Replace placeholders in system prompt
-        system_prompt = system_prompt.replace("{{entity_context}}", context)
+        # Build system prompt with full context including device_id
+        system_prompt = self._build_system_prompt(
+            entity_context=context,
+            conversation_id=conversation_id,
+            device_id=device_id,
+            user_message=user_message,
+        )
 
         # Build messages list
         messages: list[dict[str, Any]] = [
@@ -347,7 +513,7 @@ class HomeAgent:
         if self.config.get(CONF_HISTORY_ENABLED, True):
             history = self.conversation_manager.get_history(
                 conversation_id,
-                max_messages=self.config.get(CONF_HISTORY_MAX_MESSAGES),
+                max_messages=self.config.get(CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES),
             )
             messages.extend(history)
 
@@ -370,12 +536,30 @@ class HomeAgent:
             # Extract response message
             response_message = llm_response.get("choices", [{}])[0].get("message", {})
 
+            # Log response for debugging
+            _LOGGER.debug(
+                "LLM response (iteration %d): content=%s, has_tool_calls=%s",
+                iteration,
+                bool(response_message.get("content")),
+                bool(response_message.get("tool_calls")),
+            )
+
             # Check if LLM wants to call tools
             tool_calls = response_message.get("tool_calls", [])
 
             if not tool_calls:
                 # No tool calls, we're done
-                final_content = response_message.get("content", "")
+                final_content = response_message.get("content") or ""
+
+                # Log if we got an empty response
+                if not final_content:
+                    _LOGGER.warning(
+                        "LLM returned empty content after iteration %d. Response message: %s",
+                        iteration,
+                        response_message,
+                    )
+                    # Provide a fallback message
+                    final_content = "I've completed your request."
 
                 # Save to conversation history
                 if self.config.get(CONF_HISTORY_ENABLED, True):
