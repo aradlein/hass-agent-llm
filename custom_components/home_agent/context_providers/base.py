@@ -143,3 +143,38 @@ class ContextProvider(ABC):
         self._logger.debug("Pattern '%s' matched %d entities", pattern, len(matching))
 
         return matching
+
+    def _get_entity_services(self, entity_id: str) -> list[str]:
+        """Get available services for an entity based on its domain.
+
+        Args:
+            entity_id: The entity ID to get services for
+
+        Returns:
+            List of available service names for this entity
+        """
+        domain = entity_id.split(".")[0]
+
+        # Get all services for the entity's domain
+        services = self.hass.services.async_services().get(domain, {})
+
+        # Common service mapping by domain
+        service_list = list(services.keys())
+
+        # Add homeassistant domain services that work on all entities
+        homeassistant_services = self.hass.services.async_services().get(
+            "homeassistant", {}
+        )
+        common_services = [
+            "turn_on",
+            "turn_off",
+            "toggle",
+            "update_entity",
+            "reload_config_entry",
+        ]
+
+        for service in common_services:
+            if service in homeassistant_services:
+                service_list.append(f"homeassistant.{service}")
+
+        return service_list

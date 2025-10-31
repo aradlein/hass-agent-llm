@@ -14,18 +14,25 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from ..const import (
+    CONF_OPENAI_API_KEY,
     CONF_VECTOR_DB_COLLECTION,
+    CONF_VECTOR_DB_EMBEDDING_BASE_URL,
     CONF_VECTOR_DB_EMBEDDING_MODEL,
+    CONF_VECTOR_DB_EMBEDDING_PROVIDER,
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
     CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
     CONF_VECTOR_DB_TOP_K,
     DEFAULT_VECTOR_DB_COLLECTION,
+    DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
     DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
+    DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER,
     DEFAULT_VECTOR_DB_HOST,
     DEFAULT_VECTOR_DB_PORT,
     DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD,
     DEFAULT_VECTOR_DB_TOP_K,
+    EMBEDDING_PROVIDER_OLLAMA,
+    EMBEDDING_PROVIDER_OPENAI,
 )
 from ..exceptions import ContextInjectionError
 from .base import ContextProvider
@@ -33,7 +40,6 @@ from .base import ContextProvider
 # Conditional imports for ChromaDB
 try:
     import chromadb
-    from chromadb.config import Settings
 
     CHROMADB_AVAILABLE = True
 except ImportError:
@@ -70,6 +76,13 @@ class VectorDBContextProvider(ContextProvider):
         self.embedding_model = config.get(
             CONF_VECTOR_DB_EMBEDDING_MODEL, DEFAULT_VECTOR_DB_EMBEDDING_MODEL
         )
+        self.embedding_provider = config.get(
+            CONF_VECTOR_DB_EMBEDDING_PROVIDER, DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER
+        )
+        self.embedding_base_url = config.get(
+            CONF_VECTOR_DB_EMBEDDING_BASE_URL, DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL
+        )
+        self.openai_api_key = config.get(CONF_OPENAI_API_KEY, "")
         self.top_k = config.get(CONF_VECTOR_DB_TOP_K, DEFAULT_VECTOR_DB_TOP_K)
         self.similarity_threshold = config.get(
             CONF_VECTOR_DB_SIMILARITY_THRESHOLD, DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD
@@ -93,8 +106,11 @@ class VectorDBContextProvider(ContextProvider):
             query_embedding = await self._embed_query(user_input)
             results = await self._query_vector_db(query_embedding, self.top_k)
 
+            # ChromaDB uses L2 distance - smaller distances mean more similar
+            # Filter to keep only results with distance below threshold
+            # (lower threshold = more strict, only very similar results)
             filtered_results = [
-                r for r in results if r.get("distance", 0) >= self.similarity_threshold
+                r for r in results if r.get("distance", float("inf")) <= self.similarity_threshold
             ]
 
             if not filtered_results:
@@ -105,8 +121,12 @@ class VectorDBContextProvider(ContextProvider):
 
             for entity_id in entity_ids:
                 try:
-                    entity_state = await self._get_entity_state(entity_id)
+                    entity_state = self._get_entity_state(entity_id)
                     if entity_state:
+                        # Add available services for this entity
+                        entity_state["available_services"] = self._get_entity_services(
+                            entity_id
+                        )
                         entities.append(entity_state)
                 except Exception as err:
                     _LOGGER.warning("Failed to get state for %s: %s", entity_id, err)
@@ -124,11 +144,13 @@ class VectorDBContextProvider(ContextProvider):
         """Ensure ChromaDB client and collection are initialized."""
         if self._client is None:
             try:
-                settings = Settings(
-                    chroma_server_host=self.host,
-                    chroma_server_http_port=self.port,
+                # Create ChromaDB client in executor to avoid blocking the event loop
+                # ChromaDB's HttpClient does SSL setup and file I/O during init
+                self._client = await self.hass.async_add_executor_job(
+                    chromadb.HttpClient,
+                    self.host,
+                    self.port,
                 )
-                self._client = chromadb.HttpClient(settings=settings)
                 _LOGGER.debug("ChromaDB client connected")
             except Exception as err:
                 raise ContextInjectionError(
@@ -137,10 +159,15 @@ class VectorDBContextProvider(ContextProvider):
 
         if self._collection is None:
             try:
-                self._collection = self._client.get_or_create_collection(
+                # Collection operations should also be in executor as they may do I/O
+                from functools import partial
+
+                get_collection = partial(
+                    self._client.get_or_create_collection,
                     name=self.collection_name,
                     metadata={"description": "Home Assistant entity embeddings"},
                 )
+                self._collection = await self.hass.async_add_executor_job(get_collection)
                 _LOGGER.debug("ChromaDB collection ready")
             except Exception as err:
                 raise ContextInjectionError(
@@ -154,20 +181,13 @@ class VectorDBContextProvider(ContextProvider):
             return self._embedding_cache[cache_key]
 
         try:
-            if self.embedding_model.startswith("text-embedding"):
-                if not OPENAI_AVAILABLE:
-                    raise ContextInjectionError("OpenAI not installed")
-
-                response = await self.hass.async_add_executor_job(
-                    lambda: openai.Embedding.create(
-                        model=self.embedding_model,
-                        input=text,
-                    )
-                )
-                embedding = response["data"][0]["embedding"]
+            if self.embedding_provider == EMBEDDING_PROVIDER_OPENAI:
+                embedding = await self._embed_with_openai(text)
+            elif self.embedding_provider == EMBEDDING_PROVIDER_OLLAMA:
+                embedding = await self._embed_with_ollama(text)
             else:
                 raise ContextInjectionError(
-                    f"Local embeddings not supported: {self.embedding_model}"
+                    f"Unknown embedding provider: {self.embedding_provider}"
                 )
 
             self._embedding_cache[cache_key] = embedding
@@ -175,6 +195,52 @@ class VectorDBContextProvider(ContextProvider):
 
         except Exception as err:
             raise ContextInjectionError(f"Embedding failed: {err}") from err
+
+    async def _embed_with_openai(self, text: str) -> list[float]:
+        """Generate embedding using OpenAI API."""
+        if not OPENAI_AVAILABLE:
+            raise ContextInjectionError(
+                "OpenAI library not installed. Install with: pip install openai"
+            )
+
+        if not self.openai_api_key:
+            raise ContextInjectionError(
+                "OpenAI API key not configured. "
+                "Please configure it in Vector DB settings."
+            )
+
+        # Set API key for OpenAI client
+        openai.api_key = self.openai_api_key
+
+        response = await self.hass.async_add_executor_job(
+            lambda: openai.Embedding.create(
+                model=self.embedding_model,
+                input=text,
+            )
+        )
+        return response["data"][0]["embedding"]
+
+    async def _embed_with_ollama(self, text: str) -> list[float]:
+        """Generate embedding using Ollama API."""
+        import aiohttp
+
+        url = f"{self.embedding_base_url.rstrip('/')}/api/embeddings"
+        payload = {"model": self.embedding_model, "prompt": text}
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise ContextInjectionError(
+                            f"Ollama API error {response.status}: {error_text}"
+                        )
+                    result = await response.json()
+                    return result["embedding"]
+        except aiohttp.ClientError as err:
+            raise ContextInjectionError(
+                f"Failed to connect to Ollama at {self.embedding_base_url}: {err}"
+            ) from err
 
     async def _query_vector_db(
         self, embedding: list[float], top_k: int

@@ -15,6 +15,9 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    CONF_CONTEXT_FORMAT,
+    CONF_CONTEXT_MODE,
+    CONF_DIRECT_ENTITIES,
     CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
     DEFAULT_CONTEXT_FORMAT,
@@ -85,17 +88,13 @@ class ContextManager:
         Raises:
             ContextInjectionError: If provider initialization fails
         """
-        mode = self.config.get("mode", DEFAULT_CONTEXT_MODE)
+        mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
 
         try:
             if mode == CONTEXT_MODE_DIRECT:
                 self._provider = self._create_direct_provider()
             elif mode == CONTEXT_MODE_VECTOR_DB:
-                # Phase 2: Vector DB provider will be implemented later
-                _LOGGER.warning(
-                    "Vector DB mode not yet implemented, falling back to direct mode"
-                )
-                self._provider = self._create_direct_provider()
+                self._provider = self._create_vector_db_provider()
             else:
                 _LOGGER.error("Invalid context mode: %s, using direct mode", mode)
                 self._provider = self._create_direct_provider()
@@ -118,10 +117,21 @@ class ContextManager:
             Configured DirectContextProvider instance
         """
         provider_config = {
-            "entities": self.config.get("entities", []),
-            "format": self.config.get("format", DEFAULT_CONTEXT_FORMAT),
+            "entities": self.config.get(CONF_DIRECT_ENTITIES, []),
+            "format": self.config.get(CONF_CONTEXT_FORMAT, DEFAULT_CONTEXT_FORMAT),
         }
         return DirectContextProvider(self.hass, provider_config)
+
+    def _create_vector_db_provider(self) -> ContextProvider:
+        """Create and configure a vector DB context provider.
+
+        Returns:
+            Configured VectorDBContextProvider instance
+        """
+        from .context_providers.vector_db import VectorDBContextProvider
+
+        # Pass all config to the vector DB provider
+        return VectorDBContextProvider(self.hass, self.config)
 
     def set_provider(self, provider: ContextProvider) -> None:
         """Set a custom context provider.
@@ -227,7 +237,7 @@ class ContextManager:
         # Populate metrics if provided
         if metrics is not None and "context" not in metrics:
             metrics["context"] = {
-                "mode": self.config.get("mode", DEFAULT_CONTEXT_MODE),
+                "mode": self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE),
                 "original_tokens": original_tokens,
                 "optimized_tokens": estimated_tokens,
                 "compression_ratio": round(
@@ -386,7 +396,7 @@ class ContextManager:
         Returns:
             Cache key string
         """
-        mode = self.config.get("mode", DEFAULT_CONTEXT_MODE)
+        mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
 
         if mode == CONTEXT_MODE_DIRECT:
             # Direct mode always returns same entities
@@ -416,7 +426,7 @@ class ContextManager:
             token_count: Estimated token count
             user_input: The user's input (for vector DB query tracking)
         """
-        mode = self.config.get("mode", DEFAULT_CONTEXT_MODE)
+        mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
 
         # Extract entity IDs from provider if possible
         entities_included = []
@@ -470,8 +480,8 @@ class ContextManager:
             ... }
             >>> await context_manager.update_config(new_config)
         """
-        old_mode = self.config.get("mode")
-        new_mode = config.get("mode")
+        old_mode = self.config.get(CONF_CONTEXT_MODE)
+        new_mode = config.get(CONF_CONTEXT_MODE)
 
         # Update configuration
         self.config.update(config)
@@ -504,7 +514,7 @@ class ContextManager:
         Returns:
             Current context mode ("direct" or "vector_db")
         """
-        return self.config.get("mode", DEFAULT_CONTEXT_MODE)
+        return self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
 
     def get_provider_info(self) -> dict[str, Any]:
         """Get information about the current provider.

@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
 
 from .agent import HomeAgent
-from .const import DOMAIN
+from .const import CONF_CONTEXT_MODE, CONTEXT_MODE_VECTOR_DB, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,18 +51,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     _LOGGER.info("Setting up Home Agent config entry: %s", entry.entry_id)
 
+    # Merge config data
+    config = dict(entry.data) | dict(entry.options)
+
     # Create Home Agent instance
-    agent = HomeAgent(hass, dict(entry.data) | dict(entry.options))
+    agent = HomeAgent(hass, config)
 
     # Store agent instance
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = agent
+    hass.data[DOMAIN][entry.entry_id] = {"agent": agent}
+
+    # Set up vector DB manager if using vector DB mode
+    context_mode = config.get(CONF_CONTEXT_MODE)
+    if context_mode == CONTEXT_MODE_VECTOR_DB:
+        try:
+            from .vector_db_manager import VectorDBManager
+
+            manager = VectorDBManager(hass, config)
+            await manager.async_setup()
+            hass.data[DOMAIN][entry.entry_id]["vector_manager"] = manager
+            _LOGGER.info("Vector DB Manager enabled for this entry")
+        except Exception as err:
+            _LOGGER.error("Failed to set up Vector DB Manager: %s", err)
+            # Continue setup without vector DB
 
     # Register as a conversation agent
     ha_conversation.async_set_agent(hass, entry, agent)
 
     # Register services
-    await async_setup_services(hass, agent, entry.entry_id)
+    await async_setup_services(hass, entry.entry_id)
 
     # Register update listener to reload on config changes
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
@@ -96,10 +113,18 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Unregister conversation agent
     ha_conversation.async_unset_agent(hass, entry)
 
-    # Clean up agent
+    # Clean up agent and vector DB manager
     if entry.entry_id in hass.data[DOMAIN]:
-        agent: HomeAgent = hass.data[DOMAIN][entry.entry_id]
+        entry_data = hass.data[DOMAIN][entry.entry_id]
+
+        # Shut down vector DB manager if it exists
+        if "vector_manager" in entry_data:
+            await entry_data["vector_manager"].async_shutdown()
+
+        # Clean up agent
+        agent: HomeAgent = entry_data["agent"]
         await agent.close()
+
         del hass.data[DOMAIN][entry.entry_id]
 
     # Remove services if this was the last entry
@@ -111,16 +136,20 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_setup_services(
     hass: HomeAssistant,
-    agent: HomeAgent,
     entry_id: str,
 ) -> None:
     """Register Home Agent services.
 
     Args:
         hass: Home Assistant instance
-        agent: HomeAgent instance
         entry_id: Config entry ID
     """
+
+    def _get_entry_data(target_entry_id: str) -> dict:
+        """Get entry data, defaulting to provided entry_id."""
+        if target_entry_id in hass.data[DOMAIN]:
+            return hass.data[DOMAIN][target_entry_id]
+        return hass.data[DOMAIN].get(entry_id, {})
 
     async def handle_process(call: ServiceCall) -> None:
         """Handle the process service call.
@@ -133,7 +162,8 @@ async def async_setup_services(
         target_entry_id = call.data.get("entry_id", entry_id)
 
         # Get the right agent instance
-        target_agent = hass.data[DOMAIN].get(target_entry_id, agent)
+        entry_data = _get_entry_data(target_entry_id)
+        target_agent = entry_data.get("agent")
 
         try:
             response = await target_agent.process_message(
@@ -163,7 +193,8 @@ async def async_setup_services(
         target_entry_id = call.data.get("entry_id", entry_id)
 
         # Get the right agent instance
-        target_agent = hass.data[DOMAIN].get(target_entry_id, agent)
+        entry_data = _get_entry_data(target_entry_id)
+        target_agent = entry_data.get("agent")
 
         await target_agent.clear_history(conversation_id)
 
@@ -180,7 +211,8 @@ async def async_setup_services(
         target_entry_id = call.data.get("entry_id", entry_id)
 
         # Get the right agent instance
-        target_agent = hass.data[DOMAIN].get(target_entry_id, agent)
+        entry_data = _get_entry_data(target_entry_id)
+        target_agent = entry_data.get("agent")
 
         await target_agent.reload_context()
 
@@ -196,7 +228,8 @@ async def async_setup_services(
         target_entry_id = call.data.get("entry_id", entry_id)
 
         # Get the right agent instance
-        target_agent = hass.data[DOMAIN].get(target_entry_id, agent)
+        entry_data = _get_entry_data(target_entry_id)
+        target_agent = entry_data.get("agent")
 
         try:
             result = await target_agent.execute_tool_debug(tool_name, parameters)
@@ -210,6 +243,59 @@ async def async_setup_services(
 
         except Exception as err:
             _LOGGER.error("Failed to execute tool %s: %s", tool_name, err)
+            raise
+
+    async def handle_reindex_entities(call: ServiceCall) -> None:
+        """Handle the reindex_entities service call.
+
+        Forces a full reindex of all entities into the vector database.
+        """
+        target_entry_id = call.data.get("entry_id", entry_id)
+
+        # Get vector DB manager
+        entry_data = _get_entry_data(target_entry_id)
+        vector_manager = entry_data.get("vector_manager")
+
+        if not vector_manager:
+            _LOGGER.error("Vector DB Manager not enabled for this entry")
+            return {"error": "Vector DB Manager not enabled"}
+
+        try:
+            stats = await vector_manager.async_reindex_all_entities()
+            _LOGGER.info("Reindex complete: %s", stats)
+            return stats
+
+        except Exception as err:
+            _LOGGER.error("Failed to reindex entities: %s", err)
+            raise
+
+    async def handle_index_entity(call: ServiceCall) -> None:
+        """Handle the index_entity service call.
+
+        Indexes a specific entity into the vector database.
+        """
+        entity_id = call.data.get("entity_id")
+        target_entry_id = call.data.get("entry_id", entry_id)
+
+        if not entity_id:
+            _LOGGER.error("entity_id is required")
+            return {"error": "entity_id is required"}
+
+        # Get vector DB manager
+        entry_data = _get_entry_data(target_entry_id)
+        vector_manager = entry_data.get("vector_manager")
+
+        if not vector_manager:
+            _LOGGER.error("Vector DB Manager not enabled for this entry")
+            return {"error": "Vector DB Manager not enabled"}
+
+        try:
+            await vector_manager.async_index_entity(entity_id)
+            _LOGGER.info("Indexed entity: %s", entity_id)
+            return {"entity_id": entity_id, "status": "indexed"}
+
+        except Exception as err:
+            _LOGGER.error("Failed to index entity %s: %s", entity_id, err)
             raise
 
     # Register services (only once for all instances)
@@ -229,6 +315,14 @@ async def async_setup_services(
         hass.services.async_register(DOMAIN, "execute_tool", handle_execute_tool)
         _LOGGER.debug("Registered service: execute_tool")
 
+    if not hass.services.has_service(DOMAIN, "reindex_entities"):
+        hass.services.async_register(DOMAIN, "reindex_entities", handle_reindex_entities)
+        _LOGGER.debug("Registered service: reindex_entities")
+
+    if not hass.services.has_service(DOMAIN, "index_entity"):
+        hass.services.async_register(DOMAIN, "index_entity", handle_index_entity)
+        _LOGGER.debug("Registered service: index_entity")
+
 
 async def async_remove_services(hass: HomeAssistant) -> None:
     """Remove Home Agent services.
@@ -236,7 +330,14 @@ async def async_remove_services(hass: HomeAssistant) -> None:
     Args:
         hass: Home Assistant instance
     """
-    services = ["process", "clear_history", "reload_context", "execute_tool"]
+    services = [
+        "process",
+        "clear_history",
+        "reload_context",
+        "execute_tool",
+        "reindex_entities",
+        "index_entity",
+    ]
 
     for service in services:
         if hass.services.has_service(DOMAIN, service):

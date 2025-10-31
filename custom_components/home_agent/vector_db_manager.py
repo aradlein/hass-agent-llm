@@ -1,0 +1,558 @@
+"""Vector database manager for entity embeddings.
+
+This module handles indexing Home Assistant entities into ChromaDB
+for semantic search capabilities in the Home Agent integration.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import logging
+from datetime import timedelta
+from typing import Any
+
+from homeassistant.const import EVENT_STATE_CHANGED
+from homeassistant.core import Event, HomeAssistant, State, callback
+from homeassistant.helpers.event import async_track_time_interval
+
+from .const import (
+    CONF_OPENAI_API_KEY,
+    CONF_VECTOR_DB_COLLECTION,
+    CONF_VECTOR_DB_EMBEDDING_BASE_URL,
+    CONF_VECTOR_DB_EMBEDDING_MODEL,
+    CONF_VECTOR_DB_EMBEDDING_PROVIDER,
+    CONF_VECTOR_DB_HOST,
+    CONF_VECTOR_DB_PORT,
+    DEFAULT_VECTOR_DB_COLLECTION,
+    DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
+    DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
+    DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER,
+    DEFAULT_VECTOR_DB_HOST,
+    DEFAULT_VECTOR_DB_PORT,
+    EMBEDDING_PROVIDER_OLLAMA,
+    EMBEDDING_PROVIDER_OPENAI,
+)
+from .exceptions import ContextInjectionError
+
+# Conditional imports for ChromaDB
+try:
+    import chromadb
+
+    CHROMADB_AVAILABLE = True
+except ImportError:
+    CHROMADB_AVAILABLE = False
+
+# Conditional imports for OpenAI embeddings
+try:
+    import openai
+
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+_LOGGER = logging.getLogger(__name__)
+
+# How often to run background cleanup and maintenance
+MAINTENANCE_INTERVAL = timedelta(hours=1)
+
+# Maximum batch size for indexing
+MAX_BATCH_SIZE = 50
+
+
+class VectorDBManager:
+    """Manages entity embeddings in ChromaDB."""
+
+    def __init__(self, hass: HomeAssistant, config: dict[str, Any]) -> None:
+        """Initialize the Vector DB manager.
+
+        Args:
+            hass: Home Assistant instance
+            config: Configuration dictionary
+        """
+        if not CHROMADB_AVAILABLE:
+            raise ContextInjectionError(
+                "ChromaDB not installed. Install with: pip install chromadb"
+            )
+
+        self.hass = hass
+        self.config = config
+
+        # ChromaDB configuration
+        self.host = config.get(CONF_VECTOR_DB_HOST, DEFAULT_VECTOR_DB_HOST)
+        self.port = config.get(CONF_VECTOR_DB_PORT, DEFAULT_VECTOR_DB_PORT)
+        self.collection_name = config.get(
+            CONF_VECTOR_DB_COLLECTION, DEFAULT_VECTOR_DB_COLLECTION
+        )
+
+        # Embedding configuration
+        self.embedding_model = config.get(
+            CONF_VECTOR_DB_EMBEDDING_MODEL, DEFAULT_VECTOR_DB_EMBEDDING_MODEL
+        )
+        self.embedding_provider = config.get(
+            CONF_VECTOR_DB_EMBEDDING_PROVIDER, DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER
+        )
+        self.embedding_base_url = config.get(
+            CONF_VECTOR_DB_EMBEDDING_BASE_URL, DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL
+        )
+        self.openai_api_key = config.get(CONF_OPENAI_API_KEY, "")
+
+        # State
+        self._client = None
+        self._collection = None
+        self._embedding_cache = {}
+        self._indexing_lock = asyncio.Lock()
+        self._state_listener = None
+        self._maintenance_listener = None
+
+        _LOGGER.info(
+            "Vector DB Manager initialized (host=%s:%s, collection=%s)",
+            self.host,
+            self.port,
+            self.collection_name,
+        )
+
+    async def async_setup(self) -> None:
+        """Set up the vector DB manager.
+
+        Initializes ChromaDB connection and performs initial entity indexing.
+        """
+        try:
+            await self._ensure_initialized()
+
+            # Perform initial indexing
+            _LOGGER.info("Starting initial entity indexing...")
+            await self.async_reindex_all_entities()
+
+            # Set up state change listener for incremental updates
+            # Listen directly to state_changed events
+            self._state_listener = self.hass.bus.async_listen(
+                EVENT_STATE_CHANGED, self._async_handle_state_change
+            )
+
+            # Set up periodic maintenance
+            self._maintenance_listener = async_track_time_interval(
+                self.hass, self._async_run_maintenance, MAINTENANCE_INTERVAL
+            )
+
+            _LOGGER.info("Vector DB Manager setup complete")
+
+        except Exception as err:
+            _LOGGER.error("Failed to set up Vector DB Manager: %s", err, exc_info=True)
+            raise
+
+    async def async_shutdown(self) -> None:
+        """Shut down the vector DB manager.
+
+        Cleans up listeners and connections.
+        """
+        if self._state_listener:
+            self._state_listener()
+            self._state_listener = None
+
+        if self._maintenance_listener:
+            self._maintenance_listener()
+            self._maintenance_listener = None
+
+        self._embedding_cache.clear()
+
+        _LOGGER.info("Vector DB Manager shut down")
+
+    async def async_reindex_all_entities(self) -> dict[str, Any]:
+        """Reindex all Home Assistant entities.
+
+        Returns:
+            Dictionary with indexing statistics
+        """
+        async with self._indexing_lock:
+            try:
+                all_states = self.hass.states.async_all()
+                total = len(all_states)
+
+                _LOGGER.info("Starting full reindex of %d entities", total)
+
+                indexed = 0
+                failed = 0
+                skipped = 0
+
+                # Process in batches
+                for i in range(0, total, MAX_BATCH_SIZE):
+                    batch = all_states[i : i + MAX_BATCH_SIZE]
+
+                    for state in batch:
+                        try:
+                            # Skip entities that shouldn't be indexed
+                            if self._should_skip_entity(state.entity_id):
+                                skipped += 1
+                                continue
+
+                            await self.async_index_entity(state.entity_id)
+                            indexed += 1
+
+                        except Exception as err:
+                            _LOGGER.warning(
+                                "Failed to index entity %s: %s",
+                                state.entity_id,
+                                err,
+                            )
+                            failed += 1
+
+                    # Allow other tasks to run
+                    await asyncio.sleep(0)
+
+                _LOGGER.info(
+                    "Reindex complete: %d indexed, %d failed, %d skipped",
+                    indexed,
+                    failed,
+                    skipped,
+                )
+
+                return {
+                    "total": total,
+                    "indexed": indexed,
+                    "failed": failed,
+                    "skipped": skipped,
+                }
+
+            except Exception as err:
+                _LOGGER.error("Full reindex failed: %s", err, exc_info=True)
+                raise
+
+    async def async_index_entity(self, entity_id: str) -> None:
+        """Index a single entity into ChromaDB.
+
+        Args:
+            entity_id: The entity ID to index
+        """
+        try:
+            await self._ensure_initialized()
+
+            # Get entity state
+            state = self.hass.states.get(entity_id)
+            if state is None:
+                _LOGGER.warning("Entity not found for indexing: %s", entity_id)
+                return
+
+            # Create text representation for embedding
+            text = self._create_entity_text(state)
+
+            # Generate embedding
+            embedding = await self._embed_text(text)
+
+            # Store in ChromaDB
+            metadata = {
+                "entity_id": entity_id,
+                "domain": entity_id.split(".")[0],
+                "state": state.state,
+                "friendly_name": state.attributes.get("friendly_name", entity_id),
+            }
+
+            # Add to collection
+            await self.hass.async_add_executor_job(
+                lambda: self._collection.upsert(
+                    ids=[entity_id],
+                    embeddings=[embedding],
+                    metadatas=[metadata],
+                    documents=[text],
+                )
+            )
+
+            _LOGGER.debug("Indexed entity: %s", entity_id)
+
+        except Exception as err:
+            _LOGGER.error(
+                "Failed to index entity %s: %s",
+                entity_id,
+                err,
+                exc_info=True,
+            )
+            raise
+
+    async def async_remove_entity(self, entity_id: str) -> None:
+        """Remove an entity from ChromaDB.
+
+        Args:
+            entity_id: The entity ID to remove
+        """
+        try:
+            await self._ensure_initialized()
+
+            await self.hass.async_add_executor_job(
+                lambda: self._collection.delete(ids=[entity_id])
+            )
+
+            _LOGGER.debug("Removed entity from index: %s", entity_id)
+
+        except Exception as err:
+            _LOGGER.error(
+                "Failed to remove entity %s: %s",
+                entity_id,
+                err,
+            )
+
+    @callback
+    def _async_handle_state_change(self, event: Event) -> None:
+        """Handle entity state changes for incremental indexing.
+
+        Args:
+            event: State change event
+        """
+        entity_id = event.data.get("entity_id")
+
+        if not entity_id or self._should_skip_entity(entity_id):
+            return
+
+        # Schedule reindexing in background
+        asyncio.create_task(self._async_reindex_entity_from_event(entity_id))
+
+    async def _async_reindex_entity_from_event(self, entity_id: str) -> None:
+        """Reindex an entity after state change.
+
+        Args:
+            entity_id: Entity ID that changed
+        """
+        try:
+            await self.async_index_entity(entity_id)
+        except Exception as err:
+            _LOGGER.debug(
+                "Failed to reindex entity %s after state change: %s",
+                entity_id,
+                err,
+            )
+
+    async def _async_run_maintenance(self, _) -> None:
+        """Run periodic maintenance tasks.
+
+        Removes embeddings for entities that no longer exist.
+        """
+        try:
+            _LOGGER.debug("Running vector DB maintenance")
+
+            # Get all indexed entity IDs
+            result = await self.hass.async_add_executor_job(
+                lambda: self._collection.get()
+            )
+
+            if not result or "ids" not in result:
+                return
+
+            indexed_ids = set(result["ids"])
+            current_ids = set(self.hass.states.async_entity_ids())
+
+            # Find stale entries
+            stale_ids = indexed_ids - current_ids
+
+            if stale_ids:
+                _LOGGER.info("Removing %d stale entity embeddings", len(stale_ids))
+                for entity_id in stale_ids:
+                    await self.async_remove_entity(entity_id)
+
+        except Exception as err:
+            _LOGGER.warning("Maintenance task failed: %s", err)
+
+    def _should_skip_entity(self, entity_id: str) -> bool:
+        """Determine if an entity should be skipped during indexing.
+
+        Args:
+            entity_id: The entity ID to check
+
+        Returns:
+            True if entity should be skipped
+        """
+        # Skip internal entities
+        if entity_id.startswith("group.all_"):
+            return True
+
+        # Skip sun entity (no meaningful state for embedding)
+        if entity_id == "sun.sun":
+            return True
+
+        # Skip persistent notification entities
+        if entity_id.startswith("persistent_notification."):
+            return True
+
+        return False
+
+    def _create_entity_text(self, state: State) -> str:
+        """Create text representation of entity for embedding.
+
+        Args:
+            state: Entity state object
+
+        Returns:
+            Text representation suitable for embedding
+        """
+        entity_id = state.entity_id
+        domain = entity_id.split(".")[0]
+        friendly_name = state.attributes.get("friendly_name", entity_id)
+
+        # Start with entity identification
+        parts = [
+            f"Entity: {friendly_name} ({entity_id})",
+            f"Type: {domain}",
+            f"Current state: {state.state}",
+        ]
+
+        # Add relevant attributes based on domain
+        if domain == "sensor":
+            unit = state.attributes.get("unit_of_measurement")
+            if unit:
+                parts.append(f"Unit: {unit}")
+
+            device_class = state.attributes.get("device_class")
+            if device_class:
+                parts.append(f"Measures: {device_class}")
+
+        elif domain in ("light", "switch", "fan"):
+            parts.append(f"Can be turned {state.state}")
+
+        elif domain == "climate":
+            temp = state.attributes.get("current_temperature")
+            if temp:
+                parts.append(f"Temperature: {temp}")
+
+            mode = state.attributes.get("hvac_mode")
+            if mode:
+                parts.append(f"Mode: {mode}")
+
+        elif domain == "cover":
+            position = state.attributes.get("current_position")
+            if position is not None:
+                parts.append(f"Position: {position}%")
+
+        elif domain == "media_player":
+            source = state.attributes.get("source")
+            if source:
+                parts.append(f"Source: {source}")
+
+        # Add location information if available
+        area = state.attributes.get("area")
+        if area:
+            parts.append(f"Location: {area}")
+
+        return " | ".join(parts)
+
+    async def _ensure_initialized(self) -> None:
+        """Ensure ChromaDB client and collection are initialized."""
+        if self._client is None:
+            try:
+                # Create ChromaDB client in executor to avoid blocking the event loop
+                # ChromaDB's HttpClient does SSL setup and file I/O during init
+                self._client = await self.hass.async_add_executor_job(
+                    chromadb.HttpClient,
+                    self.host,
+                    self.port,
+                )
+                _LOGGER.debug("ChromaDB client connected to %s:%s", self.host, self.port)
+            except Exception as err:
+                raise ContextInjectionError(
+                    f"Failed to connect to ChromaDB: {err}"
+                ) from err
+
+        if self._collection is None:
+            try:
+                # Collection operations should also be in executor as they may do I/O
+                from functools import partial
+
+                get_collection = partial(
+                    self._client.get_or_create_collection,
+                    name=self.collection_name,
+                    metadata={"description": "Home Assistant entity embeddings"},
+                )
+                self._collection = await self.hass.async_add_executor_job(get_collection)
+                _LOGGER.debug("ChromaDB collection ready")
+            except Exception as err:
+                raise ContextInjectionError(
+                    f"Failed to access collection: {err}"
+                ) from err
+
+    async def _embed_text(self, text: str) -> list[float]:
+        """Embed text using configured embedding model.
+
+        Args:
+            text: Text to embed
+
+        Returns:
+            Embedding vector
+        """
+        cache_key = hashlib.md5(text.encode()).hexdigest()
+        if cache_key in self._embedding_cache:
+            return self._embedding_cache[cache_key]
+
+        try:
+            if self.embedding_provider == EMBEDDING_PROVIDER_OPENAI:
+                embedding = await self._embed_with_openai(text)
+            elif self.embedding_provider == EMBEDDING_PROVIDER_OLLAMA:
+                embedding = await self._embed_with_ollama(text)
+            else:
+                raise ContextInjectionError(
+                    f"Unknown embedding provider: {self.embedding_provider}"
+                )
+
+            self._embedding_cache[cache_key] = embedding
+            return embedding
+
+        except Exception as err:
+            raise ContextInjectionError(f"Embedding failed: {err}") from err
+
+    async def _embed_with_openai(self, text: str) -> list[float]:
+        """Generate embedding using OpenAI API.
+
+        Args:
+            text: Text to embed
+
+        Returns:
+            Embedding vector
+        """
+        if not OPENAI_AVAILABLE:
+            raise ContextInjectionError(
+                "OpenAI library not installed. Install with: pip install openai"
+            )
+
+        if not self.openai_api_key:
+            raise ContextInjectionError(
+                "OpenAI API key not configured. "
+                "Please configure it in Vector DB settings."
+            )
+
+        # Set API key for OpenAI client
+        openai.api_key = self.openai_api_key
+
+        response = await self.hass.async_add_executor_job(
+            lambda: openai.Embedding.create(
+                model=self.embedding_model,
+                input=text,
+            )
+        )
+        return response["data"][0]["embedding"]
+
+    async def _embed_with_ollama(self, text: str) -> list[float]:
+        """Generate embedding using Ollama API.
+
+        Args:
+            text: Text to embed
+
+        Returns:
+            Embedding vector
+        """
+        import aiohttp
+
+        url = f"{self.embedding_base_url.rstrip('/')}/api/embeddings"
+        payload = {"model": self.embedding_model, "prompt": text}
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url, json=payload, timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise ContextInjectionError(
+                            f"Ollama API error {response.status}: {error_text}"
+                        )
+                    result = await response.json()
+                    return result["embedding"]
+        except aiohttp.ClientError as err:
+            raise ContextInjectionError(
+                f"Failed to connect to Ollama at {self.embedding_base_url}: {err}"
+            ) from err

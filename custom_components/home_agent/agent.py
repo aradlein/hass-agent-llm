@@ -562,6 +562,14 @@ class HomeAgent(AbstractConversationAgent):
             user_message=user_message,
         )
 
+        # Debug: Log context injection
+        if context:
+            _LOGGER.debug(
+                "Entity context injected: %d chars, contains %d entities",
+                len(context),
+                context.count('"entity_id"') if isinstance(context, str) else 0,
+            )
+
         # Build messages list
         messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
 

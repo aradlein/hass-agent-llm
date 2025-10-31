@@ -32,6 +32,9 @@ CONF_VECTOR_DB_COLLECTION: Final = "vector_db_collection"
 CONF_VECTOR_DB_TOP_K: Final = "vector_db_top_k"
 CONF_VECTOR_DB_SIMILARITY_THRESHOLD: Final = "vector_db_similarity_threshold"
 CONF_VECTOR_DB_EMBEDDING_MODEL: Final = "vector_db_embedding_model"
+CONF_VECTOR_DB_EMBEDDING_PROVIDER: Final = "vector_db_embedding_provider"
+CONF_VECTOR_DB_EMBEDDING_BASE_URL: Final = "vector_db_embedding_base_url"
+CONF_OPENAI_API_KEY: Final = "openai_api_key"
 
 # Configuration keys - Conversation History
 CONF_HISTORY_ENABLED: Final = "history_enabled"
@@ -85,6 +88,10 @@ COMPRESSION_LEVEL_LOW: Final = "low"
 COMPRESSION_LEVEL_MEDIUM: Final = "medium"
 COMPRESSION_LEVEL_HIGH: Final = "high"
 
+# Embedding providers
+EMBEDDING_PROVIDER_OPENAI: Final = "openai"
+EMBEDDING_PROVIDER_OLLAMA: Final = "ollama"
+
 # Default values - LLM Configuration
 DEFAULT_LLM_MODEL: Final = "gpt-4o-mini"
 DEFAULT_TEMPERATURE: Final = 0.7
@@ -100,8 +107,10 @@ DEFAULT_VECTOR_DB_HOST: Final = "localhost"
 DEFAULT_VECTOR_DB_PORT: Final = 8000
 DEFAULT_VECTOR_DB_COLLECTION: Final = "home_entities"
 DEFAULT_VECTOR_DB_TOP_K: Final = 5
-DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD: Final = 0.7
+DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD: Final = 250.0  # L2 distance threshold
 DEFAULT_VECTOR_DB_EMBEDDING_MODEL: Final = "text-embedding-3-small"
+DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER: Final = EMBEDDING_PROVIDER_OLLAMA
+DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL: Final = "http://localhost:11434"
 
 # Default values - Conversation History
 DEFAULT_HISTORY_ENABLED: Final = True
