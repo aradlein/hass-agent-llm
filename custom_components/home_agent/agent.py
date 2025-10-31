@@ -671,7 +671,7 @@ class HomeAgent(AbstractConversationAgent):
         _LOGGER.info("Debug tool execution: %s", tool_name)
         return await self.tool_handler.execute_tool(tool_name, parameters, "debug")
 
-    def update_config(self, config: dict[str, Any]) -> None:
+    async def update_config(self, config: dict[str, Any]) -> None:
         """Update agent configuration.
 
         Args:
@@ -680,7 +680,7 @@ class HomeAgent(AbstractConversationAgent):
         self.config.update(config)
 
         # Update sub-components
-        self.context_manager.update_config(config)
+        await self.context_manager.update_config(config)
         self.conversation_manager.update_limits(
             max_messages=config.get(CONF_HISTORY_MAX_MESSAGES),
             max_tokens=config.get(CONF_HISTORY_MAX_TOKENS),
