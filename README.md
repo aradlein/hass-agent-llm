@@ -314,6 +314,23 @@ automation:
 
 ## Development
 
+### Code Quality
+
+Home Agent follows Home Assistant's code quality standards using `ruff` for linting and formatting.
+
+```bash
+# Quick format (auto-fix + format)
+./scripts/format.sh
+
+# Full linting (includes pylint)
+./scripts/lint.sh
+
+# Or run tools individually:
+python3 -m ruff check --fix custom_components/home_agent/
+python3 -m ruff format custom_components/home_agent/
+python3 -m pylint custom_components/home_agent/
+```
+
 ### Running Tests
 
 ```bash
