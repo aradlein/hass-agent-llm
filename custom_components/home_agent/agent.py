@@ -16,8 +16,11 @@ import aiohttp
 from homeassistant.components import conversation as ha_conversation
 from homeassistant.components.conversation.models import AbstractConversationAgent
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import TemplateError
 from homeassistant.helpers import entity_registry as er, intent, template
-from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+from homeassistant.components.homeassistant.exposed_entities import (
+    async_should_expose,
+)
 
 from .const import (
     CONF_CONTEXT_ENTITIES,
@@ -333,7 +336,7 @@ class HomeAgent(AbstractConversationAgent):
         try:
             tpl = template.Template(template_str, self.hass)
             return tpl.async_render(variables or {})
-        except template.TemplateError as err:
+        except TemplateError as err:
             _LOGGER.warning("Template rendering failed: %s. Using raw template.", err)
             return template_str
 
