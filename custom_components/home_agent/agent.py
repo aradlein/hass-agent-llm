@@ -657,12 +657,27 @@ class HomeAgent(AbstractConversationAgent):
             # Execute each tool
             for tool_call in tool_calls:
                 tool_name = tool_call.get("function", {}).get("name", "")
-                tool_args_str = tool_call.get("function", {}).get("arguments", "{}")
+                tool_args_raw = tool_call.get("function", {}).get("arguments", "{}")
                 tool_call_id = tool_call.get("id", "")
 
                 try:
-                    # Parse tool arguments
-                    tool_args = json.loads(tool_args_str)
+                    # Parse tool arguments - handle both string (OpenAI) and dict (Ollama) formats
+                    if isinstance(tool_args_raw, str):
+                        tool_args = json.loads(tool_args_raw)
+                        _LOGGER.debug(
+                            "Parsed tool arguments from string for %s", tool_name
+                        )
+                    elif isinstance(tool_args_raw, dict):
+                        tool_args = tool_args_raw
+                        _LOGGER.debug(
+                            "Using tool arguments as dict (Ollama format) for %s",
+                            tool_name,
+                        )
+                    else:
+                        _LOGGER.error(
+                            "Invalid tool arguments type: %s", type(tool_args_raw)
+                        )
+                        tool_args = {}
 
                     # Execute tool with timing
                     tool_start = time.time()
