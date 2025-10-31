@@ -44,17 +44,23 @@
           "vector_db_host": "ChromaDB Host",
           "vector_db_port": "ChromaDB Port",
           "vector_db_collection": "Collection Name",
+          "vector_db_embedding_provider": "Embedding Provider",
+          "vector_db_embedding_base_url": "Embedding API Base URL",
+          "vector_db_embedding_model": "Embedding Model",
+          "openai_api_key": "OpenAI API Key",
           "vector_db_top_k": "Top K Results",
-          "vector_db_similarity_threshold": "Similarity Threshold",
-          "vector_db_embedding_model": "Embedding Model"
+          "vector_db_similarity_threshold": "Similarity Threshold"
         },
         "data_description": {
           "vector_db_host": "ChromaDB server hostname or IP address",
           "vector_db_port": "ChromaDB server port",
           "vector_db_collection": "Name of the collection containing entity embeddings",
+          "vector_db_embedding_provider": "Choose between OpenAI or Ollama for generating embeddings",
+          "vector_db_embedding_base_url": "Base URL for embedding API (e.g., http://localhost:11434 for Ollama)",
+          "vector_db_embedding_model": "Model name (e.g., text-embedding-3-small for OpenAI, mxbai-embed-large for Ollama)",
+          "openai_api_key": "Your OpenAI API key (only required if using OpenAI provider)",
           "vector_db_top_k": "Number of most relevant entities to retrieve",
-          "vector_db_similarity_threshold": "Minimum similarity score (0.0-1.0) for including entities",
-          "vector_db_embedding_model": "Embedding model for query vectorization"
+          "vector_db_similarity_threshold": "Maximum L2 distance threshold (lower = stricter matching, typical range: 150-300)"
         }
       },
       "history": {
@@ -147,7 +153,7 @@
       "vector_db_collection_not_found": "ChromaDB collection not found. Please create the collection first.",
       "invalid_port": "Port must be between 1 and 65535.",
       "invalid_top_k": "Top K must be a positive integer.",
-      "invalid_similarity_threshold": "Similarity threshold must be between 0.0 and 1.0.",
+      "invalid_similarity_threshold": "Similarity threshold must be a positive number (typical range: 150-300).",
       "invalid_history_max_messages": "Max messages must be a non-negative integer.",
       "invalid_history_max_tokens": "Max tokens must be a non-negative integer.",
       "invalid_tool_timeout": "Tool timeout must be a positive number.",
@@ -168,6 +174,7 @@
         "menu_options": {
           "llm_settings": "LLM Settings",
           "context_settings": "Context Settings",
+          "vector_db_settings": "Vector Database",
           "history_settings": "Conversation History",
           "prompt_settings": "System Prompt",
           "tool_settings": "Tool Configuration",
@@ -205,6 +212,32 @@
           "context_mode": "Choose how to inject entity context",
           "context_format": "Format for entity data (JSON, Natural Language, or Hybrid)",
           "direct_entities": "Comma-separated list of entity IDs (e.g., sensor.temperature,light.*)"
+        }
+      },
+      "vector_db_settings": {
+        "title": "Vector Database Settings",
+        "description": "Configure ChromaDB connection and embedding settings.",
+        "data": {
+          "vector_db_host": "ChromaDB Host",
+          "vector_db_port": "ChromaDB Port",
+          "vector_db_collection": "Collection Name",
+          "vector_db_embedding_provider": "Embedding Provider",
+          "vector_db_embedding_base_url": "Embedding API Base URL",
+          "vector_db_embedding_model": "Embedding Model",
+          "openai_api_key": "OpenAI API Key",
+          "vector_db_top_k": "Top K Results",
+          "vector_db_similarity_threshold": "Similarity Threshold"
+        },
+        "data_description": {
+          "vector_db_host": "ChromaDB server hostname or IP address",
+          "vector_db_port": "ChromaDB server port",
+          "vector_db_collection": "Name of the collection containing entity embeddings",
+          "vector_db_embedding_provider": "Choose between OpenAI or Ollama for generating embeddings",
+          "vector_db_embedding_base_url": "Base URL for embedding API (e.g., http://localhost:11434 for Ollama)",
+          "vector_db_embedding_model": "Model name (e.g., text-embedding-3-small for OpenAI, mxbai-embed-large for Ollama)",
+          "openai_api_key": "Your OpenAI API key (only required if using OpenAI provider)",
+          "vector_db_top_k": "Number of most relevant entities to retrieve",
+          "vector_db_similarity_threshold": "Maximum L2 distance threshold (lower = stricter matching, typical range: 150-300)"
         }
       },
       "history_settings": {
@@ -293,7 +326,7 @@
       "vector_db_collection_not_found": "ChromaDB collection not found. Please create the collection first.",
       "invalid_port": "Port must be between 1 and 65535.",
       "invalid_top_k": "Top K must be a positive integer.",
-      "invalid_similarity_threshold": "Similarity threshold must be between 0.0 and 1.0.",
+      "invalid_similarity_threshold": "Similarity threshold must be a positive number (typical range: 150-300).",
       "invalid_history_max_messages": "Max messages must be a non-negative integer.",
       "invalid_history_max_tokens": "Max tokens must be a non-negative integer.",
       "invalid_tool_timeout": "Tool timeout must be a positive number.",
@@ -313,6 +346,28 @@
       "options": {
         "json": "JSON (Structured)",
         "natural_language": "Natural Language"
+      }
+    },
+    "embedding_provider": {
+      "options": {
+        "openai": "OpenAI (Cloud)",
+        "ollama": "Ollama (Local)"
+      }
+    }
+  },
+  "services": {
+    "reindex_entities": {
+      "name": "Reindex entities",
+      "description": "Force a full reindex of all Home Assistant entities into the vector database."
+    },
+    "index_entity": {
+      "name": "Index entity",
+      "description": "Index a specific entity into the vector database.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "The entity ID to index."
+        }
       }
     }
   }

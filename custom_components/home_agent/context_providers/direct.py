@@ -86,10 +86,22 @@ class DirectContextProvider(ContextProvider):
     async def _gather_entity_states(self) -> list[dict[str, Any]]:
         """Gather states for all configured entities.
 
+        If no entities are configured, defaults to all entities exposed
+        to the voice assistant (respecting Home Assistant's exposure settings).
+
         Returns:
             List of dictionaries containing entity state information
         """
         entity_states = []
+
+        # If no entities configured, use all exposed entities
+        if not self.entities_config:
+            self._logger.debug(
+                "No entities configured, using all exposed entities from voice assistant"
+            )
+            entity_states = self._get_all_exposed_entities()
+            self._logger.debug("Gathered state for %d exposed entities", len(entity_states))
+            return entity_states
 
         for entity_config in self.entities_config:
             entity_id = entity_config.get("entity_id")
@@ -111,6 +123,32 @@ class DirectContextProvider(ContextProvider):
                     entity_states.append(state_data)
 
         self._logger.debug("Gathered state for %d entities", len(entity_states))
+
+        return entity_states
+
+    def _get_all_exposed_entities(self) -> list[dict[str, Any]]:
+        """Get all entities exposed to the voice assistant.
+
+        Returns:
+            List of entity state dictionaries for all exposed entities
+        """
+        from homeassistant.components import conversation as ha_conversation
+        from homeassistant.components.homeassistant.exposed_entities import (
+            async_should_expose,
+        )
+
+        entity_states = []
+
+        # Get all entities that should be exposed to conversation
+        for state in self.hass.states.async_all():
+            if async_should_expose(self.hass, ha_conversation.DOMAIN, state.entity_id):
+                state_data = self._get_entity_state(state.entity_id)
+                if state_data:
+                    # Add available services for consistency with vector DB mode
+                    state_data["available_services"] = self._get_entity_services(
+                        state.entity_id
+                    )
+                    entity_states.append(state_data)
 
         return entity_states
 

@@ -39,10 +39,19 @@ from .const import (
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
     CONF_LLM_TEMPERATURE,
+    CONF_OPENAI_API_KEY,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
+    CONF_VECTOR_DB_COLLECTION,
+    CONF_VECTOR_DB_EMBEDDING_BASE_URL,
+    CONF_VECTOR_DB_EMBEDDING_MODEL,
+    CONF_VECTOR_DB_EMBEDDING_PROVIDER,
+    CONF_VECTOR_DB_HOST,
+    CONF_VECTOR_DB_PORT,
+    CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
+    CONF_VECTOR_DB_TOP_K,
     CONTEXT_FORMAT_HYBRID,
     CONTEXT_FORMAT_JSON,
     CONTEXT_FORMAT_NATURAL_LANGUAGE,
@@ -67,7 +76,17 @@ from .const import (
     DEFAULT_TEMPERATURE,
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DEFAULT_TOOLS_TIMEOUT,
+    DEFAULT_VECTOR_DB_COLLECTION,
+    DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
+    DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
+    DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER,
+    DEFAULT_VECTOR_DB_HOST,
+    DEFAULT_VECTOR_DB_PORT,
+    DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD,
+    DEFAULT_VECTOR_DB_TOP_K,
     DOMAIN,
+    EMBEDDING_PROVIDER_OLLAMA,
+    EMBEDDING_PROVIDER_OPENAI,
 )
 from .exceptions import AuthenticationError, ValidationError
 
@@ -350,6 +369,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             menu_options=[
                 "llm_settings",
                 "context_settings",
+                "vector_db_settings",
                 "history_settings",
                 "prompt_settings",
                 "tool_settings",
@@ -490,6 +510,100 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 "direct_mode": CONTEXT_MODE_DIRECT,
                 "vector_db_mode": CONTEXT_MODE_VECTOR_DB,
                 "entity_format": "sensor.temperature,light.living_room",
+            },
+        )
+
+    async def async_step_vector_db_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Configure Vector DB (ChromaDB) settings.
+
+        Args:
+            user_input: User-provided configuration
+
+        Returns:
+            FlowResult indicating completion or next step
+        """
+        if user_input is not None:
+            updated_options = {**self._config_entry.options, **user_input}
+            return self.async_create_entry(title="", data=updated_options)
+
+        current_options = self._config_entry.options
+
+        return self.async_show_form(
+            step_id="vector_db_settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_VECTOR_DB_HOST,
+                        default=current_options.get(
+                            CONF_VECTOR_DB_HOST, DEFAULT_VECTOR_DB_HOST
+                        ),
+                    ): str,
+                    vol.Optional(
+                        CONF_VECTOR_DB_PORT,
+                        default=current_options.get(
+                            CONF_VECTOR_DB_PORT, DEFAULT_VECTOR_DB_PORT
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+                    vol.Optional(
+                        CONF_VECTOR_DB_COLLECTION,
+                        default=current_options.get(
+                            CONF_VECTOR_DB_COLLECTION, DEFAULT_VECTOR_DB_COLLECTION
+                        ),
+                    ): str,
+                    vol.Optional(
+                        CONF_VECTOR_DB_EMBEDDING_PROVIDER,
+                        default=current_options.get(
+                            CONF_VECTOR_DB_EMBEDDING_PROVIDER,
+                            DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER,
+                        ),
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                EMBEDDING_PROVIDER_OPENAI,
+                                EMBEDDING_PROVIDER_OLLAMA,
+                            ],
+                            translation_key="embedding_provider",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_VECTOR_DB_EMBEDDING_BASE_URL,
+                        default=current_options.get(
+                            CONF_VECTOR_DB_EMBEDDING_BASE_URL,
+                            DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
+                        ),
+                    ): str,
+                    vol.Optional(
+                        CONF_VECTOR_DB_EMBEDDING_MODEL,
+                        default=current_options.get(
+                            CONF_VECTOR_DB_EMBEDDING_MODEL,
+                            DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
+                        ),
+                    ): str,
+                    vol.Optional(
+                        CONF_OPENAI_API_KEY,
+                        default=current_options.get(CONF_OPENAI_API_KEY, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_VECTOR_DB_TOP_K,
+                        default=current_options.get(
+                            CONF_VECTOR_DB_TOP_K, DEFAULT_VECTOR_DB_TOP_K
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
+                    vol.Optional(
+                        CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
+                        default=current_options.get(
+                            CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
+                            DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD,
+                        ),
+                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1000.0)),
+                }
+            ),
+            description_placeholders={
+                "default_host": DEFAULT_VECTOR_DB_HOST,
+                "default_port": str(DEFAULT_VECTOR_DB_PORT),
+                "default_collection": DEFAULT_VECTOR_DB_COLLECTION,
             },
         )
 

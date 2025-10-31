@@ -30,6 +30,7 @@ from .const import (
     CONF_HISTORY_ENABLED,
     CONF_HISTORY_MAX_MESSAGES,
     CONF_HISTORY_MAX_TOKENS,
+    CONF_HISTORY_PERSIST,
     CONF_LLM_API_KEY,
     CONF_LLM_BASE_URL,
     CONF_LLM_MAX_TOKENS,
@@ -86,6 +87,8 @@ class HomeAgent(AbstractConversationAgent):
                 CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES
             ),
             max_tokens=config.get(CONF_HISTORY_MAX_TOKENS, DEFAULT_HISTORY_MAX_TOKENS),
+            hass=hass,
+            persist=config.get(CONF_HISTORY_PERSIST, True),
         )
         self.tool_handler = ToolHandler(
             hass,
@@ -431,6 +434,22 @@ class HomeAgent(AbstractConversationAgent):
         start_time = time.time()
         conversation_id = conversation_id or "default"
 
+        # Initialize metrics tracking
+        metrics = {
+            "tokens": {
+                "prompt": 0,
+                "completion": 0,
+                "total": 0,
+            },
+            "performance": {
+                "llm_latency_ms": 0,
+                "tool_latency_ms": 0,
+                "context_latency_ms": 0,
+            },
+            "context": {},
+            "tool_calls": 0,
+        }
+
         # Fire conversation started event
         if self.config.get(CONF_EMIT_EVENTS, True):
             self.hass.bus.async_fire(
@@ -446,25 +465,38 @@ class HomeAgent(AbstractConversationAgent):
 
         try:
             response = await self._process_conversation(
-                text, conversation_id, device_id
+                text, conversation_id, device_id, metrics
             )
 
-            # Calculate duration
+            # Calculate total duration
             duration_ms = int((time.time() - start_time) * 1000)
 
-            # Fire conversation finished event
+            # Get tool metrics
+            tool_metrics = self.tool_handler.get_metrics()
+            tool_breakdown = {}
+            for tool_name in self.tool_handler.get_registered_tools():
+                count = tool_metrics.get(f"{tool_name}_executions", 0)
+                if count > 0:
+                    tool_breakdown[tool_name] = count
+
+            # Fire conversation finished event with enhanced metrics
             if self.config.get(CONF_EMIT_EVENTS, True):
-                self.hass.bus.async_fire(
-                    EVENT_CONVERSATION_FINISHED,
-                    {
+                try:
+                    event_data = {
                         "conversation_id": conversation_id,
                         "user_id": user_id,
                         "duration_ms": duration_ms,
-                        "tool_calls": self.tool_handler.get_metrics().get(
-                            "total_executions", 0
-                        ),
-                    },
-                )
+                        "tokens": metrics["tokens"],
+                        "performance": metrics["performance"],
+                        "context": metrics.get("context", {}),
+                        "tool_calls": metrics["tool_calls"],
+                        "tool_breakdown": tool_breakdown,
+                    }
+                    self.hass.bus.async_fire(EVENT_CONVERSATION_FINISHED, event_data)
+                except Exception as event_err:
+                    _LOGGER.warning(
+                        "Failed to fire conversation finished event: %s", event_err
+                    )
 
             return response
 
@@ -473,15 +505,21 @@ class HomeAgent(AbstractConversationAgent):
 
             # Fire error event
             if self.config.get(CONF_EMIT_EVENTS, True):
-                self.hass.bus.async_fire(
-                    EVENT_ERROR,
-                    {
-                        "error_type": type(err).__name__,
-                        "error_message": str(err),
-                        "conversation_id": conversation_id,
-                        "component": "agent",
-                    },
-                )
+                try:
+                    self.hass.bus.async_fire(
+                        EVENT_ERROR,
+                        {
+                            "error_type": type(err).__name__,
+                            "error_message": str(err),
+                            "conversation_id": conversation_id,
+                            "component": "agent",
+                            "context": {
+                                "text_length": len(text),
+                            },
+                        },
+                    )
+                except Exception as event_err:
+                    _LOGGER.warning("Failed to fire error event: %s", event_err)
 
             raise
 
@@ -490,6 +528,7 @@ class HomeAgent(AbstractConversationAgent):
         user_message: str,
         conversation_id: str,
         device_id: str | None = None,
+        metrics: dict[str, Any] | None = None,
     ) -> str:
         """Process a conversation with tool calling loop.
 
@@ -497,14 +536,23 @@ class HomeAgent(AbstractConversationAgent):
             user_message: User's message
             conversation_id: Conversation ID for history
             device_id: Device ID that triggered the conversation
+            metrics: Optional metrics dictionary to populate
 
         Returns:
             Final response text
         """
-        # Get context from context manager
+        if metrics is None:
+            metrics = {}
+
+        # Get context from context manager with timing
+        context_start = time.time()
         context = await self.context_manager.get_formatted_context(
-            user_message, conversation_id
+            user_message, conversation_id, metrics
         )
+        context_latency_ms = int((time.time() - context_start) * 1000)
+
+        if "performance" in metrics:
+            metrics["performance"]["context_latency_ms"] = context_latency_ms
 
         # Build system prompt with full context including device_id
         system_prompt = self._build_system_prompt(
@@ -513,6 +561,14 @@ class HomeAgent(AbstractConversationAgent):
             device_id=device_id,
             user_message=user_message,
         )
+
+        # Debug: Log context injection
+        if context:
+            _LOGGER.debug(
+                "Entity context injected: %d chars, contains %d entities",
+                len(context),
+                context.count('"entity_id"') if isinstance(context, str) else 0,
+            )
 
         # Build messages list
         messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
@@ -536,12 +592,24 @@ class HomeAgent(AbstractConversationAgent):
         # Tool calling loop
         max_iterations = self.config.get(CONF_TOOLS_MAX_CALLS_PER_TURN, 5)
         iteration = 0
+        total_llm_latency_ms = 0
+        total_tool_latency_ms = 0
 
         while iteration < max_iterations:
             iteration += 1
 
-            # Call LLM
+            # Call LLM with timing
+            llm_start = time.time()
             llm_response = await self._call_llm(messages, tools=tool_definitions)
+            llm_latency_ms = int((time.time() - llm_start) * 1000)
+            total_llm_latency_ms += llm_latency_ms
+
+            # Track token usage from LLM response
+            usage = llm_response.get("usage", {})
+            if usage and "tokens" in metrics:
+                metrics["tokens"]["prompt"] += usage.get("prompt_tokens", 0)
+                metrics["tokens"]["completion"] += usage.get("completion_tokens", 0)
+                metrics["tokens"]["total"] += usage.get("total_tokens", 0)
 
             # Extract response message
             response_message = llm_response.get("choices", [{}])[0].get("message", {})
@@ -557,6 +625,12 @@ class HomeAgent(AbstractConversationAgent):
             # Check if LLM wants to call tools
             tool_calls = response_message.get("tool_calls", [])
 
+            # Always log tool call detection for debugging
+            if tool_calls:
+                _LOGGER.info("Detected %d tool call(s) from LLM", len(tool_calls))
+            else:
+                _LOGGER.info("No tool calls in LLM response")
+
             if not tool_calls:
                 # No tool calls, we're done
                 final_content = response_message.get("content") or ""
@@ -571,6 +645,11 @@ class HomeAgent(AbstractConversationAgent):
                     # Provide a fallback message
                     final_content = "I've completed your request."
 
+                # Update final performance metrics
+                if "performance" in metrics:
+                    metrics["performance"]["llm_latency_ms"] = total_llm_latency_ms
+                    metrics["performance"]["tool_latency_ms"] = total_tool_latency_ms
+
                 # Save to conversation history
                 if self.config.get(CONF_HISTORY_ENABLED, True):
                     self.conversation_manager.add_message(
@@ -583,7 +662,8 @@ class HomeAgent(AbstractConversationAgent):
                 return final_content
 
             # Execute tool calls
-            _LOGGER.debug("LLM requested %d tool calls", len(tool_calls))
+            _LOGGER.info("Executing %d tool call(s)", len(tool_calls))
+            metrics["tool_calls"] = metrics.get("tool_calls", 0) + len(tool_calls)
 
             # Add assistant message with tool calls to messages
             messages.append(response_message)
@@ -591,17 +671,44 @@ class HomeAgent(AbstractConversationAgent):
             # Execute each tool
             for tool_call in tool_calls:
                 tool_name = tool_call.get("function", {}).get("name", "")
-                tool_args_str = tool_call.get("function", {}).get("arguments", "{}")
+                tool_args_raw = tool_call.get("function", {}).get("arguments", "{}")
                 tool_call_id = tool_call.get("id", "")
 
                 try:
-                    # Parse tool arguments
-                    tool_args = json.loads(tool_args_str)
+                    # Parse tool arguments - handle both string (OpenAI) and dict (Ollama) formats
+                    if isinstance(tool_args_raw, str):
+                        tool_args = json.loads(tool_args_raw)
+                        _LOGGER.info(
+                            "Tool '%s': parsed arguments from JSON string", tool_name
+                        )
+                    elif isinstance(tool_args_raw, dict):
+                        tool_args = tool_args_raw
+                        _LOGGER.info(
+                            "Tool '%s': using dict arguments (Ollama format)", tool_name
+                        )
+                    else:
+                        _LOGGER.error(
+                            "Invalid tool arguments type for '%s': %s",
+                            tool_name,
+                            type(tool_args_raw),
+                        )
+                        tool_args = {}
 
-                    # Execute tool
+                    # Execute tool with timing
+                    _LOGGER.info(
+                        "Calling tool '%s' with args: %s", tool_name, tool_args
+                    )
+                    tool_start = time.time()
                     result = await self.tool_handler.execute_tool(
                         tool_name, tool_args, conversation_id
                     )
+                    _LOGGER.info(
+                        "Tool '%s' completed successfully in %.2fms",
+                        tool_name,
+                        (time.time() - tool_start) * 1000,
+                    )
+                    tool_latency_ms = int((time.time() - tool_start) * 1000)
+                    total_tool_latency_ms += tool_latency_ms
 
                     # Add tool result to messages
                     messages.append(
@@ -631,6 +738,11 @@ class HomeAgent(AbstractConversationAgent):
                     )
 
             # Continue loop to get LLM's response with tool results
+
+        # Update final performance metrics
+        if "performance" in metrics:
+            metrics["performance"]["llm_latency_ms"] = total_llm_latency_ms
+            metrics["performance"]["tool_latency_ms"] = total_tool_latency_ms
 
         # Max iterations reached
         _LOGGER.warning("Max tool calling iterations reached")

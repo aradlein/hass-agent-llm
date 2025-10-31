@@ -15,11 +15,15 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    CONF_CONTEXT_FORMAT,
+    CONF_CONTEXT_MODE,
+    CONF_DIRECT_ENTITIES,
     CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
     DEFAULT_CONTEXT_FORMAT,
     DEFAULT_CONTEXT_MODE,
     EVENT_CONTEXT_INJECTED,
+    EVENT_CONTEXT_OPTIMIZED,
     MAX_CONTEXT_TOKENS,
     TOKEN_WARNING_THRESHOLD,
 )
@@ -84,17 +88,13 @@ class ContextManager:
         Raises:
             ContextInjectionError: If provider initialization fails
         """
-        mode = self.config.get("mode", DEFAULT_CONTEXT_MODE)
+        mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
 
         try:
             if mode == CONTEXT_MODE_DIRECT:
                 self._provider = self._create_direct_provider()
             elif mode == CONTEXT_MODE_VECTOR_DB:
-                # Phase 2: Vector DB provider will be implemented later
-                _LOGGER.warning(
-                    "Vector DB mode not yet implemented, falling back to direct mode"
-                )
-                self._provider = self._create_direct_provider()
+                self._provider = self._create_vector_db_provider()
             else:
                 _LOGGER.error("Invalid context mode: %s, using direct mode", mode)
                 self._provider = self._create_direct_provider()
@@ -117,10 +117,21 @@ class ContextManager:
             Configured DirectContextProvider instance
         """
         provider_config = {
-            "entities": self.config.get("entities", []),
-            "format": self.config.get("format", DEFAULT_CONTEXT_FORMAT),
+            "entities": self.config.get(CONF_DIRECT_ENTITIES, []),
+            "format": self.config.get(CONF_CONTEXT_FORMAT, DEFAULT_CONTEXT_FORMAT),
         }
         return DirectContextProvider(self.hass, provider_config)
+
+    def _create_vector_db_provider(self) -> ContextProvider:
+        """Create and configure a vector DB context provider.
+
+        Returns:
+            Configured VectorDBContextProvider instance
+        """
+        from .context_providers.vector_db import VectorDBContextProvider
+
+        # Pass all config to the vector DB provider
+        return VectorDBContextProvider(self.hass, self.config)
 
     def set_provider(self, provider: ContextProvider) -> None:
         """Set a custom context provider.
@@ -192,6 +203,7 @@ class ContextManager:
         self,
         user_input: str,
         conversation_id: str | None = None,
+        metrics: dict[str, Any] | None = None,
     ) -> str:
         """Get context formatted and optimized for LLM injection.
 
@@ -201,6 +213,7 @@ class ContextManager:
         Args:
             user_input: The user's query or message
             conversation_id: Optional conversation ID for event tracking
+            metrics: Optional metrics dictionary to populate
 
         Returns:
             Formatted and optimized context string ready for LLM
@@ -212,11 +225,26 @@ class ContextManager:
         # Get raw context
         context = await self.get_context(user_input, conversation_id)
 
+        # Store original context size for metrics
+        original_tokens = len(context) // 4
+
         # Optimize context size
         optimized_context = self._optimize_context_size(context)
 
         # Estimate token count (rough approximation: ~4 chars per token)
         estimated_tokens = len(optimized_context) // 4
+
+        # Populate metrics if provided
+        if metrics is not None and "context" not in metrics:
+            metrics["context"] = {
+                "mode": self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE),
+                "original_tokens": original_tokens,
+                "optimized_tokens": estimated_tokens,
+                "compression_ratio": round(
+                    estimated_tokens / original_tokens if original_tokens > 0 else 1.0,
+                    3,
+                ),
+            }
 
         # Check if we're approaching token limits
         if estimated_tokens > self._max_context_tokens:
@@ -270,16 +298,50 @@ class ContextManager:
         Returns:
             Optimized context string
         """
+        original_length = len(context)
+        original_tokens = original_length // 4  # Rough estimate
+
         # Remove excessive whitespace and normalize
         optimized = " ".join(context.split())
 
         # Check if truncation is needed
         max_chars = self._max_context_tokens * 4  # Rough char-to-token ratio
+        was_truncated = False
         if len(optimized) > max_chars:
             _LOGGER.warning(
                 "Context truncated from %d to %d characters", len(optimized), max_chars
             )
             optimized = optimized[:max_chars] + "... [truncated]"
+            was_truncated = True
+
+        optimized_tokens = len(optimized) // 4
+        compression_ratio = (
+            len(optimized) / original_length if original_length > 0 else 1.0
+        )
+
+        # Fire optimization event if context was changed
+        if was_truncated or len(optimized) < original_length:
+            if self._emit_events:
+                try:
+                    self.hass.bus.async_fire(
+                        EVENT_CONTEXT_OPTIMIZED,
+                        {
+                            "original_tokens": original_tokens,
+                            "optimized_tokens": optimized_tokens,
+                            "compression_ratio": round(compression_ratio, 3),
+                            "was_truncated": was_truncated,
+                            "original_size_bytes": original_length,
+                            "optimized_size_bytes": len(optimized),
+                        },
+                    )
+                    _LOGGER.debug(
+                        "Context optimized: %d -> %d tokens (ratio: %.2f)",
+                        original_tokens,
+                        optimized_tokens,
+                        compression_ratio,
+                    )
+                except Exception as err:
+                    _LOGGER.warning("Failed to fire context optimized event: %s", err)
 
         return optimized
 
@@ -334,7 +396,7 @@ class ContextManager:
         Returns:
             Cache key string
         """
-        mode = self.config.get("mode", DEFAULT_CONTEXT_MODE)
+        mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
 
         if mode == CONTEXT_MODE_DIRECT:
             # Direct mode always returns same entities
@@ -364,7 +426,7 @@ class ContextManager:
             token_count: Estimated token count
             user_input: The user's input (for vector DB query tracking)
         """
-        mode = self.config.get("mode", DEFAULT_CONTEXT_MODE)
+        mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
 
         # Extract entity IDs from provider if possible
         entities_included = []
@@ -418,8 +480,8 @@ class ContextManager:
             ... }
             >>> await context_manager.update_config(new_config)
         """
-        old_mode = self.config.get("mode")
-        new_mode = config.get("mode")
+        old_mode = self.config.get(CONF_CONTEXT_MODE)
+        new_mode = config.get(CONF_CONTEXT_MODE)
 
         # Update configuration
         self.config.update(config)
@@ -452,7 +514,7 @@ class ContextManager:
         Returns:
             Current context mode ("direct" or "vector_db")
         """
-        return self.config.get("mode", DEFAULT_CONTEXT_MODE)
+        return self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
 
     def get_provider_info(self) -> dict[str, Any]:
         """Get information about the current provider.
