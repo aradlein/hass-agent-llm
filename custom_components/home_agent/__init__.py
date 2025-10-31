@@ -7,7 +7,6 @@ tool calling, context injection, and conversation history management.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components import conversation as ha_conversation
 from homeassistant.config_entries import ConfigEntry

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,7 +63,9 @@ class ConversationHistoryManager:
             return
 
         if not content:
-            _LOGGER.warning("Attempted to add empty message to conversation %s", conversation_id)
+            _LOGGER.warning(
+                "Attempted to add empty message to conversation %s", conversation_id
+            )
             return
 
         message = {"role": role, "content": content}
@@ -79,7 +80,10 @@ class ConversationHistoryManager:
         )
 
     def get_history(
-        self, conversation_id: str, max_messages: int | None = None, max_tokens: int | None = None
+        self,
+        conversation_id: str,
+        max_messages: int | None = None,
+        max_tokens: int | None = None,
     ) -> list[dict[str, str]]:
         """Get conversation history with optional limits.
 
@@ -110,7 +114,9 @@ class ConversationHistoryManager:
         history = self._histories[conversation_id]
 
         # Apply message limit
-        effective_max_messages = max_messages if max_messages is not None else self._max_messages
+        effective_max_messages = (
+            max_messages if max_messages is not None else self._max_messages
+        )
         if effective_max_messages is not None and len(history) > effective_max_messages:
             history = history[-effective_max_messages:]
             _LOGGER.debug(
@@ -121,7 +127,9 @@ class ConversationHistoryManager:
             )
 
         # Apply token limit
-        effective_max_tokens = max_tokens if max_tokens is not None else self._max_tokens
+        effective_max_tokens = (
+            max_tokens if max_tokens is not None else self._max_tokens
+        )
         if effective_max_tokens is not None:
             history = self._truncate_by_tokens(history, effective_max_tokens)
 
@@ -143,9 +151,13 @@ class ConversationHistoryManager:
         if conversation_id in self._histories:
             message_count = len(self._histories[conversation_id])
             del self._histories[conversation_id]
-            _LOGGER.info("Cleared conversation %s (%d messages)", conversation_id, message_count)
+            _LOGGER.info(
+                "Cleared conversation %s (%d messages)", conversation_id, message_count
+            )
         else:
-            _LOGGER.debug("Attempted to clear non-existent conversation %s", conversation_id)
+            _LOGGER.debug(
+                "Attempted to clear non-existent conversation %s", conversation_id
+            )
 
     def clear_all(self) -> None:
         """Clear all conversation histories.
@@ -287,7 +299,9 @@ class ConversationHistoryManager:
 
         return truncated
 
-    def update_limits(self, max_messages: int | None = None, max_tokens: int | None = None) -> None:
+    def update_limits(
+        self, max_messages: int | None = None, max_tokens: int | None = None
+    ) -> None:
         """Update the default limits for conversation history.
 
         Args:

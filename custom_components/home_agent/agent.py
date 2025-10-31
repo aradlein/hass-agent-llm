@@ -6,7 +6,6 @@ to provide intelligent conversation capabilities integrated with Home Assistant.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
@@ -22,12 +21,9 @@ from homeassistant.components.homeassistant.exposed_entities import async_should
 
 from .const import (
     CONF_CONTEXT_ENTITIES,
-    CONF_CONTEXT_FORMAT,
     CONF_CONTEXT_MODE,
     CONF_DEBUG_LOGGING,
     CONF_EMIT_EVENTS,
-    CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
-    CONF_EXTERNAL_LLM_ENABLED,
     CONF_HISTORY_ENABLED,
     CONF_HISTORY_MAX_MESSAGES,
     CONF_HISTORY_MAX_TOKENS,
@@ -54,7 +50,6 @@ from .conversation import ConversationHistoryManager
 from .exceptions import (
     AuthenticationError,
     HomeAgentError,
-    ToolExecutionError,
 )
 from .helpers import redact_sensitive_data
 from .tool_handler import ToolHandler
@@ -84,7 +79,9 @@ class HomeAgent(AbstractConversationAgent):
         # Initialize components
         self.context_manager = ContextManager(hass, config)
         self.conversation_manager = ConversationHistoryManager(
-            max_messages=config.get(CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES),
+            max_messages=config.get(
+                CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES
+            ),
             max_tokens=config.get(CONF_HISTORY_MAX_TOKENS, DEFAULT_HISTORY_MAX_TOKENS),
         )
         self.tool_handler = ToolHandler(
@@ -185,7 +182,9 @@ class HomeAgent(AbstractConversationAgent):
         ha_query = HomeAssistantQueryTool(self.hass, exposed_entity_ids)
         self.tool_handler.register_tool(ha_query)
 
-        _LOGGER.debug("Registered %d tools", len(self.tool_handler.get_registered_tools()))
+        _LOGGER.debug(
+            "Registered %d tools", len(self.tool_handler.get_registered_tools())
+        )
 
     def _get_exposed_entities(self) -> list[str]:
         """Get list of entities exposed to the agent.
@@ -207,6 +206,7 @@ class HomeAgent(AbstractConversationAgent):
             if "*" in entity_id:
                 # Get all matching entities
                 import fnmatch
+
                 all_entities = self.hass.states.async_entity_ids()
                 matching = [e for e in all_entities if fnmatch.fnmatch(e, entity_id)]
                 exposed.update(matching)
@@ -239,12 +239,14 @@ class HomeAgent(AbstractConversationAgent):
             if entity and entity.aliases:
                 aliases = list(entity.aliases)
 
-            exposed_entities.append({
-                "entity_id": entity_id,
-                "name": state.name,
-                "state": state.state,
-                "aliases": aliases,
-            })
+            exposed_entities.append(
+                {
+                    "entity_id": entity_id,
+                    "name": state.name,
+                    "state": state.state,
+                    "aliases": aliases,
+                }
+            )
 
         return exposed_entities
 
@@ -384,7 +386,9 @@ class HomeAgent(AbstractConversationAgent):
         try:
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status == 401:
-                    raise AuthenticationError("LLM API authentication failed. Check your API key.")
+                    raise AuthenticationError(
+                        "LLM API authentication failed. Check your API key."
+                    )
 
                 if response.status != 200:
                     error_text = await response.text()
@@ -453,7 +457,9 @@ class HomeAgent(AbstractConversationAgent):
                         "conversation_id": conversation_id,
                         "user_id": user_id,
                         "duration_ms": duration_ms,
-                        "tool_calls": self.tool_handler.get_metrics().get("total_executions", 0),
+                        "tool_calls": self.tool_handler.get_metrics().get(
+                            "total_executions", 0
+                        ),
                     },
                 )
 
@@ -506,15 +512,15 @@ class HomeAgent(AbstractConversationAgent):
         )
 
         # Build messages list
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": system_prompt}
-        ]
+        messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
 
         # Add conversation history if enabled
         if self.config.get(CONF_HISTORY_ENABLED, True):
             history = self.conversation_manager.get_history(
                 conversation_id,
-                max_messages=self.config.get(CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES),
+                max_messages=self.config.get(
+                    CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES
+                ),
             )
             messages.extend(history)
 
@@ -595,25 +601,31 @@ class HomeAgent(AbstractConversationAgent):
                     )
 
                     # Add tool result to messages
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call_id,
-                        "name": tool_name,
-                        "content": json.dumps(result),
-                    })
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call_id,
+                            "name": tool_name,
+                            "content": json.dumps(result),
+                        }
+                    )
 
                 except Exception as err:
                     _LOGGER.error("Tool execution failed: %s", err)
                     # Add error result
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call_id,
-                        "name": tool_name,
-                        "content": json.dumps({
-                            "success": False,
-                            "error": str(err),
-                        }),
-                    })
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call_id,
+                            "name": tool_name,
+                            "content": json.dumps(
+                                {
+                                    "success": False,
+                                    "error": str(err),
+                                }
+                            ),
+                        }
+                    )
 
             # Continue loop to get LLM's response with tool results
 

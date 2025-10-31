@@ -342,9 +342,7 @@ class ToolRegistry:
         required_params = schema.get("required", [])
 
         # Check for missing required parameters
-        missing_params = [
-            param for param in required_params if param not in parameters
-        ]
+        missing_params = [param for param in required_params if param not in parameters]
 
         if missing_params:
             raise ValidationError(

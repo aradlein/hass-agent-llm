@@ -16,7 +16,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import selector
 
 from .const import (
@@ -224,9 +223,7 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         max_tokens = config.get(CONF_LLM_MAX_TOKENS, DEFAULT_MAX_TOKENS)
         if max_tokens < 1:
-            raise ValidationError(
-                f"Max tokens must be at least 1, got: {max_tokens}"
-            )
+            raise ValidationError(f"Max tokens must be at least 1, got: {max_tokens}")
 
     async def _test_llm_connection(self, config: dict[str, Any]) -> bool:
         """Test connection to LLM API.
@@ -266,7 +263,10 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=10)
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=10),
                 ) as response:
                     if response.status == 401:
                         raise AuthenticationError("Invalid API key")
@@ -385,8 +385,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
                 # Update the config entry data with new LLM settings
                 self.hass.config_entries.async_update_entry(
-                    self._config_entry,
-                    data={**self._config_entry.data, **user_input}
+                    self._config_entry, data={**self._config_entry.data, **user_input}
                 )
 
                 return self.async_create_entry(title="", data={})
@@ -422,11 +421,15 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     ): str,
                     vol.Optional(
                         CONF_LLM_TEMPERATURE,
-                        default=current_data.get(CONF_LLM_TEMPERATURE, DEFAULT_TEMPERATURE),
+                        default=current_data.get(
+                            CONF_LLM_TEMPERATURE, DEFAULT_TEMPERATURE
+                        ),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
                     vol.Optional(
                         CONF_LLM_MAX_TOKENS,
-                        default=current_data.get(CONF_LLM_MAX_TOKENS, DEFAULT_MAX_TOKENS),
+                        default=current_data.get(
+                            CONF_LLM_MAX_TOKENS, DEFAULT_MAX_TOKENS
+                        ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100000)),
                 }
             ),
@@ -563,7 +566,9 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_PROMPT_CUSTOM_ADDITIONS,
                         description={
-                            "suggested_value": current_options.get(CONF_PROMPT_CUSTOM_ADDITIONS, "")
+                            "suggested_value": current_options.get(
+                                CONF_PROMPT_CUSTOM_ADDITIONS, ""
+                            )
                         },
                     ): selector.TemplateSelector(),
                 }
@@ -658,9 +663,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             },
         )
 
-    def _get_external_llm_schema(
-        self, current_options: dict[str, Any]
-    ) -> vol.Schema:
+    def _get_external_llm_schema(self, current_options: dict[str, Any]) -> vol.Schema:
         """Get schema for external LLM settings.
 
         Args:
@@ -726,9 +729,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             }
         )
 
-    async def _validate_external_llm_config(
-        self, config: dict[str, Any]
-    ) -> None:
+    async def _validate_external_llm_config(self, config: dict[str, Any]) -> None:
         """Validate external LLM configuration.
 
         Args:
@@ -743,9 +744,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
         parsed = urlparse(base_url)
         if not parsed.scheme or not parsed.netloc:
-            raise ValidationError(
-                f"Invalid external LLM URL format: {base_url}"
-            )
+            raise ValidationError(f"Invalid external LLM URL format: {base_url}")
 
         api_key = config.get(CONF_EXTERNAL_LLM_API_KEY, "")
         if not api_key or not api_key.strip():
