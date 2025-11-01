@@ -90,6 +90,9 @@ async def test_external_llm_tool_registration(mock_hass_for_integration, externa
 
         agent = HomeAgent(mock_hass_for_integration, external_llm_config)
 
+        # Trigger lazy tool registration
+        agent._ensure_tools_registered()
+
         # Verify external LLM tool is registered
         registered_tool_names = agent.tool_handler.get_registered_tools()
 
@@ -114,6 +117,9 @@ async def test_external_llm_tool_not_registered_when_disabled(mock_hass_for_inte
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_integration, config)
+
+        # Trigger lazy tool registration
+        agent._ensure_tools_registered()
 
         # Verify external LLM tool is NOT registered
         registered_tool_names = agent.tool_handler.get_registered_tools()
