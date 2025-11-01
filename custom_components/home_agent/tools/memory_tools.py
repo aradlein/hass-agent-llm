@@ -70,10 +70,11 @@ class StoreMemoryTool(BaseTool):
             "properties": {
                 "memory_type": {
                     "type": "string",
-                    "enum": ["fact", "preference", "context"],
+                    "enum": ["fact", "preference", "context", "event"],
                     "description": (
                         "Type of memory: 'fact' for concrete information, "
-                        "'preference' for user preferences, 'context' for background info"
+                        "'preference' for user preferences, 'context' for background info, "
+                        "'event' for time-sensitive actions or state changes"
                     ),
                 },
                 "content": {

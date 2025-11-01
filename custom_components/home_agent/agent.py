@@ -12,15 +12,13 @@ import time
 from typing import Any
 
 import aiohttp
-
 from homeassistant.components import conversation as ha_conversation
 from homeassistant.components.conversation.models import AbstractConversationAgent
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import TemplateError
-from homeassistant.helpers import entity_registry as er, intent, template
-from homeassistant.components.homeassistant.exposed_entities import (
-    async_should_expose,
-)
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import intent, template
 
 from .const import (
     CONF_CONTEXT_ENTITIES,
@@ -46,13 +44,13 @@ from .const import (
     CONF_TOOLS_CUSTOM,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
-    DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_MEMORY_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_LLM,
     DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DOMAIN,
     EVENT_CONVERSATION_FINISHED,
     EVENT_CONVERSATION_STARTED,
@@ -62,10 +60,7 @@ from .const import (
 )
 from .context_manager import ContextManager
 from .conversation import ConversationHistoryManager
-from .exceptions import (
-    AuthenticationError,
-    HomeAgentError,
-)
+from .exceptions import AuthenticationError, HomeAgentError
 from .helpers import redact_sensitive_data
 from .tool_handler import ToolHandler
 from .tools import HomeAssistantControlTool, HomeAssistantQueryTool
@@ -96,9 +91,7 @@ class HomeAgent(AbstractConversationAgent):
         # Initialize components
         self.context_manager = ContextManager(hass, config)
         self.conversation_manager = ConversationHistoryManager(
-            max_messages=config.get(
-                CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES
-            ),
+            max_messages=config.get(CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES),
             max_tokens=config.get(CONF_HISTORY_MAX_TOKENS, DEFAULT_HISTORY_MAX_TOKENS),
             hass=hass,
             persist=config.get(CONF_HISTORY_PERSIST, True),
@@ -213,9 +206,7 @@ class HomeAgent(AbstractConversationAgent):
         # Get exposed entities from voice assistant settings
         # Use async_should_expose to respect Home Assistant's exposure settings
         from homeassistant.components import conversation as ha_conversation
-        from homeassistant.components.homeassistant.exposed_entities import (
-            async_should_expose,
-        )
+        from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 
         exposed_entity_ids = {
             state.entity_id
@@ -264,9 +255,7 @@ class HomeAgent(AbstractConversationAgent):
 
             _LOGGER.info("Memory tools registered")
 
-        _LOGGER.debug(
-            "Registered %d tools", len(self.tool_handler.get_registered_tools())
-        )
+        _LOGGER.debug("Registered %d tools", len(self.tool_handler.get_registered_tools()))
 
     def _register_custom_tools(self, custom_tools_config: list[dict[str, Any]]) -> None:
         """Register custom tools from configuration.
@@ -449,9 +438,7 @@ class HomeAgent(AbstractConversationAgent):
 
         return prompt
 
-    def _render_template(
-        self, template_str: str, variables: dict[str, Any] | None = None
-    ) -> str:
+    def _render_template(self, template_str: str, variables: dict[str, Any] | None = None) -> str:
         """Render a Jinja2 template string.
 
         Args:
@@ -509,8 +496,12 @@ class HomeAgent(AbstractConversationAgent):
         payload: dict[str, Any] = {
             "model": self.config[CONF_LLM_MODEL],
             "messages": messages,
-            "temperature": temperature if temperature is not None else self.config.get(CONF_LLM_TEMPERATURE, 0.7),
-            "max_tokens": max_tokens if max_tokens is not None else self.config.get(CONF_LLM_MAX_TOKENS, 500),
+            "temperature": temperature
+            if temperature is not None
+            else self.config.get(CONF_LLM_TEMPERATURE, 0.7),
+            "max_tokens": max_tokens
+            if max_tokens is not None
+            else self.config.get(CONF_LLM_MAX_TOKENS, 500),
             "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
         }
 
@@ -529,15 +520,11 @@ class HomeAgent(AbstractConversationAgent):
         try:
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status == 401:
-                    raise AuthenticationError(
-                        "LLM API authentication failed. Check your API key."
-                    )
+                    raise AuthenticationError("LLM API authentication failed. Check your API key.")
 
                 if response.status != 200:
                     error_text = await response.text()
-                    raise HomeAgentError(
-                        f"LLM API returned status {response.status}: {error_text}"
-                    )
+                    raise HomeAgentError(f"LLM API returned status {response.status}: {error_text}")
 
                 result = await response.json()
                 return result
@@ -604,9 +591,7 @@ class HomeAgent(AbstractConversationAgent):
             )
 
         try:
-            response = await self._process_conversation(
-                text, conversation_id, device_id, metrics
-            )
+            response = await self._process_conversation(text, conversation_id, device_id, metrics)
 
             # Calculate total duration
             duration_ms = int((time.time() - start_time) * 1000)
@@ -634,9 +619,7 @@ class HomeAgent(AbstractConversationAgent):
                     }
                     self.hass.bus.async_fire(EVENT_CONVERSATION_FINISHED, event_data)
                 except Exception as event_err:
-                    _LOGGER.warning(
-                        "Failed to fire conversation finished event: %s", event_err
-                    )
+                    _LOGGER.warning("Failed to fire conversation finished event: %s", event_err)
 
             return response
 
@@ -792,9 +775,7 @@ class HomeAgent(AbstractConversationAgent):
 
                 # Save to conversation history
                 if self.config.get(CONF_HISTORY_ENABLED, True):
-                    self.conversation_manager.add_message(
-                        conversation_id, "user", user_message
-                    )
+                    self.conversation_manager.add_message(conversation_id, "user", user_message)
                     self.conversation_manager.add_message(
                         conversation_id, "assistant", final_content
                     )
@@ -818,13 +799,15 @@ class HomeAgent(AbstractConversationAgent):
             _LOGGER.info("Executing %d tool call(s)", len(tool_calls))
 
             # Enforce tool call limit
-            max_calls = self.config.get(CONF_TOOLS_MAX_CALLS_PER_TURN, DEFAULT_TOOLS_MAX_CALLS_PER_TURN)
+            max_calls = self.config.get(
+                CONF_TOOLS_MAX_CALLS_PER_TURN, DEFAULT_TOOLS_MAX_CALLS_PER_TURN
+            )
             if len(tool_calls) > max_calls:
                 _LOGGER.warning(
                     "LLM requested %d tool calls, but limit is %d. Only executing first %d.",
                     len(tool_calls),
                     max_calls,
-                    max_calls
+                    max_calls,
                 )
                 tool_calls = tool_calls[:max_calls]
 
@@ -843,14 +826,10 @@ class HomeAgent(AbstractConversationAgent):
                     # Parse tool arguments - handle both string (OpenAI) and dict (Ollama) formats
                     if isinstance(tool_args_raw, str):
                         tool_args = json.loads(tool_args_raw)
-                        _LOGGER.info(
-                            "Tool '%s': parsed arguments from JSON string", tool_name
-                        )
+                        _LOGGER.info("Tool '%s': parsed arguments from JSON string", tool_name)
                     elif isinstance(tool_args_raw, dict):
                         tool_args = tool_args_raw
-                        _LOGGER.info(
-                            "Tool '%s': using dict arguments (Ollama format)", tool_name
-                        )
+                        _LOGGER.info("Tool '%s': using dict arguments (Ollama format)", tool_name)
                     else:
                         _LOGGER.error(
                             "Invalid tool arguments type for '%s': %s",
@@ -860,9 +839,7 @@ class HomeAgent(AbstractConversationAgent):
                         tool_args = {}
 
                     # Execute tool with timing
-                    _LOGGER.info(
-                        "Calling tool '%s' with args: %s", tool_name, tool_args
-                    )
+                    _LOGGER.info("Calling tool '%s' with args: %s", tool_name, tool_args)
                     tool_start = time.time()
                     result = await self.tool_handler.execute_tool(
                         tool_name, tool_args, conversation_id
@@ -967,9 +944,7 @@ class HomeAgent(AbstractConversationAgent):
 
     # Memory Extraction Methods
 
-    def _format_conversation_for_extraction(
-        self, messages: list[dict[str, Any]]
-    ) -> str:
+    def _format_conversation_for_extraction(self, messages: list[dict[str, Any]]) -> str:
         """Format conversation history for memory extraction.
 
         Args:
@@ -1014,8 +989,7 @@ class HomeAgent(AbstractConversationAgent):
         """
         # Format conversation history (exclude current turn)
         history_messages = [
-            msg for msg in full_messages
-            if msg.get("role") not in ["system", "tool"]
+            msg for msg in full_messages if msg.get("role") not in ["system", "tool"]
         ]
 
         # Get previous turns (exclude the current user message we just added)
@@ -1077,9 +1051,7 @@ Return ONLY valid JSON, no other text:
 
         return prompt
 
-    async def _call_primary_llm_for_extraction(
-        self, extraction_prompt: str
-    ) -> dict[str, Any]:
+    async def _call_primary_llm_for_extraction(self, extraction_prompt: str) -> dict[str, Any]:
         """Call primary/local LLM for memory extraction.
 
         Args:
@@ -1180,9 +1152,21 @@ Return ONLY valid JSON, no other text:
                         _LOGGER.warning("Skipping memory without content: %s", memory_data)
                         continue
 
+                    content = memory_data["content"]
+                    memory_type = memory_data.get("type", "fact")
+
+                    # Validate: reject transient state stored as facts
+                    if memory_type == "fact" and self.memory_manager._is_transient_state(content):
+                        _LOGGER.warning(
+                            "Rejecting transient state stored as fact: %s. "
+                            "Transient states should use 'event' type.",
+                            content[:50],
+                        )
+                        continue
+
                     memory_id = await self.memory_manager.add_memory(
-                        content=memory_data["content"],
-                        memory_type=memory_data.get("type", "fact"),
+                        content=content,
+                        memory_type=memory_type,
                         conversation_id=conversation_id,
                         importance=memory_data.get("importance", 0.5),
                         metadata={
@@ -1192,9 +1176,7 @@ Return ONLY valid JSON, no other text:
                         },
                     )
                     stored_count += 1
-                    _LOGGER.debug(
-                        "Stored memory %s: %s", memory_id, memory_data["content"][:50]
-                    )
+                    _LOGGER.debug("Stored memory %s: %s", memory_id, content[:50])
 
                 except Exception as err:
                     _LOGGER.error("Failed to store memory: %s", err)
@@ -1294,9 +1276,7 @@ Return ONLY valid JSON, no other text:
                 result = await self._call_primary_llm_for_extraction(extraction_prompt)
 
                 if not result.get("success"):
-                    _LOGGER.error(
-                        "Local LLM memory extraction failed: %s", result.get("error")
-                    )
+                    _LOGGER.error("Local LLM memory extraction failed: %s", result.get("error"))
                     return
 
                 extraction_result = result.get("result", "[]")

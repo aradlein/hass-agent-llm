@@ -16,16 +16,24 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import (
+    CONF_MEMORY_CLEANUP_INTERVAL,
     CONF_MEMORY_COLLECTION_NAME,
     CONF_MEMORY_DEDUP_THRESHOLD,
+    CONF_MEMORY_EVENT_TTL,
+    CONF_MEMORY_FACT_TTL,
     CONF_MEMORY_IMPORTANCE_DECAY,
     CONF_MEMORY_MAX_MEMORIES,
     CONF_MEMORY_MIN_IMPORTANCE,
+    CONF_MEMORY_PREFERENCE_TTL,
+    DEFAULT_MEMORY_CLEANUP_INTERVAL,
     DEFAULT_MEMORY_COLLECTION_NAME,
     DEFAULT_MEMORY_DEDUP_THRESHOLD,
+    DEFAULT_MEMORY_EVENT_TTL,
+    DEFAULT_MEMORY_FACT_TTL,
     DEFAULT_MEMORY_IMPORTANCE_DECAY,
     DEFAULT_MEMORY_MAX_MEMORIES,
     DEFAULT_MEMORY_MIN_IMPORTANCE,
+    DEFAULT_MEMORY_PREFERENCE_TTL,
     MEMORY_STORAGE_KEY,
     MEMORY_STORAGE_VERSION,
 )
@@ -72,12 +80,8 @@ class MemoryManager:
         self.config = config
 
         # Configuration
-        self.max_memories = config.get(
-            CONF_MEMORY_MAX_MEMORIES, DEFAULT_MEMORY_MAX_MEMORIES
-        )
-        self.min_importance = config.get(
-            CONF_MEMORY_MIN_IMPORTANCE, DEFAULT_MEMORY_MIN_IMPORTANCE
-        )
+        self.max_memories = config.get(CONF_MEMORY_MAX_MEMORIES, DEFAULT_MEMORY_MAX_MEMORIES)
+        self.min_importance = config.get(CONF_MEMORY_MIN_IMPORTANCE, DEFAULT_MEMORY_MIN_IMPORTANCE)
         self.collection_name = config.get(
             CONF_MEMORY_COLLECTION_NAME, DEFAULT_MEMORY_COLLECTION_NAME
         )
@@ -86,6 +90,12 @@ class MemoryManager:
         )
         self.dedup_threshold = config.get(
             CONF_MEMORY_DEDUP_THRESHOLD, DEFAULT_MEMORY_DEDUP_THRESHOLD
+        )
+        self.event_ttl = config.get(CONF_MEMORY_EVENT_TTL, DEFAULT_MEMORY_EVENT_TTL)
+        self.fact_ttl = config.get(CONF_MEMORY_FACT_TTL, DEFAULT_MEMORY_FACT_TTL)
+        self.preference_ttl = config.get(CONF_MEMORY_PREFERENCE_TTL, DEFAULT_MEMORY_PREFERENCE_TTL)
+        self.cleanup_interval = config.get(
+            CONF_MEMORY_CLEANUP_INTERVAL, DEFAULT_MEMORY_CLEANUP_INTERVAL
         )
 
         # State
@@ -96,6 +106,7 @@ class MemoryManager:
         self._save_lock = asyncio.Lock()
         self._save_task = None
         self._pending_save = False
+        self._cleanup_task = None
 
         _LOGGER.info(
             "Memory Manager initialized (max=%d, collection=%s)",
@@ -137,6 +148,10 @@ class MemoryManager:
                 _LOGGER.info("ChromaDB not available, using store-only mode")
                 self._chromadb_available = False
 
+            # Start periodic cleanup task
+            self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
+            _LOGGER.info("Started periodic cleanup task (interval=%ds)", self.cleanup_interval)
+
             _LOGGER.info("Memory Manager initialization complete")
 
         except Exception as err:
@@ -148,6 +163,14 @@ class MemoryManager:
 
         Ensures all pending saves are completed.
         """
+        # Cancel periodic cleanup task
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+
         # Wait for any pending save
         if self._save_task:
             await self._save_task
@@ -198,14 +221,43 @@ class MemoryManager:
                 duplicate_id = await self._find_duplicate(content)
                 if duplicate_id:
                     _LOGGER.info(
-                        "Duplicate memory found, updating existing memory: %s",
+                        "Duplicate memory found, merging with existing memory: %s",
                         duplicate_id,
                     )
-                    # Update last_accessed and optionally merge metadata
+                    # Merge with existing memory
                     existing = self._memories[duplicate_id]
-                    existing["last_accessed"] = time.time()
+                    current_time = time.time()
+                    existing["last_accessed"] = current_time
+
+                    # If new content is more specific (longer), update it
+                    if len(content) > len(existing["content"]):
+                        _LOGGER.info(
+                            "New content is more specific, updating: %s -> %s",
+                            existing["content"][:50],
+                            content[:50],
+                        )
+                        existing["content"] = content
+
+                    # Boost importance score (reinforcement learning)
+                    old_importance = existing["importance"]
+                    existing["importance"] = min(1.0, old_importance + (importance * 0.1))
+                    _LOGGER.debug(
+                        "Boosted importance: %.2f -> %.2f",
+                        old_importance,
+                        existing["importance"],
+                    )
+
+                    # Merge metadata
                     if metadata:
                         existing["metadata"].update(metadata)
+
+                    # Recalculate expiration if memory type changed
+                    if existing["type"] != memory_type:
+                        existing["type"] = memory_type
+                        existing["expires_at"] = self._calculate_expires_at(
+                            memory_type, current_time
+                        )
+
                     await self._schedule_save()
                     await self._update_chromadb_memory(duplicate_id)
                     return duplicate_id
@@ -213,6 +265,20 @@ class MemoryManager:
             # Create new memory
             memory_id = str(uuid.uuid4())
             current_time = time.time()
+
+            # Calculate expiration time based on memory type
+            expires_at = self._calculate_expires_at(memory_type, current_time)
+
+            # Detect if this is transient state
+            is_transient = self._is_transient_state(content)
+
+            # Log warning if transient state detected
+            if is_transient:
+                _LOGGER.warning(
+                    "Transient state detected in memory content: %s. "
+                    "Consider using event type instead of fact.",
+                    content[:50],
+                )
 
             memory = {
                 "id": memory_id,
@@ -223,6 +289,8 @@ class MemoryManager:
                 "last_accessed": current_time,
                 "importance": importance,
                 "metadata": metadata or {},
+                "expires_at": expires_at,
+                "is_transient": is_transient,
             }
 
             # Ensure metadata has required fields
@@ -247,7 +315,9 @@ class MemoryManager:
             if len(self._memories) > self.max_memories:
                 await self._prune_memories()
 
-            _LOGGER.info("Added memory: %s (type=%s, importance=%.2f)", memory_id, memory_type, importance)
+            _LOGGER.info(
+                "Added memory: %s (type=%s, importance=%.2f)", memory_id, memory_type, importance
+            )
 
             return memory_id
 
@@ -269,9 +339,7 @@ class MemoryManager:
         if memory:
             # Update last accessed time and apply importance boost
             memory["last_accessed"] = time.time()
-            memory["importance"] = min(
-                1.0, memory["importance"] + IMPORTANCE_ACCESS_BOOST
-            )
+            memory["importance"] = min(1.0, memory["importance"] + IMPORTANCE_ACCESS_BOOST)
             await self._schedule_save()
 
             if self._chromadb_available:
@@ -332,9 +400,7 @@ class MemoryManager:
 
                 # Update access tracking
                 memory["last_accessed"] = time.time()
-                memory["importance"] = min(
-                    1.0, memory["importance"] + IMPORTANCE_ACCESS_BOOST
-                )
+                memory["importance"] = min(1.0, memory["importance"] + IMPORTANCE_ACCESS_BOOST)
 
                 memories.append(memory)
 
@@ -431,9 +497,7 @@ class MemoryManager:
 
             # Clear ChromaDB
             if self._chromadb_available:
-                await self.hass.async_add_executor_job(
-                    lambda: self._collection.delete(where={})
-                )
+                await self.hass.async_add_executor_job(lambda: self._collection.delete(where={}))
 
             # Save to store
             await self._save_to_store()
@@ -497,6 +561,61 @@ class MemoryManager:
             self._collection = await self.hass.async_add_executor_job(get_collection)
             _LOGGER.debug("Memory ChromaDB collection ready")
 
+    def _calculate_expires_at(self, memory_type: str, current_time: float) -> float | None:
+        """Calculate expiration timestamp for a memory based on its type.
+
+        Args:
+            memory_type: Type of memory (fact, event, preference, context)
+            current_time: Current timestamp
+
+        Returns:
+            Expiration timestamp or None if no expiration
+        """
+        ttl_map = {
+            MEMORY_TYPE_EVENT: self.event_ttl,
+            MEMORY_TYPE_FACT: self.fact_ttl,
+            MEMORY_TYPE_PREFERENCE: self.preference_ttl,
+            MEMORY_TYPE_CONTEXT: self.event_ttl,  # Context expires like events
+        }
+
+        ttl = ttl_map.get(memory_type)
+        if ttl is None:
+            return None
+
+        return current_time + ttl
+
+    def _is_transient_state(self, content: str) -> bool:
+        """Detect if content represents a transient state.
+
+        Args:
+            content: Memory content to check
+
+        Returns:
+            True if content appears to be transient state
+        """
+        # Patterns that indicate transient state
+        transient_patterns = [
+            "is on",
+            "is off",
+            "are on",
+            "are off",
+            "is currently",
+            "are currently",
+            "is now",
+            "are now",
+            "temperature is",
+            "humidity is",
+            "status is",
+            "state is",
+            "is open",
+            "is closed",
+            "is locked",
+            "is unlocked",
+        ]
+
+        content_lower = content.lower()
+        return any(pattern in content_lower for pattern in transient_patterns)
+
     async def _find_duplicate(self, content: str) -> str | None:
         """Find duplicate memory using semantic similarity.
 
@@ -513,11 +632,11 @@ class MemoryManager:
             # Generate embedding
             embedding = await self.vector_db_manager._embed_text(content)
 
-            # Query ChromaDB for similar memories
+            # Query ChromaDB for similar memories (check top 5 to catch more duplicates)
             results = await self.hass.async_add_executor_job(
                 lambda: self._collection.query(
                     query_embeddings=[embedding],
-                    n_results=1,
+                    n_results=min(5, len(self._memories)),
                 )
             )
 
@@ -525,14 +644,31 @@ class MemoryManager:
                 return None
 
             # Check if similarity is above threshold
-            # ChromaDB returns distances, not similarities
-            # For L2 distance, lower is more similar
+            # ChromaDB uses L2 (squared Euclidean) distance by default
+            # For normalized embeddings, L2 distance ranges from 0 (identical) to 2 (opposite)
+            # Convert to similarity: similarity = 1 - (distance / 2)
+            # We want similarity >= dedup_threshold
+            # So: distance <= 2 * (1 - dedup_threshold)
             if results.get("distances") and results["distances"][0]:
-                distance = results["distances"][0][0]
-                # Convert distance to similarity (approximate)
-                # This is a simple heuristic - may need adjustment
-                if distance < (1.0 - self.dedup_threshold):
-                    return results["ids"][0][0]
+                for i, distance in enumerate(results["distances"][0]):
+                    # Calculate similarity score
+                    similarity = 1.0 - (distance / 2.0)
+
+                    _LOGGER.debug(
+                        "Checking duplicate candidate: dist=%.3f, sim=%.3f, thresh=%.3f",
+                        distance,
+                        similarity,
+                        self.dedup_threshold,
+                    )
+
+                    if similarity >= self.dedup_threshold:
+                        duplicate_id = results["ids"][0][i]
+                        _LOGGER.info(
+                            "Duplicate found with similarity=%.3f (threshold=%.3f)",
+                            similarity,
+                            self.dedup_threshold,
+                        )
+                        return duplicate_id
 
             return None
 
@@ -667,6 +803,48 @@ class MemoryManager:
             await self.delete_memory(memory_id)
 
         _LOGGER.info("Pruned %d memories to stay under limit", to_remove)
+
+    async def _cleanup_expired_memories(self) -> int:
+        """Remove expired memories based on TTL.
+
+        Returns:
+            Number of memories removed
+        """
+        current_time = time.time()
+        expired_ids = []
+
+        # Find expired memories
+        for memory_id, memory in self._memories.items():
+            expires_at = memory.get("expires_at")
+            if expires_at is not None and current_time >= expires_at:
+                expired_ids.append(memory_id)
+
+        # Delete expired memories
+        for memory_id in expired_ids:
+            await self.delete_memory(memory_id)
+
+        if expired_ids:
+            _LOGGER.info(
+                "Cleaned up %d expired memories (types: %s)",
+                len(expired_ids),
+                ", ".join(
+                    set(self._memories.get(mid, {}).get("type", "unknown") for mid in expired_ids)
+                ),
+            )
+
+        return len(expired_ids)
+
+    async def _periodic_cleanup(self) -> None:
+        """Periodic cleanup task that runs at configured interval."""
+        while True:
+            try:
+                await asyncio.sleep(self.cleanup_interval)
+                await self._cleanup_expired_memories()
+            except asyncio.CancelledError:
+                _LOGGER.info("Periodic cleanup task cancelled")
+                break
+            except Exception as err:
+                _LOGGER.error("Error in periodic cleanup: %s", err)
 
     async def _fallback_search(
         self,
