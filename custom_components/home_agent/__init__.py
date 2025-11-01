@@ -15,7 +15,14 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
 
 from .agent import HomeAgent
-from .const import CONF_CONTEXT_MODE, CONF_TOOLS_CUSTOM, CONTEXT_MODE_VECTOR_DB, DOMAIN
+from .const import (
+    CONF_CONTEXT_MODE,
+    CONF_MEMORY_ENABLED,
+    CONF_TOOLS_CUSTOM,
+    CONTEXT_MODE_VECTOR_DB,
+    DEFAULT_MEMORY_ENABLED,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,17 +81,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Set up vector DB manager if using vector DB mode
     context_mode = config.get(CONF_CONTEXT_MODE)
+    vector_manager = None
     if context_mode == CONTEXT_MODE_VECTOR_DB:
         try:
             from .vector_db_manager import VectorDBManager
 
-            manager = VectorDBManager(hass, config)
-            await manager.async_setup()
-            hass.data[DOMAIN][entry.entry_id]["vector_manager"] = manager
+            vector_manager = VectorDBManager(hass, config)
+            await vector_manager.async_setup()
+            hass.data[DOMAIN][entry.entry_id]["vector_manager"] = vector_manager
             _LOGGER.info("Vector DB Manager enabled for this entry")
         except Exception as err:
             _LOGGER.error("Failed to set up Vector DB Manager: %s", err)
             # Continue setup without vector DB
+
+    # Set up memory manager if enabled
+    memory_enabled = config.get(CONF_MEMORY_ENABLED, DEFAULT_MEMORY_ENABLED)
+    if memory_enabled:
+        try:
+            from .memory_manager import MemoryManager
+
+            memory_manager = MemoryManager(
+                hass=hass,
+                vector_db_manager=vector_manager,
+                config=config,
+            )
+            await memory_manager.async_initialize()
+            hass.data[DOMAIN][entry.entry_id]["memory_manager"] = memory_manager
+            _LOGGER.info("Memory Manager enabled for this entry")
+        except Exception as err:
+            _LOGGER.error("Failed to set up Memory Manager: %s", err)
+            # Continue setup without memory manager
 
     # Register as a conversation agent
     ha_conversation.async_set_agent(hass, entry, agent)
@@ -124,9 +150,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Unregister conversation agent
     ha_conversation.async_unset_agent(hass, entry)
 
-    # Clean up agent and vector DB manager
+    # Clean up agent, memory manager, and vector DB manager
     if entry.entry_id in hass.data[DOMAIN]:
         entry_data = hass.data[DOMAIN][entry.entry_id]
+
+        # Shut down memory manager if it exists
+        if "memory_manager" in entry_data:
+            await entry_data["memory_manager"].async_shutdown()
 
         # Shut down vector DB manager if it exists
         if "vector_manager" in entry_data:

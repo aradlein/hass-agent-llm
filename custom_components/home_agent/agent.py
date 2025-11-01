@@ -38,6 +38,9 @@ from .const import (
     CONF_LLM_MODEL,
     CONF_LLM_TEMPERATURE,
     CONF_LLM_TOP_P,
+    CONF_MEMORY_ENABLED,
+    CONF_MEMORY_EXTRACTION_ENABLED,
+    CONF_MEMORY_EXTRACTION_LLM,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
     CONF_TOOLS_CUSTOM,
@@ -46,10 +49,15 @@ from .const import (
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
+    DEFAULT_MEMORY_ENABLED,
+    DEFAULT_MEMORY_EXTRACTION_ENABLED,
+    DEFAULT_MEMORY_EXTRACTION_LLM,
     DEFAULT_SYSTEM_PROMPT,
+    DOMAIN,
     EVENT_CONVERSATION_FINISHED,
     EVENT_CONVERSATION_STARTED,
     EVENT_ERROR,
+    EVENT_MEMORY_EXTRACTED,
     HTTP_TIMEOUT,
 )
 from .context_manager import ContextManager
@@ -111,12 +119,27 @@ class HomeAgent(AbstractConversationAgent):
         # HTTP session for LLM API calls
         self._session: aiohttp.ClientSession | None = None
 
+        # Memory manager reference (will be populated from hass.data if available)
+        self._memory_manager = None
+
         _LOGGER.info("Home Agent initialized with model %s", config.get(CONF_LLM_MODEL))
 
     @property
     def supported_languages(self) -> list[str]:
         """Return list of supported languages."""
         return ["en"]
+
+    @property
+    def memory_manager(self):
+        """Get memory manager from hass.data if available."""
+        if self._memory_manager is None:
+            # Try to get memory manager from hass.data
+            domain_data = self.hass.data.get(DOMAIN, {})
+            for entry_data in domain_data.values():
+                if isinstance(entry_data, dict) and "memory_manager" in entry_data:
+                    self._memory_manager = entry_data["memory_manager"]
+                    break
+        return self._memory_manager
 
     def _ensure_tools_registered(self) -> None:
         """Ensure tools are registered (lazy registration).
@@ -129,6 +152,11 @@ class HomeAgent(AbstractConversationAgent):
 
         self._register_tools()
         self._tools_registered = True
+
+        # Set memory provider in context manager if memory manager is available
+        if self.memory_manager is not None:
+            self.context_manager.set_memory_provider(self.memory_manager)
+            _LOGGER.debug("Memory context provider enabled")
 
     async def async_process(
         self, user_input: ha_conversation.ConversationInput
@@ -219,6 +247,22 @@ class HomeAgent(AbstractConversationAgent):
         custom_tools_config = self.config.get(CONF_TOOLS_CUSTOM, [])
         if custom_tools_config:
             self._register_custom_tools(custom_tools_config)
+
+        # Register memory tools if memory manager is available
+        if self.memory_manager is not None:
+            from .tools.memory_tools import RecallMemoryTool, StoreMemoryTool
+
+            store_memory = StoreMemoryTool(
+                self.hass,
+                self.memory_manager,
+                conversation_id=None,  # Will be set per-conversation
+            )
+            self.tool_handler.register_tool(store_memory)
+
+            recall_memory = RecallMemoryTool(self.hass, self.memory_manager)
+            self.tool_handler.register_tool(recall_memory)
+
+            _LOGGER.info("Memory tools registered")
 
         _LOGGER.debug(
             "Registered %d tools", len(self.tool_handler.get_registered_tools())
@@ -751,6 +795,19 @@ class HomeAgent(AbstractConversationAgent):
                         conversation_id, "assistant", final_content
                     )
 
+                # Extract and store memories if enabled (fire and forget)
+                if self.config.get(
+                    CONF_MEMORY_EXTRACTION_ENABLED, DEFAULT_MEMORY_EXTRACTION_ENABLED
+                ):
+                    self.hass.async_create_task(
+                        self._extract_and_store_memories(
+                            conversation_id=conversation_id,
+                            user_message=user_message,
+                            assistant_response=final_content,
+                            full_messages=messages,
+                        )
+                    )
+
                 return final_content
 
             # Execute tool calls
@@ -903,3 +960,362 @@ class HomeAgent(AbstractConversationAgent):
         )
 
         _LOGGER.info("Agent configuration updated")
+
+    # Memory Extraction Methods
+
+    def _format_conversation_for_extraction(
+        self, messages: list[dict[str, Any]]
+    ) -> str:
+        """Format conversation history for memory extraction.
+
+        Args:
+            messages: List of conversation messages
+
+        Returns:
+            Formatted conversation text
+        """
+        formatted_parts = []
+
+        for msg in messages:
+            role = msg.get("role", "").capitalize()
+            content = msg.get("content", "")
+
+            # Skip system messages and empty messages
+            if role.lower() == "system" or not content:
+                continue
+
+            # Skip tool messages
+            if role.lower() == "tool":
+                continue
+
+            formatted_parts.append(f"{role}: {content}")
+
+        return "\n".join(formatted_parts)
+
+    def _build_extraction_prompt(
+        self,
+        user_message: str,
+        assistant_response: str,
+        full_messages: list[dict[str, Any]],
+    ) -> str:
+        """Build prompt for memory extraction.
+
+        Args:
+            user_message: Current user message
+            assistant_response: Assistant's response
+            full_messages: Complete conversation history
+
+        Returns:
+            Extraction prompt
+        """
+        # Format conversation history (exclude current turn)
+        history_messages = [
+            msg for msg in full_messages
+            if msg.get("role") not in ["system", "tool"]
+        ]
+
+        # Get previous turns (exclude the current user message we just added)
+        if history_messages and history_messages[-1].get("content") == user_message:
+            previous_turns = history_messages[:-1]
+        else:
+            previous_turns = history_messages
+
+        conversation_text = ""
+        if previous_turns:
+            conversation_text = self._format_conversation_for_extraction(previous_turns)
+
+        prompt = f"""You are a memory extraction assistant. Analyze this conversation and extract important information that should be remembered for future conversations.
+
+Extract the following types of information:
+1. **Facts**: Concrete information about the home, devices, or user
+2. **Preferences**: User preferences for temperature, lighting, routines, etc.
+3. **Context**: Background information useful for future interactions
+4. **Events**: Significant events or actions that occurred
+
+## Previous Conversation
+
+{conversation_text if conversation_text else "(No previous conversation)"}
+
+## Current Turn
+
+User: {user_message}
+Assistant: {assistant_response}
+
+## Instructions
+
+Extract memories as a JSON array. Each memory should have:
+- "type": One of "fact", "preference", "context", "event"
+- "content": Clear, concise description (1-2 sentences)
+- "importance": Score from 0.0 to 1.0 (1.0 = very important)
+- "entities": List of Home Assistant entity IDs mentioned (if any)
+- "topics": List of topic tags (e.g., ["temperature", "bedroom"])
+
+**Important:**
+- Only extract genuinely useful information
+- Be specific and concrete
+- Avoid extracting temporary states (e.g., "light is on" - too transient)
+- DO extract patterns and preferences (e.g., "user prefers bedroom at 68°F")
+- If nothing worth remembering, return empty array: []
+
+Return ONLY valid JSON, no other text:
+
+```json
+[
+  {{
+    "type": "preference",
+    "content": "User prefers bedroom temperature at 68°F for sleeping",
+    "importance": 0.8,
+    "entities": ["climate.bedroom"],
+    "topics": ["temperature", "bedroom", "sleep"]
+  }}
+]
+```"""
+
+        return prompt
+
+    async def _call_primary_llm_for_extraction(
+        self, extraction_prompt: str
+    ) -> dict[str, Any]:
+        """Call primary/local LLM for memory extraction.
+
+        Args:
+            extraction_prompt: The extraction prompt
+
+        Returns:
+            Dictionary with success, result, and error fields
+        """
+        try:
+            # Build simple message for extraction
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a memory extraction assistant. Extract important information from conversations and return it as JSON.",
+                },
+                {
+                    "role": "user",
+                    "content": extraction_prompt,
+                },
+            ]
+
+            # Call LLM without tool definitions (lower temperature for consistency)
+            response = await self._call_llm(
+                messages,
+                tools=None,
+                temperature=0.3,
+                max_tokens=1000,
+            )
+
+            content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+            return {
+                "success": True,
+                "result": content,
+                "error": None,
+            }
+
+        except Exception as err:
+            _LOGGER.error("Primary LLM extraction failed: %s", err)
+            return {
+                "success": False,
+                "result": None,
+                "error": str(err),
+            }
+
+    async def _parse_and_store_memories(
+        self,
+        extraction_result: str,
+        conversation_id: str,
+    ) -> int:
+        """Parse LLM extraction result and store memories.
+
+        Args:
+            extraction_result: JSON string from LLM
+            conversation_id: Conversation ID
+
+        Returns:
+            Number of memories stored
+        """
+        try:
+            # Clean up the result - extract JSON if wrapped in markdown
+            result = extraction_result.strip()
+            if "```json" in result:
+                # Extract JSON from markdown code block
+                start = result.find("```json") + 7
+                end = result.find("```", start)
+                result = result[start:end].strip()
+            elif "```" in result:
+                # Extract from generic code block
+                start = result.find("```") + 3
+                end = result.find("```", start)
+                result = result[start:end].strip()
+
+            # Parse JSON response
+            memories = json.loads(result)
+
+            if not isinstance(memories, list):
+                _LOGGER.error(
+                    "Expected JSON array from memory extraction, got: %s",
+                    type(memories).__name__,
+                )
+                return 0
+
+            if not memories:
+                _LOGGER.debug("No memories extracted from conversation")
+                return 0
+
+            # Store each memory
+            stored_count = 0
+            for memory_data in memories:
+                try:
+                    # Validate memory data
+                    if not isinstance(memory_data, dict):
+                        _LOGGER.warning("Skipping invalid memory data: %s", memory_data)
+                        continue
+
+                    if "content" not in memory_data:
+                        _LOGGER.warning("Skipping memory without content: %s", memory_data)
+                        continue
+
+                    memory_id = await self.memory_manager.add_memory(
+                        content=memory_data["content"],
+                        memory_type=memory_data.get("type", "fact"),
+                        conversation_id=conversation_id,
+                        importance=memory_data.get("importance", 0.5),
+                        metadata={
+                            "entities_involved": memory_data.get("entities", []),
+                            "topics": memory_data.get("topics", []),
+                            "extraction_method": "automatic",
+                        },
+                    )
+                    stored_count += 1
+                    _LOGGER.debug(
+                        "Stored memory %s: %s", memory_id, memory_data["content"][:50]
+                    )
+
+                except Exception as err:
+                    _LOGGER.error("Failed to store memory: %s", err)
+                    continue
+
+            if stored_count > 0:
+                _LOGGER.info(
+                    "Extracted and stored %d memories from conversation %s",
+                    stored_count,
+                    conversation_id,
+                )
+
+            return stored_count
+
+        except json.JSONDecodeError as err:
+            _LOGGER.error("Failed to parse memory extraction JSON: %s", err)
+            _LOGGER.debug("Raw extraction result: %s", extraction_result)
+            return 0
+        except Exception as err:
+            _LOGGER.error("Error parsing and storing memories: %s", err)
+            return 0
+
+    async def _extract_and_store_memories(
+        self,
+        conversation_id: str,
+        user_message: str,
+        assistant_response: str,
+        full_messages: list[dict[str, Any]],
+    ) -> None:
+        """Extract memories from completed conversation using configured LLM.
+
+        This method:
+        1. Determines which LLM to use (external or local)
+        2. Builds extraction prompt
+        3. Calls LLM to extract memories
+        4. Parses JSON response
+        5. Stores memories via MemoryManager
+
+        Args:
+            conversation_id: Conversation ID
+            user_message: User's message
+            assistant_response: Assistant's response
+            full_messages: Complete conversation history
+        """
+        try:
+            # Check if memory system is enabled
+            if not self.config.get(CONF_MEMORY_ENABLED, DEFAULT_MEMORY_ENABLED):
+                return
+
+            # Check if memory manager is available
+            if self.memory_manager is None:
+                _LOGGER.debug("Memory manager not available, skipping extraction")
+                return
+
+            # Determine which LLM to use for extraction
+            extraction_llm = self.config.get(
+                CONF_MEMORY_EXTRACTION_LLM, DEFAULT_MEMORY_EXTRACTION_LLM
+            )
+
+            # Build extraction prompt
+            extraction_prompt = self._build_extraction_prompt(
+                user_message=user_message,
+                assistant_response=assistant_response,
+                full_messages=full_messages,
+            )
+
+            # Call appropriate LLM
+            if extraction_llm == "external":
+                # Check if external LLM is enabled
+                if not self.config.get(CONF_EXTERNAL_LLM_ENABLED, False):
+                    _LOGGER.warning(
+                        "Memory extraction configured to use external LLM, "
+                        "but external LLM is not enabled. Skipping extraction."
+                    )
+                    return
+
+                # Use external LLM tool
+                _LOGGER.debug("Using external LLM for memory extraction")
+                result = await self.tool_handler.execute_tool(
+                    tool_name="query_external_llm",
+                    parameters={"prompt": extraction_prompt},
+                    conversation_id=conversation_id,
+                )
+
+                if not result.get("success"):
+                    _LOGGER.error(
+                        "External LLM memory extraction failed: %s",
+                        result.get("error"),
+                    )
+                    return
+
+                extraction_result = result.get("result", "[]")
+
+            else:
+                # Use local/primary LLM
+                _LOGGER.debug("Using local LLM for memory extraction")
+                result = await self._call_primary_llm_for_extraction(extraction_prompt)
+
+                if not result.get("success"):
+                    _LOGGER.error(
+                        "Local LLM memory extraction failed: %s", result.get("error")
+                    )
+                    return
+
+                extraction_result = result.get("result", "[]")
+
+            # Parse and store memories
+            stored_count = await self._parse_and_store_memories(
+                extraction_result=extraction_result,
+                conversation_id=conversation_id,
+            )
+
+            # Fire event if memories were extracted
+            if stored_count > 0 and self.config.get(CONF_EMIT_EVENTS, True):
+                from datetime import datetime
+
+                self.hass.bus.async_fire(
+                    EVENT_MEMORY_EXTRACTED,
+                    {
+                        "conversation_id": conversation_id,
+                        "memories_extracted": stored_count,
+                        "extraction_llm": extraction_llm,
+                        "timestamp": datetime.now().isoformat(),
+                    },
+                )
+
+        except Exception as err:
+            _LOGGER.exception("Error during memory extraction: %s", err)

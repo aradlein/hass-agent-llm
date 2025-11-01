@@ -69,6 +69,17 @@ CONF_EXTERNAL_LLM_MAX_TOKENS: Final = "external_llm_max_tokens"
 CONF_EXTERNAL_LLM_TOOL_DESCRIPTION: Final = "external_llm_tool_description"
 CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT: Final = "external_llm_auto_include_context"
 
+# Configuration keys - Memory Configuration
+CONF_MEMORY_ENABLED: Final = "memory_enabled"
+CONF_MEMORY_MAX_MEMORIES: Final = "memory_max_memories"
+CONF_MEMORY_MIN_IMPORTANCE: Final = "memory_min_importance"
+CONF_MEMORY_COLLECTION_NAME: Final = "memory_collection_name"
+CONF_MEMORY_IMPORTANCE_DECAY: Final = "memory_importance_decay"
+CONF_MEMORY_DEDUP_THRESHOLD: Final = "memory_dedup_threshold"
+CONF_MEMORY_EXTRACTION_ENABLED: Final = "memory_extraction_enabled"
+CONF_MEMORY_EXTRACTION_LLM: Final = "memory_extraction_llm"
+CONF_MEMORY_CONTEXT_TOP_K: Final = "memory_context_top_k"
+
 # Configuration keys - Debugging and Events
 CONF_DEBUG_LOGGING: Final = "debug_logging"
 CONF_EMIT_EVENTS: Final = "emit_events"
@@ -142,6 +153,17 @@ DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION: Final = (
     "or comprehensive recommendations beyond simple home control."
 )
 
+# Default values - Memory Configuration
+DEFAULT_MEMORY_ENABLED: Final = True
+DEFAULT_MEMORY_MAX_MEMORIES: Final = 100
+DEFAULT_MEMORY_MIN_IMPORTANCE: Final = 0.3
+DEFAULT_MEMORY_COLLECTION_NAME: Final = "home_agent_memories"
+DEFAULT_MEMORY_IMPORTANCE_DECAY: Final = 0.0  # No decay by default
+DEFAULT_MEMORY_DEDUP_THRESHOLD: Final = 0.95
+DEFAULT_MEMORY_EXTRACTION_ENABLED: Final = True
+DEFAULT_MEMORY_EXTRACTION_LLM: Final = "external"  # "external" or "local"
+DEFAULT_MEMORY_CONTEXT_TOP_K: Final = 5
+
 # Default values - Debugging
 DEFAULT_DEBUG_LOGGING: Final = False
 DEFAULT_EMIT_EVENTS: Final = True
@@ -154,6 +176,7 @@ EVENT_CONTEXT_INJECTED: Final = f"{DOMAIN}.context.injected"
 EVENT_CONTEXT_OPTIMIZED: Final = f"{DOMAIN}.context.optimized"
 EVENT_HISTORY_SAVED: Final = f"{DOMAIN}.history.saved"
 EVENT_VECTOR_DB_QUERIED: Final = f"{DOMAIN}.vector_db.queried"
+EVENT_MEMORY_EXTRACTED: Final = f"{DOMAIN}.memory.extracted"
 EVENT_ERROR: Final = f"{DOMAIN}.error"
 
 # Tool names
@@ -193,6 +216,10 @@ STORAGE_VERSION: Final = 1
 
 # Conversation history storage
 HISTORY_STORAGE_KEY: Final = f"{DOMAIN}.history"
+
+# Memory storage
+MEMORY_STORAGE_KEY: Final = f"{DOMAIN}.memories"
+MEMORY_STORAGE_VERSION: Final = 1
 
 # HTTP timeouts (seconds)
 HTTP_TIMEOUT_DEFAULT: Final = 60

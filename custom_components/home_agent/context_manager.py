@@ -72,6 +72,7 @@ class ContextManager:
         self.hass = hass
         self.config = config
         self._provider: ContextProvider | None = None
+        self._memory_provider: ContextProvider | None = None
         self._cache: dict[str, Any] = {}
         self._cache_timestamps: dict[str, float] = {}
         self._cache_enabled = config.get("cache_enabled", False)
@@ -151,6 +152,30 @@ class ContextManager:
         # Clear cache when provider changes
         self._clear_cache()
 
+    def set_memory_provider(
+        self,
+        memory_manager: Any,
+    ) -> None:
+        """Set the memory context provider.
+
+        Initializes a MemoryContextProvider with the given memory manager.
+
+        Args:
+            memory_manager: MemoryManager instance
+        """
+        try:
+            from .context_providers.memory import MemoryContextProvider
+
+            self._memory_provider = MemoryContextProvider(
+                hass=self.hass,
+                config=self.config,
+                memory_manager=memory_manager,
+            )
+            _LOGGER.info("Memory context provider initialized")
+        except Exception as err:
+            _LOGGER.error("Failed to initialize memory provider: %s", err)
+            self._memory_provider = None
+
     async def get_context(
         self,
         user_input: str,
@@ -184,6 +209,20 @@ class ContextManager:
         try:
             # Get fresh context from provider
             context = await self._provider.get_context(user_input)
+
+            # Get memory context if memory provider is available
+            if self._memory_provider is not None:
+                try:
+                    memory_context = await self._memory_provider.get_context(
+                        user_input, conversation_id
+                    )
+                    if memory_context:
+                        # Combine entity and memory context
+                        context = f"{context}\n{memory_context}"
+                        _LOGGER.debug("Added memory context to entity context")
+                except Exception as mem_err:
+                    _LOGGER.warning("Failed to get memory context: %s", mem_err)
+                    # Continue without memory context
 
             # Cache the result
             if self._cache_enabled:
