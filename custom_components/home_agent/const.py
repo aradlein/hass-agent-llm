@@ -195,9 +195,9 @@ STORAGE_VERSION: Final = 1
 HISTORY_STORAGE_KEY: Final = f"{DOMAIN}.history"
 
 # HTTP timeouts (seconds)
-HTTP_TIMEOUT_DEFAULT: Final = 30
-HTTP_TIMEOUT: Final = 30  # Alias for default timeout
-HTTP_TIMEOUT_EXTERNAL_LLM: Final = 60
+HTTP_TIMEOUT_DEFAULT: Final = 60
+HTTP_TIMEOUT: Final = 60  # Alias for default timeout
+HTTP_TIMEOUT_EXTERNAL_LLM: Final = 90
 
 # Token limits and warnings
 TOKEN_WARNING_THRESHOLD: Final = 0.8  # Warn at 80% of limit

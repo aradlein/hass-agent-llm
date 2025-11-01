@@ -27,6 +27,7 @@ from .const import (
     CONF_CONTEXT_MODE,
     CONF_DEBUG_LOGGING,
     CONF_EMIT_EVENTS,
+    CONF_EXTERNAL_LLM_ENABLED,
     CONF_HISTORY_ENABLED,
     CONF_HISTORY_MAX_MESSAGES,
     CONF_HISTORY_MAX_TOKENS,
@@ -58,6 +59,7 @@ from .exceptions import (
 from .helpers import redact_sensitive_data
 from .tool_handler import ToolHandler
 from .tools import HomeAssistantControlTool, HomeAssistantQueryTool
+from .tools.external_llm import ExternalLLMTool
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,8 +101,9 @@ class HomeAgent(AbstractConversationAgent):
             },
         )
 
-        # Register core tools
-        self._register_tools()
+        # Tools will be registered lazily on first use
+        # This ensures the exposure system is fully initialized
+        self._tools_registered = False
 
         # HTTP session for LLM API calls
         self._session: aiohttp.ClientSession | None = None
@@ -111,6 +114,18 @@ class HomeAgent(AbstractConversationAgent):
     def supported_languages(self) -> list[str]:
         """Return list of supported languages."""
         return ["en"]
+
+    def _ensure_tools_registered(self) -> None:
+        """Ensure tools are registered (lazy registration).
+
+        This method is called before the first message is processed to ensure
+        the exposure system has been fully initialized by Home Assistant.
+        """
+        if self._tools_registered:
+            return
+
+        self._register_tools()
+        self._tools_registered = True
 
     async def async_process(
         self, user_input: ha_conversation.ConversationInput
@@ -127,6 +142,9 @@ class HomeAgent(AbstractConversationAgent):
             ConversationResult with the agent's response
         """
         try:
+            # Ensure tools are registered (lazy initialization)
+            self._ensure_tools_registered()
+
             # Process the message using our internal method
             response_text = await self.process_message(
                 text=user_input.text,
@@ -187,6 +205,12 @@ class HomeAgent(AbstractConversationAgent):
         # Register ha_query tool
         ha_query = HomeAssistantQueryTool(self.hass, exposed_entity_ids)
         self.tool_handler.register_tool(ha_query)
+
+        # Register external LLM tool if enabled
+        if self.config.get(CONF_EXTERNAL_LLM_ENABLED, False):
+            external_llm = ExternalLLMTool(self.hass, self.config)
+            self.tool_handler.register_tool(external_llm)
+            _LOGGER.info("External LLM tool registered")
 
         _LOGGER.debug(
             "Registered %d tools", len(self.tool_handler.get_registered_tools())
@@ -431,6 +455,9 @@ class HomeAgent(AbstractConversationAgent):
         Raises:
             HomeAgentError: If processing fails
         """
+        # Ensure tools are registered (lazy initialization)
+        self._ensure_tools_registered()
+
         start_time = time.time()
         conversation_id = conversation_id or "default"
 
