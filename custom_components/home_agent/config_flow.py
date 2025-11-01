@@ -39,6 +39,13 @@ from .const import (
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
     CONF_LLM_TEMPERATURE,
+    CONF_MEMORY_COLLECTION_NAME,
+    CONF_MEMORY_CONTEXT_TOP_K,
+    CONF_MEMORY_ENABLED,
+    CONF_MEMORY_EXTRACTION_ENABLED,
+    CONF_MEMORY_EXTRACTION_LLM,
+    CONF_MEMORY_MAX_MEMORIES,
+    CONF_MEMORY_MIN_IMPORTANCE,
     CONF_OPENAI_API_KEY,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
@@ -71,6 +78,13 @@ from .const import (
     DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_LLM_MODEL,
     DEFAULT_MAX_TOKENS,
+    DEFAULT_MEMORY_COLLECTION_NAME,
+    DEFAULT_MEMORY_CONTEXT_TOP_K,
+    DEFAULT_MEMORY_ENABLED,
+    DEFAULT_MEMORY_EXTRACTION_ENABLED,
+    DEFAULT_MEMORY_EXTRACTION_LLM,
+    DEFAULT_MEMORY_MAX_MEMORIES,
+    DEFAULT_MEMORY_MIN_IMPORTANCE,
     DEFAULT_NAME,
     DEFAULT_PROMPT_USE_DEFAULT,
     DEFAULT_TEMPERATURE,
@@ -371,6 +385,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 "context_settings",
                 "vector_db_settings",
                 "history_settings",
+                "memory_settings",
                 "prompt_settings",
                 "tool_settings",
                 "external_llm_settings",
@@ -867,6 +882,123 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
         model = config.get(CONF_EXTERNAL_LLM_MODEL, "")
         if not model or not model.strip():
             raise ValidationError("External LLM model name cannot be empty")
+
+    async def async_step_memory_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Configure long-term memory system settings.
+
+        Args:
+            user_input: User-provided configuration
+
+        Returns:
+            FlowResult indicating completion or next step
+        """
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            # Validate configuration
+            if user_input.get(CONF_MEMORY_EXTRACTION_LLM) == "external":
+                # Check if external LLM is enabled
+                current_data = self._config_entry.data
+                current_options = self._config_entry.options
+                external_llm_enabled = current_options.get(
+                    CONF_EXTERNAL_LLM_ENABLED,
+                    current_data.get(CONF_EXTERNAL_LLM_ENABLED, DEFAULT_EXTERNAL_LLM_ENABLED)
+                )
+
+                if not external_llm_enabled:
+                    errors["base"] = "external_llm_required"
+
+            if not errors:
+                # Update config entry options
+                updated_options = {**self._config_entry.options, **user_input}
+                return self.async_create_entry(title="", data=updated_options)
+
+        current_options = self._config_entry.options
+        current_data = self._config_entry.data
+
+        return self.async_show_form(
+            step_id="memory_settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_MEMORY_ENABLED,
+                        default=current_options.get(
+                            CONF_MEMORY_ENABLED,
+                            current_data.get(CONF_MEMORY_ENABLED, DEFAULT_MEMORY_ENABLED),
+                        ),
+                    ): bool,
+                    vol.Required(
+                        CONF_MEMORY_EXTRACTION_ENABLED,
+                        default=current_options.get(
+                            CONF_MEMORY_EXTRACTION_ENABLED,
+                            current_data.get(
+                                CONF_MEMORY_EXTRACTION_ENABLED,
+                                DEFAULT_MEMORY_EXTRACTION_ENABLED,
+                            ),
+                        ),
+                    ): bool,
+                    vol.Required(
+                        CONF_MEMORY_EXTRACTION_LLM,
+                        default=current_options.get(
+                            CONF_MEMORY_EXTRACTION_LLM,
+                            current_data.get(
+                                CONF_MEMORY_EXTRACTION_LLM,
+                                DEFAULT_MEMORY_EXTRACTION_LLM,
+                            ),
+                        ),
+                    ): vol.In(["external", "local"]),
+                    vol.Optional(
+                        CONF_MEMORY_MAX_MEMORIES,
+                        default=current_options.get(
+                            CONF_MEMORY_MAX_MEMORIES,
+                            current_data.get(
+                                CONF_MEMORY_MAX_MEMORIES,
+                                DEFAULT_MEMORY_MAX_MEMORIES,
+                            ),
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=10, max=1000)),
+                    vol.Optional(
+                        CONF_MEMORY_MIN_IMPORTANCE,
+                        default=current_options.get(
+                            CONF_MEMORY_MIN_IMPORTANCE,
+                            current_data.get(
+                                CONF_MEMORY_MIN_IMPORTANCE,
+                                DEFAULT_MEMORY_MIN_IMPORTANCE,
+                            ),
+                        ),
+                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+                    vol.Optional(
+                        CONF_MEMORY_CONTEXT_TOP_K,
+                        default=current_options.get(
+                            CONF_MEMORY_CONTEXT_TOP_K,
+                            current_data.get(
+                                CONF_MEMORY_CONTEXT_TOP_K,
+                                DEFAULT_MEMORY_CONTEXT_TOP_K,
+                            ),
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=20)),
+                    vol.Optional(
+                        CONF_MEMORY_COLLECTION_NAME,
+                        default=current_options.get(
+                            CONF_MEMORY_COLLECTION_NAME,
+                            current_data.get(
+                                CONF_MEMORY_COLLECTION_NAME,
+                                DEFAULT_MEMORY_COLLECTION_NAME,
+                            ),
+                        ),
+                    ): str,
+                }
+            ),
+            errors=errors,
+            description_placeholders={
+                "external_llm_note": (
+                    "Memory extraction using external LLM requires the "
+                    "external LLM tool to be enabled in the External LLM settings."
+                ),
+            },
+        )
 
     async def async_step_debug_settings(
         self, user_input: dict[str, Any] | None = None

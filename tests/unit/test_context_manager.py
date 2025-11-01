@@ -255,7 +255,10 @@ class TestGetContext:
         assert provider.get_context_called
 
     async def test_get_context_with_expired_cache(self, context_manager):
-        """Test get_context with expired cache."""
+        """Test get_context with expired cache.
+
+        When cache is expired, should fetch fresh context and re-cache it.
+        """
         context_manager._cache_enabled = True
         context_manager._cache_ttl = 1
         provider = MockContextProvider(
@@ -272,9 +275,14 @@ class TestGetContext:
 
         context = await context_manager.get_context("test input")
 
+        # Should return fresh context
         assert context == "Fresh context"
+        # Provider should have been called to fetch fresh data
         assert provider.get_context_called
-        assert cache_key not in context_manager._cache
+        # Cache should now contain the fresh context (re-cached)
+        assert context_manager._cache[cache_key] == "Fresh context"
+        # Timestamp should be updated to recent time
+        assert context_manager._cache_timestamps[cache_key] > time.time() - 5
 
     async def test_get_context_caches_result(self, context_manager):
         """Test that get_context caches the result."""

@@ -202,6 +202,98 @@ Manually execute a tool for testing/debugging.
 - `tool_name` (required): Tool to execute (e.g., "ha_control", "ha_query")
 - `parameters` (required): Tool parameters as JSON
 
+### Memory Management Services (Phase 3.5) 🆕
+
+#### `home_agent.list_memories`
+
+List all stored memories with optional filtering.
+
+**Parameters:**
+
+- `memory_type` (optional): Filter by type (fact, preference, context, event)
+- `limit` (optional): Maximum number of memories to return
+
+**Example:**
+
+```yaml
+service: home_agent.list_memories
+data:
+  memory_type: preference
+  limit: 50
+```
+
+#### `home_agent.search_memories`
+
+Search memories using semantic similarity.
+
+**Parameters:**
+
+- `query` (required): What to search for
+- `limit` (optional): Maximum number of results (default: 10)
+- `min_importance` (optional): Filter by minimum importance (0.0-1.0)
+
+**Example:**
+
+```yaml
+service: home_agent.search_memories
+data:
+  query: "temperature preferences"
+  limit: 10
+  min_importance: 0.5
+```
+
+#### `home_agent.add_memory`
+
+Manually add a memory to the system.
+
+**Parameters:**
+
+- `content` (required): The memory content to store
+- `type` (optional): Memory type (fact, preference, context, event)
+- `importance` (optional): Importance score (0.0-1.0, default: 0.5)
+
+**Example:**
+
+```yaml
+service: home_agent.add_memory
+data:
+  content: "User prefers bedroom temperature at 68°F for sleeping"
+  type: preference
+  importance: 0.8
+```
+
+#### `home_agent.delete_memory`
+
+Delete a specific memory by ID.
+
+**Parameters:**
+
+- `memory_id` (required): The ID of the memory to delete
+
+**Example:**
+
+```yaml
+service: home_agent.delete_memory
+data:
+  memory_id: "mem_abc123xyz"
+```
+
+#### `home_agent.clear_memories`
+
+Clear all stored memories (requires confirmation).
+
+**Parameters:**
+
+- `confirm` (required): Must be set to true to confirm deletion
+
+**Example:**
+
+```yaml
+service: home_agent.clear_memories
+data:
+  confirm: true
+```
+
 ## Tool System
 
 ### ha_control

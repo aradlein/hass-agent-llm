@@ -339,6 +339,195 @@ async def async_setup_services(
             _LOGGER.error("Failed to index entity %s: %s", entity_id, err)
             raise
 
+    # Memory management services
+    async def handle_list_memories(call: ServiceCall) -> dict:
+        """Handle the list_memories service call.
+
+        Lists all stored memories with optional filtering.
+        """
+        target_entry_id = call.data.get("entry_id", entry_id)
+        memory_type = call.data.get("memory_type")
+        limit = call.data.get("limit")
+
+        # Get memory manager
+        entry_data = _get_entry_data(target_entry_id)
+        memory_manager = entry_data.get("memory_manager")
+
+        if not memory_manager:
+            _LOGGER.error("Memory Manager not enabled for this entry")
+            return {"error": "Memory Manager not enabled", "memories": [], "total": 0}
+
+        try:
+            memories = await memory_manager.list_all_memories(
+                limit=limit,
+                memory_type=memory_type,
+            )
+
+            # Format for service response
+            return {
+                "memories": [
+                    {
+                        "id": m["id"],
+                        "type": m["type"],
+                        "content": m["content"],
+                        "importance": m["importance"],
+                        "extracted_at": m["extracted_at"],
+                        "last_accessed": m["last_accessed"],
+                        "source_conversation_id": m.get("source_conversation_id"),
+                    }
+                    for m in memories
+                ],
+                "total": len(memories),
+            }
+
+        except Exception as err:
+            _LOGGER.error("Failed to list memories: %s", err)
+            raise
+
+    async def handle_delete_memory(call: ServiceCall) -> None:
+        """Handle the delete_memory service call.
+
+        Deletes a specific memory by ID.
+        """
+        memory_id = call.data["memory_id"]
+        target_entry_id = call.data.get("entry_id", entry_id)
+
+        # Get memory manager
+        entry_data = _get_entry_data(target_entry_id)
+        memory_manager = entry_data.get("memory_manager")
+
+        if not memory_manager:
+            _LOGGER.error("Memory Manager not enabled for this entry")
+            return
+
+        try:
+            success = await memory_manager.delete_memory(memory_id)
+
+            if success:
+                _LOGGER.info("Deleted memory %s", memory_id)
+            else:
+                _LOGGER.warning("Failed to delete memory %s", memory_id)
+
+        except Exception as err:
+            _LOGGER.error("Failed to delete memory %s: %s", memory_id, err)
+            raise
+
+    async def handle_clear_memories(call: ServiceCall) -> dict:
+        """Handle the clear_memories service call.
+
+        Clears all memories (requires confirmation).
+        """
+        confirm = call.data.get("confirm", False)
+        target_entry_id = call.data.get("entry_id", entry_id)
+
+        if not confirm:
+            _LOGGER.error("Must set 'confirm: true' to clear all memories")
+            return {"error": "confirmation_required", "deleted_count": 0}
+
+        # Get memory manager
+        entry_data = _get_entry_data(target_entry_id)
+        memory_manager = entry_data.get("memory_manager")
+
+        if not memory_manager:
+            _LOGGER.error("Memory Manager not enabled for this entry")
+            return {"error": "Memory Manager not enabled", "deleted_count": 0}
+
+        try:
+            deleted_count = await memory_manager.clear_all_memories()
+            _LOGGER.info("Cleared %d memories", deleted_count)
+
+            return {
+                "deleted_count": deleted_count,
+            }
+
+        except Exception as err:
+            _LOGGER.error("Failed to clear memories: %s", err)
+            raise
+
+    async def handle_search_memories(call: ServiceCall) -> dict:
+        """Handle the search_memories service call.
+
+        Searches memories by semantic similarity.
+        """
+        query = call.data["query"]
+        limit = call.data.get("limit", 10)
+        min_importance = call.data.get("min_importance", 0.0)
+        target_entry_id = call.data.get("entry_id", entry_id)
+
+        # Get memory manager
+        entry_data = _get_entry_data(target_entry_id)
+        memory_manager = entry_data.get("memory_manager")
+
+        if not memory_manager:
+            _LOGGER.error("Memory Manager not enabled for this entry")
+            return {"error": "Memory Manager not enabled", "memories": [], "total": 0}
+
+        try:
+            memories = await memory_manager.search_memories(
+                query=query,
+                top_k=limit,
+                min_importance=min_importance,
+            )
+
+            return {
+                "memories": [
+                    {
+                        "id": m["id"],
+                        "type": m["type"],
+                        "content": m["content"],
+                        "importance": m["importance"],
+                        "relevance_score": m.get("relevance_score", 0.0),
+                    }
+                    for m in memories
+                ],
+                "total": len(memories),
+            }
+
+        except Exception as err:
+            _LOGGER.error("Failed to search memories: %s", err)
+            raise
+
+    async def handle_add_memory(call: ServiceCall) -> dict:
+        """Handle the add_memory service call.
+
+        Manually adds a memory.
+        """
+        content = call.data["content"]
+        memory_type = call.data.get("type", "fact")
+        importance = call.data.get("importance", 0.5)
+        target_entry_id = call.data.get("entry_id", entry_id)
+
+        # Get memory manager
+        entry_data = _get_entry_data(target_entry_id)
+        memory_manager = entry_data.get("memory_manager")
+
+        if not memory_manager:
+            _LOGGER.error("Memory Manager not enabled for this entry")
+            return {"error": "Memory Manager not enabled"}
+
+        try:
+            memory_id = await memory_manager.add_memory(
+                content=content,
+                memory_type=memory_type,
+                conversation_id=None,
+                importance=importance,
+                metadata={
+                    "extraction_method": "manual_service",
+                    "topics": [],
+                    "entities_involved": [],
+                },
+            )
+
+            _LOGGER.info("Added memory via service: %s", memory_id)
+
+            return {
+                "memory_id": memory_id,
+            }
+
+        except Exception as err:
+            _LOGGER.error("Failed to add memory: %s", err)
+            raise
+
     # Register services (only once for all instances)
     if not hass.services.has_service(DOMAIN, "process"):
         hass.services.async_register(DOMAIN, "process", handle_process)
@@ -364,6 +553,47 @@ async def async_setup_services(
         hass.services.async_register(DOMAIN, "index_entity", handle_index_entity)
         _LOGGER.debug("Registered service: index_entity")
 
+    # Register memory management services
+    if not hass.services.has_service(DOMAIN, "list_memories"):
+        hass.services.async_register(
+            DOMAIN,
+            "list_memories",
+            handle_list_memories,
+            supports_response=True,
+        )
+        _LOGGER.debug("Registered service: list_memories")
+
+    if not hass.services.has_service(DOMAIN, "delete_memory"):
+        hass.services.async_register(DOMAIN, "delete_memory", handle_delete_memory)
+        _LOGGER.debug("Registered service: delete_memory")
+
+    if not hass.services.has_service(DOMAIN, "clear_memories"):
+        hass.services.async_register(
+            DOMAIN,
+            "clear_memories",
+            handle_clear_memories,
+            supports_response=True,
+        )
+        _LOGGER.debug("Registered service: clear_memories")
+
+    if not hass.services.has_service(DOMAIN, "search_memories"):
+        hass.services.async_register(
+            DOMAIN,
+            "search_memories",
+            handle_search_memories,
+            supports_response=True,
+        )
+        _LOGGER.debug("Registered service: search_memories")
+
+    if not hass.services.has_service(DOMAIN, "add_memory"):
+        hass.services.async_register(
+            DOMAIN,
+            "add_memory",
+            handle_add_memory,
+            supports_response=True,
+        )
+        _LOGGER.debug("Registered service: add_memory")
+
 
 async def async_remove_services(hass: HomeAssistant) -> None:
     """Remove Home Agent services.
@@ -378,6 +608,11 @@ async def async_remove_services(hass: HomeAssistant) -> None:
         "execute_tool",
         "reindex_entities",
         "index_entity",
+        "list_memories",
+        "delete_memory",
+        "clear_memories",
+        "search_memories",
+        "add_memory",
     ]
 
     for service in services:
