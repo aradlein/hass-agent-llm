@@ -86,7 +86,9 @@ Access via: Settings > Devices & Services > Home Agent > Configure
 Home Agent provides a menu-based options flow with the following categories:
 
 #### LLM Settings
+
 Edit the primary LLM connection and parameters:
+
 - **LLM Base URL**: OpenAI-compatible API endpoint
 - **API Key**: Authentication key for the LLM service
 - **Model**: Model name to use
@@ -94,36 +96,48 @@ Edit the primary LLM connection and parameters:
 - **Max Tokens**: Maximum response length (default: 500)
 
 #### Context Settings
+
 Configure how entity context is provided to the LLM:
+
 - **Context Mode**: Direct (Phase 1) or Vector DB (Phase 2)
 - **Context Format**: JSON, Natural Language, or Hybrid
 - **Entities to Include**: Comma-separated list of entity IDs or patterns
 
 #### Conversation History
+
 Manage conversation history:
+
 - **Enable History**: Track conversation context across turns
 - **Max Messages**: Maximum conversation turns to retain (default: 10)
 - **Max Tokens**: Token-based limit for history (default: 4000)
 
 #### System Prompt
+
 Customize the agent's behavior:
+
 - **Use Default Prompt**: Use Home Agent's built-in system prompt
 - **Custom Additions**: Additional instructions to append
 
 #### Tool Configuration
+
 Control tool execution limits:
+
 - **Max Tool Calls Per Turn**: Maximum executions per message (default: 5)
 - **Tool Timeout**: Timeout in seconds for each tool call (default: 30)
 
 #### External LLM (Phase 3)
+
 Configure an optional external LLM for complex queries:
+
 - **Enable External LLM**: Expose `query_external_llm` tool to primary LLM
 - **Base URL, API Key, Model**: External LLM connection details
 - **Tool Description**: Customize when primary LLM should delegate to external LLM
 - **Context Handling**: Only explicit `prompt` and `context` parameters are passed (not full conversation history)
 
 #### Debug Settings
+
 Enable detailed logging:
+
 - **Debug Logging**: Enable verbose logging for troubleshooting
 
 ## Usage
@@ -136,8 +150,8 @@ Call the `home_agent.process` service to interact with the agent:
 service: home_agent.process
 data:
   text: "Turn on the living room lights to 50%"
-  conversation_id: "living_room_chat"  # Optional, for history tracking
-  user_id: "user123"  # Optional
+  conversation_id: "living_room_chat" # Optional, for history tracking
+  user_id: "user123" # Optional
 ```
 
 ### In Automations
@@ -158,26 +172,33 @@ automation:
 ### Services
 
 #### `home_agent.process`
+
 Process a conversation message through the agent.
 
 **Parameters:**
+
 - `text` (required): The user's message
 - `conversation_id` (optional): ID for history tracking
 - `user_id` (optional): User identifier
 
 #### `home_agent.clear_history`
+
 Clear conversation history.
 
 **Parameters:**
+
 - `conversation_id` (optional): Specific conversation to clear (omit for all)
 
 #### `home_agent.reload_context`
+
 Reload entity context (useful after entity changes).
 
 #### `home_agent.execute_tool`
+
 Manually execute a tool for testing/debugging.
 
 **Parameters:**
+
 - `tool_name` (required): Tool to execute (e.g., "ha_control", "ha_query")
 - `parameters` (required): Tool parameters as JSON
 
@@ -188,12 +209,14 @@ Manually execute a tool for testing/debugging.
 Control Home Assistant devices and services.
 
 **Actions:**
+
 - `turn_on` - Turn on entities
 - `turn_off` - Turn off entities
 - `toggle` - Toggle state
 - `set_value` - Set specific values (brightness, temperature, etc.)
 
 **Example:**
+
 ```json
 {
   "action": "turn_on",
@@ -209,12 +232,14 @@ Control Home Assistant devices and services.
 Query Home Assistant entity states and history.
 
 **Features:**
+
 - Current state queries
 - Wildcard matching (`light.*`, `*.bedroom`)
 - Attribute filtering
 - Historical data with aggregation (avg, min, max, sum, count)
 
 **Example:**
+
 ```json
 {
   "entity_id": "sensor.temperature",
@@ -237,7 +262,7 @@ context_entities:
     attributes: [state, unit_of_measurement]
   - entity_id: light.living_room
     attributes: [state, brightness]
-  - entity_id: climate.*  # Wildcard support
+  - entity_id: climate.* # Wildcard support
 ```
 
 ### Vector DB Mode (Phase 2) 🆕
@@ -245,11 +270,13 @@ context_entities:
 Use semantic search to dynamically find relevant entities based on user query:
 
 **Setup:**
+
 1. Install and run ChromaDB server
 2. Configure Vector DB settings in integration options
 3. Index entities: Call `home_agent.index_entities` service (coming soon)
 
 **Configuration:**
+
 ```yaml
 context_mode: vector_db
 vector_db:
@@ -257,11 +284,12 @@ vector_db:
   port: 8000
   collection: home_entities
   embedding_model: text-embedding-3-small
-  top_k: 5  # Number of entities to retrieve
+  top_k: 5 # Number of entities to retrieve
   similarity_threshold: 0.7
 ```
 
 **How it works:**
+
 - User query is embedded using the configured model
 - ChromaDB finds semantically similar entities
 - Only relevant entities are included in context
@@ -282,18 +310,22 @@ Automatically compresses context when approaching token limits:
 Home Agent fires events for monitoring and automation:
 
 ### `home_agent.conversation.started`
+
 Fired when a conversation begins.
 
 **Data:**
+
 - `conversation_id`
 - `user_id`
 - `timestamp`
 - `context_mode`
 
 ### `home_agent.conversation.finished`
+
 Fired when a conversation completes.
 
 **Data (Enhanced in Phase 2):**
+
 - `conversation_id`
 - `user_id`
 - `duration_ms`
@@ -303,9 +335,11 @@ Fired when a conversation completes.
 - `context` - Optimization metrics: `original_tokens`, `optimized_tokens`, `compression_ratio` 🆕
 
 ### `home_agent.tool.executed`
+
 Fired after each tool execution.
 
 **Data:**
+
 - `tool_name`
 - `parameters`
 - `result`
@@ -313,36 +347,44 @@ Fired after each tool execution.
 - `duration_ms`
 
 ### `home_agent.context.injected`
+
 Fired when context is injected.
 
 **Data:**
+
 - `conversation_id`
 - `mode`
 - `entities_included`
 - `token_count`
 
 ### `home_agent.context.optimized` 🆕
+
 Fired when context is compressed (Phase 2).
 
 **Data:**
+
 - `original_tokens`
 - `optimized_tokens`
 - `compression_ratio`
 - `was_truncated`
 
 ### `home_agent.history.saved` 🆕
+
 Fired when history is persisted (Phase 2).
 
 **Data:**
+
 - `conversation_count`
 - `message_count`
 - `size_bytes`
 - `timestamp`
 
 ### `home_agent.error`
+
 Fired on errors.
 
 **Data:**
+
 - `error_type`
 - `error_message`
 - `conversation_id`
@@ -461,6 +503,7 @@ Contributions are welcome! Please:
 This project maintains >80% code coverage with comprehensive unit and integration tests.
 
 **Current Test Status:**
+
 - ✅ 376+ passing unit tests
 - ✅ Comprehensive coverage of core functionality
 - ✅ Mock-based testing for fast execution

@@ -749,21 +749,161 @@ home_agent:
           Authorization: "Bearer {{ weather_api_key }}"
 ```
 
-### Phase 4: Streaming Response Support
-- [ ] **Primary LLM Streaming**
-  - Stream responses from primary LLM for better UX
-  - Handle tool call interruptions (streaming pauses during tool execution)
-  - Progress indicators during tool execution
+### Phase 3.5: Long-Term Memory System
+- [ ] **Core Memory Manager**
+  - Persistent storage using Home Assistant Store (`.storage/home_agent.memories`)
+  - ChromaDB indexing for semantic search (collection: `home_agent_memories`)
+  - Memory data structure with metadata:
+    - `id`: Unique memory identifier
+    - `type`: fact, preference, context, event
+    - `content`: The actual memory text
+    - `source_conversation_id`: Origin conversation
+    - `extracted_at`: Timestamp
+    - `last_accessed`: Last retrieval time
+    - `importance`: Score 0.0-1.0
+    - `metadata`: Additional context (entities, topics, etc.)
+  - Deduplication and consolidation logic
+  - Importance scoring and optional decay
+  - Memory retention policies
+- [ ] **Automatic Memory Extraction**
+  - Post-conversation hook triggered by `EVENT_CONVERSATION_FINISHED`
+  - **Configurable LLM selection**: Use external LLM OR local LLM for extraction
+  - Extraction prompt: Analyze conversation and extract facts/preferences
+  - Parse structured JSON response from LLM
+  - Store extracted memories in MemoryManager + ChromaDB
+  - Error handling for extraction failures
+- [ ] **Manual Memory Tools**
+  - `store_memory` tool: Explicitly save a fact/preference during conversation
+  - `recall_memory` tool: Search and retrieve relevant memories
+  - Standardized response format: `{success, result, error}`
+  - Tool definitions exposed to primary LLM
+- [ ] **Memory Context Integration**
+  - `MemoryContextProvider` for semantic search
+  - Integrate with `ContextManager` to inject relevant memories
+  - Query ChromaDB based on user input
+  - Format memories for system prompt injection
+  - Track access patterns (update `last_accessed`)
+  - Configurable top-K retrieval and minimum importance threshold
+- [ ] **Memory Management UI & Services**
+  - Configuration options in `config_flow.py`:
+    - Enable/disable memory system (privacy toggle)
+    - Enable/disable automatic extraction
+    - Choose extraction LLM (external vs local)
+    - Max memories limit
+    - Minimum importance threshold
+    - Memory collection name
+  - Home Assistant services:
+    - `home_agent.list_memories` - List all stored memories
+    - `home_agent.delete_memory` - Delete specific memory by ID
+    - `home_agent.clear_memories` - Clear all memories
+    - `home_agent.search_memories` - Manually search memories
+  - Integration UI to view and manage memories
+- [ ] **Configuration & Testing**
+  - Add memory-related constants to `const.py`
+  - Default values for all memory settings
+  - Unit tests for MemoryManager
+  - Unit tests for memory extraction
+  - Integration tests for context injection
+  - Documentation and examples
+
+**Memory Scope:** Global (shared across all users and conversations)
+
+**Privacy:** User-controlled on/off toggle for the entire memory system
+
+**Architecture:**
+```
+User Conversation
+    ↓
+Primary LLM Response
+    ↓
+EVENT_CONVERSATION_FINISHED
+    ↓
+Memory Extraction (External OR Local LLM)
+    ↓
+MemoryManager.add_memory()
+    ↓
+├─→ Home Assistant Store (.storage/home_agent.memories)
+└─→ ChromaDB (semantic indexing)
+
+Next Conversation:
+    User Input
+       ↓
+    MemoryContextProvider.search_memories()
+       ↓
+    Relevant memories injected into context
+       ↓
+    Primary LLM (with entity context + memory context)
+```
+
+**Configuration Example:**
+```yaml
+# In Home Assistant configuration UI
+memory:
+  enabled: true                           # Privacy toggle
+  automatic_extraction: true              # Enable post-conversation extraction
+  extraction_llm: "external"              # "external" or "local"
+  max_memories: 100                       # Maximum stored memories
+  min_importance: 0.3                     # Filter low-importance memories
+  collection_name: "home_agent_memories"  # ChromaDB collection
+  context_top_k: 5                        # Number of memories to inject
+```
+
+### Phase 4: Streaming Response Support for Voice Assistant Pipeline
+- [ ] **API Migration (Critical)**
+  - Migrate from `async_process()` to `_async_handle_message()` API
+  - Enables access to `chat_log` object for streaming integration
+  - Research Home Assistant core conversation component implementation
+  - Document `chat_log.async_add_delta_content_stream()` usage
+  - Maintain backward compatibility during migration
+- [ ] **Streaming Infrastructure**
+  - Create `streaming.py` module with `StreamingResponseHandler` class
+  - Implement chunk buffering and aggregation logic
+  - Add `_call_llm_stream()` method to `agent.py` using aiohttp streaming
+  - Configuration option: `CONF_STREAMING_ENABLED` (default: disabled for stability)
+  - Add `EVENT_TOOL_PROGRESS` event constant to `const.py`
+- [ ] **Voice Assistant Pipeline Integration**
+  - Stream LLM response chunks via `chat_log.async_add_delta_content_stream()`
+  - Assist Pipeline forwards deltas as `intent-progress` events
+  - TTS (Wyoming/Piper) receives text chunks for incremental audio synthesis
+  - Target: First audio chunk within ~500ms (vs 5+ seconds synchronous)
+  - Handle tool call detection in streaming chunks (buffer until complete)
+- [ ] **Tool Call Interruption Handling**
+  - Detect tool calls in streaming chunks (parse partial JSON)
+  - Pause streaming when tool call detected
+  - Execute tool with progress indicators (`execute_tool_with_progress()`)
+  - Fire `EVENT_TOOL_PROGRESS` events: 0% start, 50% executing, 100% complete
   - Resume streaming after tool results returned
 - [ ] **External LLM Streaming** (Optional)
-  - Stream responses from external LLM if supported
-  - Transparent streaming passthrough to user
+  - Add streaming support to external LLM tool if API supports it
+  - Stream responses through same `chat_log` mechanism
+  - Transparent streaming passthrough to Assist Pipeline
+- [ ] **Configuration & UI**
+  - Add streaming enable/disable toggle in `config_flow.py`
+  - Default to disabled for backward compatibility
+  - Clear documentation on streaming requirements (Assist Pipeline, Wyoming TTS)
 - [ ] **Testing**
-  - Unit tests for streaming logic
-  - Integration tests with tool calls
-  - Performance benchmarking
+  - Unit tests for chunk buffering and tool call detection (`test_streaming.py`)
+  - Unit tests for progress event firing
+  - Integration tests with Wyoming TTS in Voice Assistant pipeline (`test_phase4_streaming.py`)
+  - Test streaming + tool execution flow (pause/resume)
+  - Performance benchmarks: latency to first audio chunk
+  - Ensure all existing tests pass with streaming disabled
+  - Maintain >80% code coverage
 
-**Note:** Streaming support deferred from Phase 3 to maintain focused scope. External LLM can remain synchronous in Phase 3.
+**Success Criteria:**
+- Agent successfully migrated to `_async_handle_message()` API
+- Streaming works end-to-end with Wyoming TTS via Assist Pipeline
+- First audio chunk plays within ~500ms (10x improvement)
+- Tool calls correctly pause/resume streaming
+- Progress indicators fire during tool execution
+- Streaming can be disabled via configuration
+- All existing tests pass, >80% coverage maintained
+
+**Technical Notes:**
+- **Streaming Protocol**: Text deltas sent via `chat_log.async_add_delta_content_stream(agent_id, stream)`
+- **TTS Integration**: Assist Pipeline automatically forwards deltas to TTS for incremental synthesis
+- **Known Issue**: Static responses (e.g., from automations) bypass streaming - our implementation must generate deltas
+- **Dependencies**: Requires Home Assistant 2025.3+ for LLM streaming support
 
 ### Phase 5: MCP Server Integration
 - [ ] **MCP (Model Context Protocol) Server Support**

@@ -40,6 +40,7 @@ from .const import (
     CONF_LLM_TOP_P,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
+    CONF_TOOLS_CUSTOM,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
     DEFAULT_HISTORY_MAX_MESSAGES,
@@ -59,6 +60,7 @@ from .exceptions import (
 from .helpers import redact_sensitive_data
 from .tool_handler import ToolHandler
 from .tools import HomeAssistantControlTool, HomeAssistantQueryTool
+from .tools.custom import CustomToolHandler
 from .tools.external_llm import ExternalLLMTool
 
 _LOGGER = logging.getLogger(__name__)
@@ -212,9 +214,71 @@ class HomeAgent(AbstractConversationAgent):
             self.tool_handler.register_tool(external_llm)
             _LOGGER.info("External LLM tool registered")
 
+        # Register custom tools from configuration
+        custom_tools_config = self.config.get(CONF_TOOLS_CUSTOM, [])
+        if custom_tools_config:
+            self._register_custom_tools(custom_tools_config)
+
         _LOGGER.debug(
             "Registered %d tools", len(self.tool_handler.get_registered_tools())
         )
+
+    def _register_custom_tools(self, custom_tools_config: list[dict[str, Any]]) -> None:
+        """Register custom tools from configuration.
+
+        Args:
+            custom_tools_config: List of custom tool configuration dictionaries
+        """
+        from .exceptions import ValidationError
+
+        registered_count = 0
+        failed_count = 0
+
+        for tool_config in custom_tools_config:
+            try:
+                # Create tool from configuration
+                custom_tool = CustomToolHandler.create_tool_from_config(
+                    self.hass,
+                    tool_config,
+                )
+
+                # Register with tool handler
+                self.tool_handler.register_tool(custom_tool)
+                registered_count += 1
+
+                _LOGGER.info(
+                    "Registered custom tool '%s' (type: %s)",
+                    custom_tool.name,
+                    tool_config.get("handler", {}).get("type"),
+                )
+
+            except ValidationError as err:
+                failed_count += 1
+                _LOGGER.error(
+                    "Failed to register custom tool (validation error): %s. "
+                    "Integration will continue without this tool.",
+                    err,
+                )
+            except Exception as err:
+                failed_count += 1
+                _LOGGER.error(
+                    "Failed to register custom tool (unexpected error): %s. "
+                    "Integration will continue without this tool.",
+                    err,
+                    exc_info=True,
+                )
+
+        if registered_count > 0:
+            _LOGGER.info(
+                "Successfully registered %d custom tool(s)",
+                registered_count,
+            )
+
+        if failed_count > 0:
+            _LOGGER.warning(
+                "Failed to register %d custom tool(s). Check logs for details.",
+                failed_count,
+            )
 
     def _get_exposed_entities(self) -> list[str]:
         """Get list of entities exposed to the agent.
