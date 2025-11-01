@@ -27,6 +27,7 @@ from .const import (
     CONF_CONTEXT_MODE,
     CONF_DEBUG_LOGGING,
     CONF_EMIT_EVENTS,
+    CONF_EXTERNAL_LLM_ENABLED,
     CONF_HISTORY_ENABLED,
     CONF_HISTORY_MAX_MESSAGES,
     CONF_HISTORY_MAX_TOKENS,
@@ -58,6 +59,7 @@ from .exceptions import (
 from .helpers import redact_sensitive_data
 from .tool_handler import ToolHandler
 from .tools import HomeAssistantControlTool, HomeAssistantQueryTool
+from .tools.external_llm import ExternalLLMTool
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -187,6 +189,12 @@ class HomeAgent(AbstractConversationAgent):
         # Register ha_query tool
         ha_query = HomeAssistantQueryTool(self.hass, exposed_entity_ids)
         self.tool_handler.register_tool(ha_query)
+
+        # Register external LLM tool if enabled
+        if self.config.get(CONF_EXTERNAL_LLM_ENABLED, False):
+            external_llm = ExternalLLMTool(self.hass, self.config)
+            self.tool_handler.register_tool(external_llm)
+            _LOGGER.info("External LLM tool registered")
 
         _LOGGER.debug(
             "Registered %d tools", len(self.tool_handler.get_registered_tools())
