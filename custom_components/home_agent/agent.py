@@ -1097,12 +1097,11 @@ Return ONLY valid JSON, no other text:
                 },
             ]
 
-            # Call LLM without tool definitions (lower temperature for consistency)
+            # Call LLM without tool definitions
+            # Note: Uses temperature and max_tokens from config
             response = await self._call_llm(
                 messages,
                 tools=None,
-                temperature=0.3,
-                max_tokens=1000,
             )
 
             content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
