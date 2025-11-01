@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
 
 from .agent import HomeAgent
-from .const import CONF_CONTEXT_MODE, CONTEXT_MODE_VECTOR_DB, DOMAIN
+from .const import CONF_CONTEXT_MODE, CONF_TOOLS_CUSTOM, CONTEXT_MODE_VECTOR_DB, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
