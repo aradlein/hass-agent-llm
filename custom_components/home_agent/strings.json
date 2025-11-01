@@ -176,6 +176,7 @@
           "context_settings": "Context Settings",
           "vector_db_settings": "Vector Database",
           "history_settings": "Conversation History",
+          "memory_settings": "Memory System",
           "prompt_settings": "System Prompt",
           "tool_settings": "Tool Configuration",
           "external_llm_settings": "External LLM",
@@ -302,6 +303,28 @@
           "external_llm_auto_include_context": "Automatically pass context to external LLM"
         }
       },
+      "memory_settings": {
+        "title": "Memory System Configuration",
+        "description": "Configure the long-term memory system for persistent learning across conversations.",
+        "data": {
+          "memory_enabled": "Enable Memory System",
+          "memory_extraction_enabled": "Enable Automatic Memory Extraction",
+          "memory_extraction_llm": "LLM for Memory Extraction",
+          "memory_max_memories": "Maximum Stored Memories",
+          "memory_min_importance": "Minimum Importance (0.0-1.0)",
+          "memory_context_top_k": "Memories to Inject in Context",
+          "memory_collection_name": "ChromaDB Collection Name"
+        },
+        "data_description": {
+          "memory_enabled": "Privacy toggle - enable or disable the entire memory system",
+          "memory_extraction_enabled": "Automatically extract memories after each conversation",
+          "memory_extraction_llm": "Choose which LLM to use for extracting memories (external is more accurate but requires External LLM to be enabled)",
+          "memory_max_memories": "Maximum number of memories to store (oldest/least important are removed when limit is reached)",
+          "memory_min_importance": "Ignore memories below this importance score",
+          "memory_context_top_k": "How many relevant memories to include in each conversation",
+          "memory_collection_name": "Name of the ChromaDB collection for memory indexing"
+        }
+      },
       "debug_settings": {
         "title": "Debug Settings",
         "description": "Configure debugging and logging options.",
@@ -332,6 +355,7 @@
       "invalid_tool_timeout": "Tool timeout must be a positive number.",
       "invalid_max_tool_calls": "Max tool calls must be a positive integer.",
       "external_llm_connection_failed": "Failed to connect to external LLM API. Please check the configuration.",
+      "external_llm_required": "Memory extraction with external LLM requires the external LLM tool to be enabled in External LLM settings.",
       "unknown": "An unexpected error occurred. Please check the logs for details."
     }
   },

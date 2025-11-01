@@ -11,13 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from custom_components.home_agent.context_optimizer import (
-    CompressionLevel,
-    CompressionMetrics,
-    ContextOptimizer,
-    EntityPriority,
-)
-from custom_components.home_agent.exceptions import ValidationError
+from custom_components.home_agent.context_optimizer import ContextOptimizer
 
 
 @pytest.fixture
