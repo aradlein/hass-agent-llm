@@ -102,6 +102,19 @@ python3 -m ruff check custom_components/home_agent/
 
 ## Git Operations Best Practices
 
+### Branch Management Requirements
+
+**ALWAYS create a feature branch when:**
+- Working on a GitHub issue
+- Implementing a new phase
+- Adding a new feature
+- Making significant changes
+
+**NEVER commit directly to `main` unless:**
+- Making documentation-only updates
+- Fixing typos or minor formatting
+- Updating configuration files that don't affect code
+
 ### Before Making Any File Changes
 
 1. **Verify you're in the correct repository:**
@@ -115,10 +128,48 @@ python3 -m ruff check custom_components/home_agent/
    git branch --show-current
    ```
 
-3. **Create feature branch if needed:**
+3. **Create feature branch (REQUIRED for code changes):**
    ```bash
-   git checkout -b feature/phase-3-external-llm
+   # For GitHub issues
+   git checkout -b issue-2-external-llm-tool
+
+   # For features
+   git checkout -b feature/custom-tool-framework
+
+   # For phases
+   git checkout -b phase-3/implementation
+
+   # For bug fixes
+   git checkout -b fix/tool-timeout-handling
    ```
+
+### Branch Naming Conventions
+
+Use descriptive branch names following these patterns:
+
+- **GitHub Issues**: `issue-<number>-<short-description>`
+  - Example: `issue-2-external-llm-tool`
+  - Example: `issue-5-testing-docs`
+
+- **Features**: `feature/<feature-name>`
+  - Example: `feature/streaming-responses`
+  - Example: `feature/mcp-integration`
+
+- **Phases**: `phase-<number>/<description>`
+  - Example: `phase-3/implementation`
+  - Example: `phase-4/streaming-support`
+
+- **Bug Fixes**: `fix/<issue-description>`
+  - Example: `fix/context-optimization-bug`
+  - Example: `fix/tool-timeout-handling`
+
+- **Documentation**: `docs/<topic>`
+  - Example: `docs/custom-tools-guide`
+  - Example: `docs/api-reference`
+
+- **Refactoring**: `refactor/<component>`
+  - Example: `refactor/tool-registry`
+  - Example: `refactor/context-manager`
 
 ### Committing Changes
 
@@ -264,33 +315,125 @@ git remote -v
 git branch --show-current
 ```
 
-### Safe Git Workflow
+### Safe Git Workflow for GitHub Issues
 
 ```bash
 # 1. Navigate to home-agent
 cd /workspaces/home-agent
 
-# 2. Create feature branch
-git checkout -b feature/my-feature
+# 2. Ensure you're on main and up to date
+git checkout main
+git pull origin main
 
-# 3. Make changes
+# 3. Create feature branch for the issue
+git checkout -b issue-2-external-llm-tool
+
+# 4. Make changes
 # ... edit files ...
 
-# 4. Run tests
+# 5. Run tests frequently during development
 pytest tests/unit/ -v
 
-# 5. Format and lint
+# 6. Format and lint before committing
 ./scripts/format.sh
 
-# 6. Stage and commit
+# 7. Stage and commit with reference to issue
 git add .
-git commit -m "feat: add my feature"
+git commit -m "feat: implement external LLM tool
 
-# 7. Push
-git push origin feature/my-feature
+- Add ExternalLLMTool class with BaseTool interface
+- Implement prompt + context passthrough
+- Add standardized error handling
+- Include unit tests with >80% coverage
 
-# 8. Create PR or merge
-gh pr create --title "..." --body "..."
+Implements #2"
+
+# 8. Push to remote
+git push origin issue-2-external-llm-tool
+
+# 9. Create PR linking to the issue
+gh pr create --repo aradlein/home-agent \
+  --title "feat: External LLM Tool Implementation" \
+  --body "Implements #2
+
+## Changes
+- Created ExternalLLMTool class
+- Added unit and integration tests
+- Updated documentation
+
+## Testing
+- All tests pass
+- >80% coverage achieved"
+
+# 10. After PR is merged, clean up branch
+git checkout main
+git pull origin main
+git branch -d issue-2-external-llm-tool
+```
+
+### Safe Git Workflow for New Phases
+
+```bash
+# 1. Navigate to home-agent
+cd /workspaces/home-agent
+
+# 2. Start from main
+git checkout main
+git pull origin main
+
+# 3. Create phase branch
+git checkout -b phase-3/implementation
+
+# 4. Work on phase features
+# ... implement features ...
+
+# 5. Commit regularly with descriptive messages
+git add .
+git commit -m "feat(phase-3): add REST custom tool handler"
+
+# 6. Push phase branch
+git push origin phase-3/implementation
+
+# 7. When phase is complete, create PR
+gh pr create --repo aradlein/home-agent \
+  --title "Phase 3: External LLM Tool & Custom Tools" \
+  --body "Completes Phase 3 implementation
+
+Closes #2, #3, #4, #5
+
+## Features Implemented
+- External LLM tool
+- Custom tool framework (REST + Service)
+- Comprehensive testing
+- Documentation"
+
+# 8. After merge, clean up
+git checkout main
+git pull origin main
+git branch -d phase-3/implementation
+```
+
+### Merging vs Pull Requests
+
+**Create Pull Requests when:**
+- Implementing GitHub issues (for review and tracking)
+- Completing phases (for comprehensive review)
+- Making significant architectural changes
+- Adding major features
+
+**Direct merge to main (without PR) when:**
+- Making documentation-only updates
+- Fixing typos
+- Updating configuration files
+- Small urgent fixes (with user approval)
+
+**After PR is approved and merged:**
+```bash
+# Clean up local and remote branches
+git checkout main
+git pull origin main
+git branch -d issue-2-external-llm-tool
+git push origin --delete issue-2-external-llm-tool
 ```
 
 ### Safe GitHub Commands
@@ -392,10 +535,14 @@ git push
 
 1. **home-agent** (`/workspaces/home-agent/`) = ✅ FULL ACCESS
 2. **core** (`/workspaces/core/`) = ❌ READ-ONLY
-3. Always specify `--repo aradlein/home-agent` for GitHub commands
-4. Always check `pwd` and `git remote -v` before making changes
-5. When in doubt, ASK the user before modifying files
-6. Test from core, develop in home-agent
+3. **ALWAYS create a feature branch** for GitHub issues and new phases
+4. Always specify `--repo aradlein/home-agent` for GitHub commands
+5. Always check `pwd` and `git remote -v` before making changes
+6. Use descriptive branch names: `issue-X-description`, `phase-X/description`, `feature/name`
+7. Create PRs for issues and phases (don't merge directly to main)
+8. When in doubt, ASK the user before modifying files
+9. Test from core, develop in home-agent
+10. Clean up branches after PRs are merged
 
 ---
 
