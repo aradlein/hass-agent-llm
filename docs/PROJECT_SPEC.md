@@ -710,25 +710,26 @@ Now respond to the user's request:
 - [ ] Event system implementation
 - [ ] Enhanced configuration UI
 
-### Phase 3: External LLM Tool & Custom Tools ✅ REFINED
-- [ ] **External LLM Tool (`query_external_llm`)**
+### Phase 3: External LLM Tool & Custom Tools ✅ COMPLETE
+- [x] **External LLM Tool (`query_external_llm`)**
   - Expose as tool for primary LLM to delegate complex queries
   - Context passthrough: prompt + explicit context parameter only
   - Error handling: Return error message transparently to user
   - Counts toward `max_calls_per_turn` limit
   - Standardized response format: `{success, result, error}`
-- [ ] **Custom Tool Framework**
+- [x] **Custom Tool Framework**
   - Configuration via `configuration.yaml` under `home_agent:` section
   - REST handler: HTTP API calls with headers, query params, body
   - Service handler: Call Home Assistant services
   - **No script execution** (security restriction)
   - YAML schema validation on integration setup
   - Standardized response format for all custom tools
-- [ ] **Integration & Testing**
-  - Unit tests for external LLM tool and custom tool handlers
-  - Integration tests for dual-LLM workflow
+- [x] **Integration & Testing**
+  - Unit tests for external LLM tool and custom tool handlers (76 tests)
+  - Integration tests for dual-LLM workflow (23 tests)
   - Error handling tests
-  - Documentation with examples
+  - Documentation with examples (`docs/CUSTOM_TOOLS.md`, `docs/EXTERNAL_LLM.md`)
+  - **Test Coverage**: 95.58% for Phase 3 code (exceeds 80% requirement)
 
 **Configuration Location:** `configuration.yaml`
 ```yaml

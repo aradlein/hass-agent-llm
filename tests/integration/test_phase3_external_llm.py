@@ -190,30 +190,34 @@ async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_
         with patch("aiohttp.ClientSession") as mock_session_class:
             call_count = [0]
 
-            async def mock_post_side_effect(url, **kwargs):
+            def create_mock_response(response_data):
+                """Create a mock response for async context manager."""
+                mock_resp = MagicMock()
+                mock_resp.status = 200
+                mock_resp.json = AsyncMock(return_value=response_data)
+                mock_resp.raise_for_status = MagicMock()
+                mock_resp.text = AsyncMock(return_value="")
+                mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+                mock_resp.__aexit__ = AsyncMock(return_value=None)
+                return mock_resp
+
+            def mock_post_side_effect(url, **kwargs):  # noqa: ARG001
                 call_count[0] += 1
-                mock_response = AsyncMock()
-                mock_response.status = 200
-                mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-                mock_response.__aexit__ = AsyncMock(return_value=None)
 
                 if "api.primary.com" in url:
                     # Primary LLM calls
                     if call_count[0] == 1:
                         # First call: primary LLM decides to use external tool
-                        mock_response.json = AsyncMock(return_value=primary_llm_response_with_tool_call)
-                    else:
-                        # Second call: primary LLM formats final response
-                        mock_response.json = AsyncMock(return_value=primary_llm_final_response)
-                else:
-                    # External LLM call
-                    mock_response.json = AsyncMock(return_value=external_llm_response)
+                        return create_mock_response(
+                            primary_llm_response_with_tool_call
+                        )
+                    # Second call: primary LLM formats final response
+                    return create_mock_response(primary_llm_final_response)
+                # External LLM call
+                return create_mock_response(external_llm_response)
 
-                mock_response.raise_for_status = MagicMock()
-                return mock_response
-
-            mock_session = AsyncMock()
-            mock_session.post = AsyncMock(side_effect=mock_post_side_effect)
+            mock_session = MagicMock()
+            mock_session.post = MagicMock(side_effect=mock_post_side_effect)
             mock_session.closed = False
             mock_session_class.return_value = mock_session
 
@@ -274,36 +278,42 @@ async def test_external_llm_error_propagation(mock_hass_for_integration, externa
         with patch("aiohttp.ClientSession") as mock_session_class:
             call_count = [0]
 
-            async def mock_post_side_effect(url, **kwargs):
+            def mock_post_side_effect(url, **kwargs):  # noqa: ARG001
                 call_count[0] += 1
-                mock_response = AsyncMock()
+                mock_response = MagicMock()
                 mock_response.__aenter__ = AsyncMock(return_value=mock_response)
                 mock_response.__aexit__ = AsyncMock(return_value=None)
 
                 if "api.primary.com" in url:
                     mock_response.status = 200
                     if call_count[0] == 1:
-                        mock_response.json = AsyncMock(return_value=primary_llm_response_with_tool_call)
+                        mock_response.json = AsyncMock(
+                            return_value=primary_llm_response_with_tool_call
+                        )
                     else:
-                        mock_response.json = AsyncMock(return_value=primary_llm_error_response)
+                        mock_response.json = AsyncMock(
+                            return_value=primary_llm_error_response
+                        )
                     mock_response.raise_for_status = MagicMock()
+                    mock_response.text = AsyncMock(return_value="")
                 else:
                     # External LLM returns error
-                    import aiohttp
+                    import aiohttp  # noqa: PLC0415
+
                     mock_response.status = 503
                     mock_response.raise_for_status = MagicMock(
                         side_effect=aiohttp.ClientResponseError(
                             request_info=MagicMock(),
                             history=(),
                             status=503,
-                            message="Service Unavailable"
+                            message="Service Unavailable",
                         )
                     )
 
                 return mock_response
 
-            mock_session = AsyncMock()
-            mock_session.post = AsyncMock(side_effect=mock_post_side_effect)
+            mock_session = MagicMock()
+            mock_session.post = MagicMock(side_effect=mock_post_side_effect)
             mock_session.closed = False
             mock_session_class.return_value = mock_session
 
@@ -389,26 +399,31 @@ async def test_tool_call_counting_includes_external_llm(mock_hass_for_integratio
         with patch("aiohttp.ClientSession") as mock_session_class:
             call_count = [0]
 
-            async def mock_post_side_effect(url, **kwargs):
+            def mock_post_side_effect(url, **kwargs):  # noqa: ARG001
                 call_count[0] += 1
-                mock_response = AsyncMock()
+                mock_response = MagicMock()
                 mock_response.status = 200
                 mock_response.__aenter__ = AsyncMock(return_value=mock_response)
                 mock_response.__aexit__ = AsyncMock(return_value=None)
                 mock_response.raise_for_status = MagicMock()
+                mock_response.text = AsyncMock(return_value="")
 
                 if "api.primary.com" in url:
                     if call_count[0] == 1:
-                        mock_response.json = AsyncMock(return_value=primary_llm_response)
+                        mock_response.json = AsyncMock(
+                            return_value=primary_llm_response
+                        )
                     else:
                         mock_response.json = AsyncMock(return_value=final_response)
                 else:
-                    mock_response.json = AsyncMock(return_value=external_llm_response)
+                    mock_response.json = AsyncMock(
+                        return_value=external_llm_response
+                    )
 
                 return mock_response
 
-            mock_session = AsyncMock()
-            mock_session.post = AsyncMock(side_effect=mock_post_side_effect)
+            mock_session = MagicMock()
+            mock_session.post = MagicMock(side_effect=mock_post_side_effect)
             mock_session.closed = False
             mock_session_class.return_value = mock_session
 
@@ -490,22 +505,29 @@ async def test_external_llm_context_not_included_automatically(mock_hass_for_int
         }
 
         with patch("aiohttp.ClientSession") as mock_session_class:
-            responses = [primary_response_1, primary_response_2, external_response, final_response]
+            responses = [
+                primary_response_1,
+                primary_response_2,
+                external_response,
+                final_response,
+            ]
             response_index = [0]
 
-            async def mock_post_side_effect(url, **kwargs):
-                mock_response = AsyncMock()
+            def mock_post_side_effect(url, **kwargs):
+                mock_response = MagicMock()
                 mock_response.status = 200
                 mock_response.__aenter__ = AsyncMock(return_value=mock_response)
                 mock_response.__aexit__ = AsyncMock(return_value=None)
                 mock_response.raise_for_status = MagicMock()
+                mock_response.text = AsyncMock(return_value="")
 
                 if "api.external.com" in url:
                     # Verify external LLM payload
                     payload = kwargs.get("json", {})
                     messages = payload.get("messages", [])
 
-                    # Should only have 1 message (the prompt), not full conversation history
+                    # Should only have 1 message (the prompt),
+                    # not full conversation history
                     assert len(messages) == 1
                     assert messages[0]["role"] == "user"
                     # Should only contain the prompt, not previous conversation
@@ -513,13 +535,15 @@ async def test_external_llm_context_not_included_automatically(mock_hass_for_int
 
                     mock_response.json = AsyncMock(return_value=external_response)
                 else:
-                    mock_response.json = AsyncMock(return_value=responses[response_index[0]])
+                    mock_response.json = AsyncMock(
+                        return_value=responses[response_index[0]]
+                    )
                     response_index[0] += 1
 
                 return mock_response
 
-            mock_session = AsyncMock()
-            mock_session.post = AsyncMock(side_effect=mock_post_side_effect)
+            mock_session = MagicMock()
+            mock_session.post = MagicMock(side_effect=mock_post_side_effect)
             mock_session.closed = False
             mock_session_class.return_value = mock_session
 
@@ -585,13 +609,14 @@ async def test_external_llm_configuration_validation(mock_hass_for_integration):
         with patch("aiohttp.ClientSession") as mock_session_class:
             call_count = [0]
 
-            async def mock_post_side_effect(url, **kwargs):
+            def mock_post_side_effect(url, **kwargs):  # noqa: ARG001
                 call_count[0] += 1
-                mock_response = AsyncMock()
+                mock_response = MagicMock()
                 mock_response.status = 200
                 mock_response.__aenter__ = AsyncMock(return_value=mock_response)
                 mock_response.__aexit__ = AsyncMock(return_value=None)
                 mock_response.raise_for_status = MagicMock()
+                mock_response.text = AsyncMock(return_value="")
 
                 if call_count[0] == 1:
                     mock_response.json = AsyncMock(return_value=primary_response)
@@ -600,8 +625,8 @@ async def test_external_llm_configuration_validation(mock_hass_for_integration):
 
                 return mock_response
 
-            mock_session = AsyncMock()
-            mock_session.post = AsyncMock(side_effect=mock_post_side_effect)
+            mock_session = MagicMock()
+            mock_session.post = MagicMock(side_effect=mock_post_side_effect)
             mock_session.closed = False
             mock_session_class.return_value = mock_session
 

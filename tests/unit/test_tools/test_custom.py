@@ -2,7 +2,11 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from custom_components.home_agent.tools.custom import CustomToolHandler, RestCustomTool
+from custom_components.home_agent.tools.custom import (
+    CustomToolHandler,
+    RestCustomTool,
+    ServiceCustomTool,
+)
 from custom_components.home_agent.const import (
     CUSTOM_TOOL_HANDLER_REST,
     CUSTOM_TOOL_HANDLER_SERVICE,
@@ -86,22 +90,26 @@ class TestCustomToolHandler:
 
         assert "unknown handler type" in str(exc_info.value).lower()
 
-    def test_create_tool_service_handler_not_implemented(self, mock_hass):
-        """Test that service handler raises not implemented error."""
+    def test_create_tool_service_handler(self, mock_hass):
+        """Test that service handler creates ServiceCustomTool."""
+        # Mock has_service to return True
+        mock_hass.services.has_service = MagicMock(return_value=True)
+
         config = {
             "name": "test_tool",
             "description": "Test tool",
             "parameters": {},
             "handler": {
                 "type": CUSTOM_TOOL_HANDLER_SERVICE,
-                "service": "light.turn_on"
-            }
+                "service": "light.turn_on",
+            },
         }
 
-        with pytest.raises(ValidationError) as exc_info:
-            CustomToolHandler.create_tool_from_config(mock_hass, config)
+        tool = CustomToolHandler.create_tool_from_config(mock_hass, config)
 
-        assert "not yet implemented" in str(exc_info.value).lower()
+        assert isinstance(tool, ServiceCustomTool)
+        assert tool.name == "test_tool"
+        assert tool.description == "Test tool"
 
 
 class TestRestCustomToolInitialization:

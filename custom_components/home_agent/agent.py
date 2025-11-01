@@ -43,6 +43,7 @@ from .const import (
     CONF_TOOLS_CUSTOM,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
+    DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_SYSTEM_PROMPT,
@@ -754,6 +755,18 @@ class HomeAgent(AbstractConversationAgent):
 
             # Execute tool calls
             _LOGGER.info("Executing %d tool call(s)", len(tool_calls))
+
+            # Enforce tool call limit
+            max_calls = self.config.get(CONF_TOOLS_MAX_CALLS_PER_TURN, DEFAULT_TOOLS_MAX_CALLS_PER_TURN)
+            if len(tool_calls) > max_calls:
+                _LOGGER.warning(
+                    "LLM requested %d tool calls, but limit is %d. Only executing first %d.",
+                    len(tool_calls),
+                    max_calls,
+                    max_calls
+                )
+                tool_calls = tool_calls[:max_calls]
+
             metrics["tool_calls"] = metrics.get("tool_calls", 0) + len(tool_calls)
 
             # Add assistant message with tool calls to messages
