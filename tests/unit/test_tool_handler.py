@@ -24,10 +24,10 @@ class MockTool:
         self.execute_called = False
         self.execute_params = None
 
-    async def execute(self, parameters: dict):
+    async def execute(self, **kwargs):
         """Mock execute method."""
         self.execute_called = True
-        self.execute_params = parameters
+        self.execute_params = kwargs
         if self.should_fail:
             raise Exception(f"Tool {self.name} failed")
         return {"result": f"Success from {self.name}"}
@@ -46,6 +46,13 @@ class MockTool:
             }
         }
 
+    def to_openai_format(self):
+        """Mock to_openai_format method."""
+        return {
+            "type": "function",
+            "function": self.get_definition(),
+        }
+
     def validate_parameters(self, parameters: dict):
         """Mock validate_parameters method."""
         if "test_param" not in parameters:
@@ -57,7 +64,7 @@ def mock_hass():
     """Create mock Home Assistant instance."""
     hass = MagicMock()
     hass.bus = MagicMock()
-    hass.bus.async_fire = AsyncMock()
+    hass.bus.async_fire = MagicMock()
     return hass
 
 
@@ -232,8 +239,10 @@ class TestGetToolDefinitions:
 
         assert len(definitions) == 2
         assert all(isinstance(d, dict) for d in definitions)
-        assert definitions[0]["name"] == "tool1"
-        assert definitions[1]["name"] == "tool2"
+        assert definitions[0]["type"] == "function"
+        assert definitions[0]["function"]["name"] == "tool1"
+        assert definitions[1]["type"] == "function"
+        assert definitions[1]["function"]["name"] == "tool2"
 
     def test_get_tool_definitions_empty(self, tool_handler):
         """Test getting tool definitions when no tools registered."""
@@ -247,7 +256,7 @@ class TestGetToolDefinitions:
         tool1 = MockTool("tool1")
         tool2 = MagicMock()
         tool2.name = "tool2"
-        tool2.get_definition = MagicMock(side_effect=Exception("Definition error"))
+        tool2.to_openai_format = MagicMock(side_effect=Exception("Definition error"))
 
         tool_handler.register_tool(tool1)
         tool_handler.tools["tool2"] = tool2
@@ -256,7 +265,7 @@ class TestGetToolDefinitions:
 
         # Should still return definition for tool1, skipping tool2
         assert len(definitions) == 1
-        assert definitions[0]["name"] == "tool1"
+        assert definitions[0]["function"]["name"] == "tool1"
 
 
 class TestValidateToolCall:
@@ -344,7 +353,7 @@ class TestExecuteTool:
 
     async def test_execute_tool_timeout(self, tool_handler):
         """Test tool execution timeout."""
-        async def slow_execute(params):
+        async def slow_execute(**kwargs):
             await asyncio.sleep(100)
             return {"result": "too slow"}
 
@@ -396,7 +405,7 @@ class TestExecuteTool:
 
     async def test_execute_tool_large_result_truncation(self, tool_handler, mock_hass):
         """Test that large results are truncated in events."""
-        async def large_result_execute(params):
+        async def large_result_execute(**kwargs):
             return {"result": "x" * 2000}
 
         tool = MockTool("test_tool")
@@ -473,13 +482,13 @@ class TestExecuteMultipleTools:
         """Test that tools are executed in parallel."""
         execution_order = []
 
-        async def tool1_execute(params):
+        async def tool1_execute(**kwargs):
             execution_order.append("tool1_start")
             await asyncio.sleep(0.1)
             execution_order.append("tool1_end")
             return {"result": "tool1"}
 
-        async def tool2_execute(params):
+        async def tool2_execute(**kwargs):
             execution_order.append("tool2_start")
             await asyncio.sleep(0.1)
             execution_order.append("tool2_end")

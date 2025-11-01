@@ -72,7 +72,7 @@ class ContextProvider(ABC):
             "state": str(state),
         }
 
-        if attributes:
+        if attributes is not None:
             formatted["attributes"] = attributes
 
         return formatted
@@ -104,7 +104,7 @@ class ContextProvider(ABC):
         }
 
         # Include filtered attributes or all attributes
-        if attribute_filter:
+        if attribute_filter is not None:
             result["attributes"] = {
                 key: value
                 for key, value in state_obj.attributes.items()

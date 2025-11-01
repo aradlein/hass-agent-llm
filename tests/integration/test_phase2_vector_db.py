@@ -194,14 +194,14 @@ class TestPhase2VectorDBIntegration:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        # Set strict threshold
-        config = {**vector_db_config, CONF_VECTOR_DB_SIMILARITY_THRESHOLD: 80.0}
+        # Set threshold to allow first two results but not third
+        config = {**vector_db_config, CONF_VECTOR_DB_SIMILARITY_THRESHOLD: 200.0}
         provider = VectorDBContextProvider(mock_entity_states, config)
 
         # Mock results with varying distances
         results_with_far_matches = {
             "ids": [["fan.ceiling_fan", "sensor.temperature", "light.bedroom"]],
-            "distances": [[50.0, 200.0, 300.0]],  # Only first two should pass
+            "distances": [[50.0, 200.0, 300.0]],  # Only first two should pass (distances <= 200.0)
             "metadatas": [[{}, {}, {}]],
         }
 
@@ -279,7 +279,7 @@ class TestPhase2VectorDBIntegration:
         mock_collection = Mock()
         mock_collection.query.return_value = mock_chroma_results
         mock_client = Mock()
-        mock_client.get_or_create_collection.return_value = mock_client
+        mock_client.get_or_create_collection.return_value = mock_collection
 
         with patch("chromadb.HttpClient", return_value=mock_client):
             with patch.object(provider, "_embed_query", return_value=[0.1] * 1024):

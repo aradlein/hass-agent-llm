@@ -137,10 +137,16 @@ def mock_history_states():
 
 
 @pytest.fixture
-def mock_recorder(mock_hass):
-    """Mock the recorder component."""
-    with pytest.mock.patch("homeassistant.components.recorder.async_migration_in_progress") as mock_migration, \
-         pytest.mock.patch("homeassistant.components.recorder.async_recorder_ready") as mock_ready:
-        mock_migration.return_value = False
-        mock_ready.return_value = True
-        yield mock_migration, mock_ready
+def mock_recorder_instance():
+    """Mock the recorder instance."""
+    instance = MagicMock()
+
+    # Create a mock Event that's already set (ready)
+    ready_event = MagicMock()
+    ready_event.wait = AsyncMock(return_value=True)
+    ready_event.is_set = MagicMock(return_value=True)
+
+    instance.async_recorder_ready = ready_event
+    instance.migration_in_progress = False
+
+    return instance

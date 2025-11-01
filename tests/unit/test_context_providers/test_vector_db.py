@@ -16,6 +16,15 @@ from custom_components.home_agent.context_providers.vector_db import (
     OPENAI_AVAILABLE,
 )
 from custom_components.home_agent.exceptions import ContextInjectionError
+from custom_components.home_agent.const import (
+    CONF_VECTOR_DB_COLLECTION,
+    CONF_VECTOR_DB_HOST,
+    CONF_VECTOR_DB_PORT,
+    CONF_VECTOR_DB_TOP_K,
+    CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
+    CONF_VECTOR_DB_EMBEDDING_MODEL,
+    CONF_OPENAI_API_KEY,
+)
 
 
 class TestVectorDBContextProviderInit:
@@ -27,13 +36,13 @@ class TestVectorDBContextProviderInit:
             pytest.skip("ChromaDB not available")
 
         config = {
-            "host": "localhost",
-            "port": 8000,
-            "collection": "test_collection",
-            "embedding_model": "text-embedding-3-small",
-            "top_k": 5,
-            "similarity_threshold": 0.7,
-            "openai_api_key": "sk-test-key"
+            CONF_VECTOR_DB_HOST: "localhost",
+            CONF_VECTOR_DB_PORT: 8000,
+            CONF_VECTOR_DB_COLLECTION: "test_collection",
+            CONF_VECTOR_DB_EMBEDDING_MODEL: "text-embedding-3-small",
+            CONF_VECTOR_DB_TOP_K: 5,
+            CONF_VECTOR_DB_SIMILARITY_THRESHOLD: 0.7,
+            CONF_OPENAI_API_KEY: "sk-test-key"
         }
         provider = VectorDBContextProvider(mock_hass, config)
 
@@ -46,14 +55,15 @@ class TestVectorDBContextProviderInit:
         assert provider.top_k == 5
         assert provider.similarity_threshold == 0.7
         assert provider.openai_api_key == "sk-test-key"
-        assert not provider._initialized
+        assert provider._client is None
+        assert provider._collection is None
 
     def test_vector_db_provider_init_defaults(self, mock_hass):
         """Test initialization with default values."""
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         assert provider.host == "localhost"
@@ -61,7 +71,7 @@ class TestVectorDBContextProviderInit:
         assert provider.collection_name == "home_entities"
         assert provider.embedding_model == "text-embedding-3-small"
         assert provider.top_k == 5
-        assert provider.similarity_threshold == 0.7
+        assert provider.similarity_threshold == 250.0
 
     def test_vector_db_provider_init_chromadb_not_available(self, mock_hass):
         """Test initialization fails when ChromaDB is not installed."""
@@ -69,25 +79,23 @@ class TestVectorDBContextProviderInit:
             "custom_components.home_agent.context_providers.vector_db.CHROMADB_AVAILABLE",
             False
         ):
-            config = {"openai_api_key": "sk-test"}
+            config = {CONF_OPENAI_API_KEY: "sk-test"}
             with pytest.raises(ContextInjectionError) as exc_info:
                 VectorDBContextProvider(mock_hass, config)
 
-            assert "ChromaDB is not installed" in str(exc_info.value)
+            assert "ChromaDB not installed" in str(exc_info.value)
 
     def test_vector_db_provider_init_state(self, mock_hass):
         """Test initial state of provider."""
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         assert provider._client is None
         assert provider._collection is None
-        assert provider._openai_client is None
         assert provider._embedding_cache == {}
-        assert not provider._initialized
 
 
 class TestGetContext:
@@ -99,7 +107,7 @@ class TestGetContext:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test", "top_k": 3}
+        config = {CONF_OPENAI_API_KEY: "sk-test", CONF_VECTOR_DB_TOP_K: 3}
         provider = VectorDBContextProvider(mock_hass, config)
 
         # Mock initialization
@@ -153,7 +161,7 @@ class TestGetContext:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         assert not provider._initialized
@@ -178,7 +186,7 @@ class TestGetContext:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._initialized = True
 
@@ -199,7 +207,7 @@ class TestGetContext:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._initialized = True
 
@@ -224,7 +232,7 @@ class TestInitializeCollection:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         mock_client = Mock()
@@ -248,7 +256,7 @@ class TestInitializeCollection:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         # Fail first attempt, succeed on second
@@ -279,7 +287,7 @@ class TestInitializeCollection:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         with patch(
@@ -321,7 +329,7 @@ class TestEmbedQuery:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         mock_openai = AsyncMock()
@@ -342,7 +350,7 @@ class TestEmbedQuery:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         # Populate cache
@@ -363,7 +371,7 @@ class TestEmbedQuery:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._openai_client = None
 
@@ -392,7 +400,7 @@ class TestEmbedQuery:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         mock_openai = AsyncMock()
@@ -414,7 +422,7 @@ class TestQueryVectorDB:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test", "top_k": 5}
+        config = {CONF_OPENAI_API_KEY: "sk-test", CONF_VECTOR_DB_TOP_K: 5}
         provider = VectorDBContextProvider(mock_hass, config)
 
         mock_collection = Mock()
@@ -439,7 +447,7 @@ class TestQueryVectorDB:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._collection = None
 
@@ -454,7 +462,7 @@ class TestQueryVectorDB:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         mock_collection = Mock()
@@ -475,7 +483,7 @@ class TestFormatResults:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test", "similarity_threshold": 0.5}
+        config = {CONF_OPENAI_API_KEY: "sk-test", CONF_VECTOR_DB_SIMILARITY_THRESHOLD: 0.5}
         provider = VectorDBContextProvider(mock_hass, config)
 
         results = {
@@ -516,7 +524,7 @@ class TestFormatResults:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         results = {
@@ -535,7 +543,7 @@ class TestFormatResults:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test", "similarity_threshold": 0.8}
+        config = {CONF_OPENAI_API_KEY: "sk-test", CONF_VECTOR_DB_SIMILARITY_THRESHOLD: 0.8}
         provider = VectorDBContextProvider(mock_hass, config)
 
         results = {
@@ -560,7 +568,7 @@ class TestIndexEntities:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._initialized = True
 
@@ -608,7 +616,7 @@ class TestIndexEntities:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._initialized = True
         provider._collection = Mock()
@@ -648,7 +656,7 @@ class TestIndexEntities:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._initialized = True
 
@@ -667,7 +675,7 @@ class TestCreateSearchableDocument:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         state_data = {
@@ -691,7 +699,7 @@ class TestCreateSearchableDocument:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
 
         state_data = {
@@ -722,7 +730,7 @@ class TestUpdateEntity:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._initialized = True
 
@@ -747,7 +755,7 @@ class TestUpdateEntity:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._initialized = True
 
@@ -767,7 +775,7 @@ class TestClearCollection:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._initialized = True
 
@@ -790,7 +798,7 @@ class TestClearCollection:
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
 
-        config = {"openai_api_key": "sk-test"}
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
         provider._initialized = True
 

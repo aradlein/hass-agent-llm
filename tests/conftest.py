@@ -43,6 +43,12 @@ def mock_hass():
     mock.bus = MagicMock()
     mock.bus.async_fire = AsyncMock()
 
+    # Mock async_add_executor_job - executes the callable immediately
+    async def mock_executor_job(func, *args):
+        return func(*args) if args else func()
+
+    mock.async_add_executor_job = AsyncMock(side_effect=mock_executor_job)
+
     return mock
 
 

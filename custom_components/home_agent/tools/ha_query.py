@@ -6,6 +6,7 @@ attributes, and historical data from Home Assistant.
 
 from __future__ import annotations
 
+import asyncio
 import fnmatch
 import logging
 import re
@@ -19,6 +20,7 @@ from homeassistant.util import dt as dt_util
 try:
     from homeassistant.components import recorder
     from homeassistant.components.recorder import history
+    from homeassistant.components.recorder.util import async_migration_in_progress
 
     RECORDER_AVAILABLE = True
 except ImportError:
@@ -264,6 +266,9 @@ class HomeAssistantQueryTool(BaseTool):
 
             return result
 
+        except (ValidationError, PermissionDenied):
+            # Re-raise validation and permission errors as-is
+            raise
         except Exception as error:
             _LOGGER.error(
                 "Failed to query entities matching %s: %s",
@@ -464,6 +469,9 @@ class HomeAssistantQueryTool(BaseTool):
                         }
                     )
 
+            except ToolExecutionError:
+                # Re-raise tool execution errors (e.g., recorder not available)
+                raise
             except Exception as error:
                 _LOGGER.warning(
                     "Failed to get history for %s: %s",
@@ -509,12 +517,29 @@ class HomeAssistantQueryTool(BaseTool):
                 "Historical queries require the recorder integration."
             )
 
-        if not recorder.async_migration_in_progress(self.hass):
-            if not await recorder.async_recorder_ready(self.hass):
-                raise ToolExecutionError(
-                    "Recorder component is not available. "
-                    "Historical queries require the recorder integration."
-                )
+        # Check if migration is in progress
+        if async_migration_in_progress(self.hass):
+            raise ToolExecutionError(
+                "Recorder migration is in progress. "
+                "Historical queries are not available during migration."
+            )
+
+        # Check if recorder is ready
+        instance = recorder.get_instance(self.hass)
+        if instance is None:
+            raise ToolExecutionError(
+                "Recorder component is not available. "
+                "Historical queries require the recorder integration."
+            )
+
+        # Wait for recorder to be ready (with timeout)
+        try:
+            await asyncio.wait_for(instance.async_recorder_ready.wait(), timeout=5.0)
+        except asyncio.TimeoutError:
+            raise ToolExecutionError(
+                "Recorder is not ready. "
+                "Historical queries require the recorder integration to be initialized."
+            )
 
         # Get history from recorder
         entity_history = await self.hass.async_add_executor_job(
