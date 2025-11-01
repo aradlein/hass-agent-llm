@@ -122,3 +122,158 @@ index_entity:
       advanced: true
       selector:
         text:
+
+list_memories:
+  name: List memories
+  description: List all stored memories with optional filtering by type and limit
+  fields:
+    memory_type:
+      name: Memory type
+      description: Filter by memory type
+      required: false
+      example: "preference"
+      selector:
+        select:
+          options:
+            - "fact"
+            - "preference"
+            - "context"
+            - "event"
+    limit:
+      name: Limit
+      description: Maximum number of memories to return
+      required: false
+      example: 50
+      selector:
+        number:
+          min: 1
+          max: 1000
+          mode: box
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+delete_memory:
+  name: Delete memory
+  description: Delete a specific memory by its ID
+  fields:
+    memory_id:
+      name: Memory ID
+      description: The ID of the memory to delete
+      required: true
+      example: "mem_abc123xyz"
+      selector:
+        text:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+clear_memories:
+  name: Clear all memories
+  description: Delete all stored memories (requires confirmation - this cannot be undone!)
+  fields:
+    confirm:
+      name: Confirm
+      description: Must be set to true to confirm deletion of all memories
+      required: true
+      example: true
+      selector:
+        boolean:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+search_memories:
+  name: Search memories
+  description: Search memories using semantic similarity to find relevant information
+  fields:
+    query:
+      name: Query
+      description: What to search for in stored memories
+      required: true
+      example: "temperature preferences"
+      selector:
+        text:
+    limit:
+      name: Limit
+      description: Maximum number of results to return
+      required: false
+      example: 10
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    min_importance:
+      name: Minimum importance
+      description: Filter results by minimum importance score (0.0 to 1.0)
+      required: false
+      example: 0.5
+      selector:
+        number:
+          min: 0.0
+          max: 1.0
+          step: 0.1
+          mode: slider
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+add_memory:
+  name: Add memory
+  description: Manually add a memory to the system
+  fields:
+    content:
+      name: Content
+      description: The memory content to store
+      required: true
+      example: "User prefers bedroom temperature at 68°F for sleeping"
+      selector:
+        text:
+          multiline: true
+    type:
+      name: Type
+      description: Memory type (fact, preference, context, or event)
+      required: false
+      example: "preference"
+      selector:
+        select:
+          options:
+            - "fact"
+            - "preference"
+            - "context"
+            - "event"
+    importance:
+      name: Importance
+      description: Importance score from 0.0 (trivial) to 1.0 (critical)
+      required: false
+      example: 0.7
+      selector:
+        number:
+          min: 0.0
+          max: 1.0
+          step: 0.1
+          mode: slider
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
