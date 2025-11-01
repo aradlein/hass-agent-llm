@@ -32,10 +32,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     Returns:
         True if setup was successful
     """
-    # Store empty dict for this domain
+    # Store YAML config for later use (especially custom tools)
     hass.data.setdefault(DOMAIN, {})
+    if DOMAIN in config:
+        hass.data[DOMAIN]["yaml_config"] = config[DOMAIN]
+        _LOGGER.info("Loaded Home Agent YAML configuration")
 
-    _LOGGER.info("Home Agent component setup (YAML config not used, use UI)")
     return True
 
 
@@ -53,6 +55,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Merge config data
     config = dict(entry.data) | dict(entry.options)
+
+    # Also merge YAML config for custom tools (if present)
+    # This allows users to define custom tools in configuration.yaml
+    if "yaml_config" in hass.data.get(DOMAIN, {}):
+        yaml_config = hass.data[DOMAIN]["yaml_config"]
+        if CONF_TOOLS_CUSTOM in yaml_config:
+            config[CONF_TOOLS_CUSTOM] = yaml_config[CONF_TOOLS_CUSTOM]
+            _LOGGER.info("Loaded %d custom tool(s) from YAML configuration",
+                        len(yaml_config[CONF_TOOLS_CUSTOM]))
 
     # Create Home Agent instance
     agent = HomeAgent(hass, config)
