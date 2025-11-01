@@ -77,12 +77,20 @@ class CustomToolHandler:
             ValidationError: If configuration is invalid or handler type unsupported
         """
         # Validate required configuration keys
-        required_keys = ["name", "description", "parameters", "handler"]
+        required_keys = ["name", "description", "handler"]
         missing_keys = [key for key in required_keys if key not in config]
         if missing_keys:
             raise ValidationError(
                 f"Custom tool configuration missing required keys: {', '.join(missing_keys)}"
             )
+
+        # If parameters not provided, use empty object schema
+        if "parameters" not in config:
+            config["parameters"] = {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
 
         handler_config = config["handler"]
         if "type" not in handler_config:
