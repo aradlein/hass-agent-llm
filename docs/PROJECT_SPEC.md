@@ -200,7 +200,7 @@ The component exposes tools to the LLM using Home Assistant's native tool call f
       },
       "context": {
         "type": "object",
-        "description": "Additional context to provide (e.g., sensor data, previous tool results)"
+        "description": "Additional explicit context to provide (e.g., sensor data, previous tool results). Note: Full conversation history is NOT automatically included."
       }
     },
     "required": ["prompt"]
@@ -208,26 +208,76 @@ The component exposes tools to the LLM using Home Assistant's native tool call f
 }
 ```
 
-#### Custom Tool Definition
+**Response Format:**
+All tools (including external LLM and custom tools) return standardized responses:
+```json
+{
+  "success": true,
+  "result": "External LLM's response or tool result",
+  "error": null
+}
+```
 
-Users can define additional custom tools in YAML configuration:
+**Error Handling:**
+If external LLM call fails (timeout, API error, rate limit):
+```json
+{
+  "success": false,
+  "result": null,
+  "error": "Failed to query external LLM: Connection timeout after 30s"
+}
+```
+Error messages are returned transparently to the primary LLM, which then communicates the issue to the user.
+
+#### Custom Tool Definition (Phase 3)
+
+Users can define additional custom tools in `configuration.yaml`:
 
 ```yaml
-custom_tools:
-  - name: check_weather
-    description: Get weather forecast for a location
-    parameters:
-      type: object
-      properties:
-        location:
-          type: string
-          description: City name or coordinates
-    handler:
-      type: rest
-      url: "https://api.weather.com/v1/forecast"
-      method: GET
-      headers:
-        Authorization: "Bearer {{ weather_api_key }}"
+# configuration.yaml
+home_agent:
+  custom_tools:
+    - name: check_weather
+      description: Get weather forecast for a location
+      parameters:
+        type: object
+        properties:
+          location:
+            type: string
+            description: City name or coordinates
+      handler:
+        type: rest  # Supported: rest, service (no script execution)
+        url: "https://api.weather.com/v1/forecast"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ weather_api_key }}"
+
+    - name: trigger_automation
+      description: Trigger a Home Assistant automation
+      parameters:
+        type: object
+        properties:
+          automation_id:
+            type: string
+      handler:
+        type: service
+        service: automation.trigger
+        data:
+          entity_id: "{{ automation_id }}"
+```
+
+**Supported Handler Types (Phase 3):**
+- `rest` - HTTP API calls with configurable headers, method, body
+- `service` - Call Home Assistant services
+- **Script execution is NOT supported** for security reasons
+
+**All custom tools return standardized format:**
+```json
+{
+  "success": true,
+  "result": {...},
+  "error": null
+}
 ```
 
 #### Tool Execution Flow
@@ -407,7 +457,7 @@ Now respond to the user's request:
 - **Max Tool Calls:** Limit per conversation turn
 - **Tool Timeout:** Execution timeout per tool
 
-#### External LLM Tool (Optional)
+#### External LLM Tool (Optional - Phase 3)
 - **Enable:** Toggle to expose `query_external_llm` tool to primary LLM
 - **Base URL:** External LLM endpoint (OpenAI-compatible)
 - **API Key:** Separate credentials
@@ -415,7 +465,9 @@ Now respond to the user's request:
 - **Temperature:** Generation temperature
 - **Max Tokens:** Response limit
 - **Tool Description:** Customize when primary LLM should use this tool
-- **Auto-include Context:** Automatically pass conversation history and entity context
+- **Context Handling:** Only explicit `prompt` and `context` parameters are passed (conversation history is NOT automatically included)
+- **Error Behavior:** Errors returned transparently to primary LLM
+- **Tool Call Limit:** External LLM calls count toward `max_calls_per_turn`
 
 ### 3.7 Services
 
@@ -658,22 +710,111 @@ Now respond to the user's request:
 - [ ] Event system implementation
 - [ ] Enhanced configuration UI
 
-### Phase 3: External LLM Tool & Advanced Tools
-- [ ] External LLM as a tool (query_external_llm)
-- [ ] Context passthrough to external LLM
-- [ ] Custom tool definition framework
-- [ ] Tool execution optimization
-- [ ] Streaming response support (if applicable)
-- [ ] Advanced prompt templating
+### Phase 3: External LLM Tool & Custom Tools ✅ REFINED
+- [ ] **External LLM Tool (`query_external_llm`)**
+  - Expose as tool for primary LLM to delegate complex queries
+  - Context passthrough: prompt + explicit context parameter only
+  - Error handling: Return error message transparently to user
+  - Counts toward `max_calls_per_turn` limit
+  - Standardized response format: `{success, result, error}`
+- [ ] **Custom Tool Framework**
+  - Configuration via `configuration.yaml` under `home_agent:` section
+  - REST handler: HTTP API calls with headers, query params, body
+  - Service handler: Call Home Assistant services
+  - **No script execution** (security restriction)
+  - YAML schema validation on integration setup
+  - Standardized response format for all custom tools
+- [ ] **Integration & Testing**
+  - Unit tests for external LLM tool and custom tool handlers
+  - Integration tests for dual-LLM workflow
+  - Error handling tests
+  - Documentation with examples
 
-### Phase 4: Performance & Reliability
+**Configuration Location:** `configuration.yaml`
+```yaml
+home_agent:
+  custom_tools:
+    - name: check_weather
+      description: "Get weather forecast"
+      parameters:
+        type: object
+        properties:
+          location:
+            type: string
+      handler:
+        type: rest
+        url: "https://api.weather.com/v1/forecast"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ weather_api_key }}"
+```
+
+### Phase 4: Streaming Response Support
+- [ ] **Primary LLM Streaming**
+  - Stream responses from primary LLM for better UX
+  - Handle tool call interruptions (streaming pauses during tool execution)
+  - Progress indicators during tool execution
+  - Resume streaming after tool results returned
+- [ ] **External LLM Streaming** (Optional)
+  - Stream responses from external LLM if supported
+  - Transparent streaming passthrough to user
+- [ ] **Testing**
+  - Unit tests for streaming logic
+  - Integration tests with tool calls
+  - Performance benchmarking
+
+**Note:** Streaming support deferred from Phase 3 to maintain focused scope. External LLM can remain synchronous in Phase 3.
+
+### Phase 5: MCP Server Integration
+- [ ] **MCP (Model Context Protocol) Server Support**
+  - Integration with external MCP servers for data collection
+  - MCP server handler type for custom tools
+  - Configuration for MCP server endpoints
+  - Authentication and authorization for MCP servers
+  - **Read-only data collection** (no local execution from MCP servers)
+- [ ] **Custom Tool Handler Types** (Extended)
+  - `mcp`: Query external MCP servers for context/data
+  - Template handler: Jinja2 template rendering
+  - Enhanced REST handler with OAuth support
+- [ ] **Security & Validation**
+  - MCP server authentication
+  - Response validation and sanitization
+  - Rate limiting for external calls
+  - Domain whitelisting options
+- [ ] **Testing & Documentation**
+  - MCP integration tests
+  - Security audit
+  - User guides for MCP setup
+  - Example MCP configurations
+
+**Example MCP Tool Configuration:**
+```yaml
+home_agent:
+  custom_tools:
+    - name: query_knowledge_base
+      description: "Query external knowledge base via MCP"
+      parameters:
+        type: object
+        properties:
+          query:
+            type: string
+      handler:
+        type: mcp
+        server_url: "https://mcp.example.com"
+        method: "knowledge/query"
+        auth:
+          type: bearer
+          token: "{{ secrets.mcp_token }}"
+```
+
+### Phase 6: Performance & Reliability
 - [ ] Caching layer implementation
 - [ ] Rate limiting and quota management
 - [ ] Enhanced error handling and recovery
 - [ ] Comprehensive testing suite
 - [ ] Performance benchmarking and tuning
 
-### Phase 5: Polish & Production Ready
+### Phase 7: Polish & Production Ready
 - [ ] Complete documentation
 - [ ] User guides and examples
 - [ ] Migration tools (if needed)
@@ -790,7 +931,7 @@ tools:
         headers:
           Authorization: "Bearer {{ secrets.weather_api_key }}"
 
-# External LLM Tool (Optional)
+# External LLM Tool (Optional - Phase 3)
 external_llm:
   enabled: false
   base_url: "https://api.openai.com/v1"
@@ -801,7 +942,8 @@ external_llm:
   tool_description: |
     Use this when you need help with complex analysis, detailed explanations,
     or comprehensive recommendations beyond simple home control.
-  auto_include_context: true  # Pass conversation history and entity context
+  # Note: Only explicit prompt + context parameters are passed to external LLM
+  # Conversation history is NOT automatically included
 
 # Debugging
 debug_logging: false

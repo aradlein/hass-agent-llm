@@ -36,9 +36,19 @@ Home Agent extends Home Assistant's native conversation platform to provide:
 
 ### Phase 3 (Planned)
 
-- External LLM tool (delegate complex queries to more powerful models)
-- Custom tool definition framework
-- Streaming response support
+- **External LLM Tool** - Delegate complex queries to more powerful models via `query_external_llm`
+- **Custom Tool Framework** - Define custom tools in `configuration.yaml` (REST + Service handlers)
+- Tool execution with standardized response format and error handling
+
+### Phase 4 (Planned)
+
+- **Streaming Response Support** - Stream LLM responses for better user experience
+- Progress indicators during tool execution
+
+### Phase 5 (Planned)
+
+- **MCP Server Integration** - Connect to external Model Context Protocol servers for data collection
+- Extended custom tool handlers with OAuth support
 
 ## Installation
 
@@ -107,10 +117,10 @@ Control tool execution limits:
 
 #### External LLM (Phase 3)
 Configure an optional external LLM for complex queries:
-- **Enable External LLM**: Expose query_external_llm tool
+- **Enable External LLM**: Expose `query_external_llm` tool to primary LLM
 - **Base URL, API Key, Model**: External LLM connection details
-- **Tool Description**: When to use the external LLM
-- **Auto-include Context**: Pass conversation history automatically
+- **Tool Description**: Customize when primary LLM should delegate to external LLM
+- **Context Handling**: Only explicit `prompt` and `context` parameters are passed (not full conversation history)
 
 #### Debug Settings
 Enable detailed logging:
