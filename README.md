@@ -34,11 +34,11 @@ Home Agent extends Home Assistant's native conversation platform to provide:
 - ✅ **Smart Truncation** - Preserves important information when context is large
 - ✅ **Entity Prioritization** - Ranks entities by relevance to user query
 
-### Phase 3 (Planned)
+### Phase 3 ✅
 
-- **External LLM Tool** - Delegate complex queries to more powerful models via `query_external_llm`
-- **Custom Tool Framework** - Define custom tools in `configuration.yaml` (REST + Service handlers)
-- Tool execution with standardized response format and error handling
+- ✅ **External LLM Tool** - Delegate complex queries to more powerful models via `query_external_llm`
+- ✅ **Custom Tool Framework** - Define custom tools in `configuration.yaml` (REST + Service handlers)
+- ✅ Tool execution with standardized response format and error handling
 
 ### Phase 4 (Planned)
 
@@ -250,6 +250,43 @@ Query Home Assistant entity states and history.
 }
 ```
 
+### query_external_llm (Phase 3) 🆕
+
+Delegate complex queries to a more powerful external LLM.
+
+**Use Cases:**
+
+- Complex analysis requiring advanced reasoning
+- Detailed explanations or recommendations
+- Tasks requiring larger context windows
+- Specialized tasks better suited for specific models
+
+**Configuration:**
+
+Enable via Integration Options > External LLM:
+
+- **Enable External LLM**: Expose the tool to primary LLM
+- **Base URL**: External LLM endpoint (e.g., `https://api.openai.com/v1`)
+- **API Key**: Authentication key
+- **Model**: Model name (e.g., `gpt-4o`, `claude-3-5-sonnet`)
+- **Tool Description**: Customize when primary LLM should delegate
+
+**Example:**
+
+```json
+{
+  "prompt": "Analyze the energy consumption patterns and provide optimization recommendations",
+  "context": "Living room lights used 45kWh this month, bedroom 32kWh, kitchen 28kWh"
+}
+```
+
+**Parameters:**
+
+- `prompt` (required): The query to send to external LLM
+- `context` (optional): Additional context to provide
+
+**Note:** Only explicit parameters are passed to external LLM - full conversation history is NOT automatically included for efficiency.
+
 ## Context Injection
 
 ### Direct Mode (Phase 1)
@@ -294,6 +331,276 @@ vector_db:
 - ChromaDB finds semantically similar entities
 - Only relevant entities are included in context
 - More efficient token usage compared to direct mode
+
+## Custom Tools (Phase 3) 🆕
+
+Define custom tools in your `configuration.yaml` to extend the LLM's capabilities with REST APIs and Home Assistant services.
+
+### REST Tools
+
+Call external HTTP APIs with full template support:
+
+```yaml
+home_agent:
+  tools_custom:
+    - name: check_weather
+      description: "Get weather forecast for a location"
+      parameters:
+        type: object
+        properties:
+          location:
+            type: string
+            description: "City name or coordinates"
+        required:
+          - location
+      handler:
+        type: rest
+        url: "https://api.weather.com/v1/forecast"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ secrets.weather_api_key }}"
+        query_params:
+          location: "{{ location }}"
+          format: "json"
+```
+
+**REST Handler Options:**
+
+- `url` (required): API endpoint (supports Jinja2 templates)
+- `method` (required): HTTP method (GET, POST, PUT, DELETE)
+- `headers` (optional): Request headers with template support
+- `query_params` (optional): URL query parameters with template support
+- `body` (optional): JSON request body for POST/PUT requests
+- `timeout` (optional): Request timeout in seconds
+
+**Template Variables:**
+
+- Tool parameters are available as template variables
+- Access secrets via `{{ secrets.key_name }}`
+- Standard Home Assistant Jinja2 template syntax
+
+### Service Tools
+
+Trigger Home Assistant services, automations, scripts, and scenes:
+
+```yaml
+home_agent:
+  tools_custom:
+    # Simple automation trigger
+    - name: trigger_morning_routine
+      description: "Trigger the morning routine automation"
+      handler:
+        type: service
+        service: automation.trigger
+        data:
+          entity_id: automation.morning_routine
+
+    # Script with parameters
+    - name: notify_family
+      description: "Send a notification to the family with a custom message"
+      parameters:
+        type: object
+        properties:
+          message:
+            type: string
+            description: "The message to send"
+        required:
+          - message
+      handler:
+        type: service
+        service: script.notify_family
+        data:
+          message: "{{ message }}"
+
+    # Scene activation with target
+    - name: set_movie_scene
+      description: "Activate the movie watching scene"
+      handler:
+        type: service
+        service: scene.turn_on
+        target:
+          entity_id: scene.movie_time
+```
+
+**Service Handler Options:**
+
+- `service` (required): Service to call (format: `domain.service_name`)
+- `data` (optional): Service data with template support
+- `target` (optional): Target entities, devices, or areas
+  - `entity_id`: Single entity, list, or templated
+  - `device_id`: Device identifier
+  - `area_id`: Area identifier
+
+**Common Use Cases:**
+
+- **Trigger Automations**: `automation.trigger` with `entity_id`
+- **Run Scripts**: `script.my_script` with templated parameters
+- **Control Scenes**: `scene.turn_on` with target
+- **Custom Notifications**: `notify.mobile_app` with message templates
+- **Climate Control**: `climate.set_temperature` with templated values
+
+### Response Format
+
+All custom tools return a standardized response:
+
+```json
+{
+  "success": true,
+  "result": { /* API response or success message */ },
+  "error": null
+}
+```
+
+On error:
+
+```json
+{
+  "success": false,
+  "result": null,
+  "error": "Error message description"
+}
+```
+
+### Advanced Examples
+
+#### POST Request with Body
+
+```yaml
+- name: create_task
+  description: "Create a new task in external system"
+  parameters:
+    type: object
+    properties:
+      title:
+        type: string
+      priority:
+        type: string
+        enum: [low, medium, high]
+  handler:
+    type: rest
+    url: "https://api.tasks.com/v1/tasks"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ secrets.tasks_api_key }}"
+    body:
+      title: "{{ title }}"
+      priority: "{{ priority }}"
+      created_by: "home_assistant"
+```
+
+#### Dynamic Service Targeting
+
+```yaml
+- name: control_room_lights
+  description: "Turn on/off lights in a specific room"
+  parameters:
+    type: object
+    properties:
+      room:
+        type: string
+      action:
+        type: string
+        enum: [turn_on, turn_off]
+  handler:
+    type: service
+    service: "light.{{ action }}"
+    target:
+      area_id: "{{ room }}"
+```
+
+#### Climate Control with Templates
+
+```yaml
+- name: set_room_temperature
+  description: "Set temperature for a specific room"
+  parameters:
+    type: object
+    properties:
+      room:
+        type: string
+      temperature:
+        type: number
+  handler:
+    type: service
+    service: climate.set_temperature
+    data:
+      temperature: "{{ temperature }}"
+    target:
+      area_id: "{{ room }}"
+```
+
+### Configuration Tips
+
+1. **Parameter Schema**: Use JSON Schema to define tool parameters for proper LLM understanding
+2. **Descriptions**: Write clear descriptions to help the LLM know when to use each tool
+3. **Templates**: Leverage Jinja2 templates for dynamic values
+4. **Error Handling**: Tools automatically handle errors and return structured responses
+5. **Validation**: Service tools validate that services exist at startup (warns if not found)
+
+### Complete Configuration Example
+
+Here's a complete example showing both REST and service tools in your `configuration.yaml`:
+
+```yaml
+home_agent:
+  tools_custom:
+    # Example REST tool - calls external weather API
+    - name: check_weather
+      description: "Get weather forecast"
+      handler:
+        type: rest
+        url: "https://api.open-meteo.com/v1/forecast"
+        method: GET
+        query_params:
+          latitude: "47.6788491"
+          longitude: "-122.3971093"
+          forecast_days: 3
+          precipitation_unit: "inch"
+          current: "temperature_2m,precipitation"
+          hourly: "temperature_2m,precipitation,showers"
+
+    # Example service tool - triggers Home Assistant automation
+    - name: trigger_morning_routine
+      description: "Trigger the morning routine automation"
+      handler:
+        type: service
+        service: automation.trigger
+        data:
+          entity_id: automation.morning_routine
+
+    # Example service tool with parameters - runs script with template variables
+    - name: notify_family
+      description: "Send a notification to the family with a custom message"
+      parameters:
+        type: object
+        properties:
+          message:
+            type: string
+            description: "The message to send"
+        required:
+          - message
+      handler:
+        type: service
+        service: script.notify_family
+        data:
+          message: "{{ message }}"
+
+    # Example service tool with target - controls scene
+    - name: set_movie_scene
+      description: "Activate the movie watching scene"
+      handler:
+        type: service
+        service: scene.turn_on
+        target:
+          entity_id: scene.movie_time
+```
+
+This configuration provides:
+- **External API integration** with weather data
+- **Automation control** for morning routines
+- **Parameterized scripts** for family notifications
+- **Scene management** for movie time
 
 ### Context Optimization (Phase 2) 🆕
 
@@ -504,8 +811,12 @@ This project maintains >80% code coverage with comprehensive unit and integratio
 
 **Current Test Status:**
 
-- ✅ 376+ passing unit tests
-- ✅ Comprehensive coverage of core functionality
+- ✅ 400+ passing unit tests
+- ✅ 16+ integration tests
+- ✅ Comprehensive coverage of core functionality including:
+  - Phase 1: LLM integration, context injection, history, core tools
+  - Phase 2: Vector DB, persistence, optimization
+  - Phase 3: Custom tools (REST + Service handlers), external LLM
 - ✅ Mock-based testing for fast execution
 
 ## Documentation
@@ -546,6 +857,25 @@ Built with inspiration from the extended_openai_conversation integration.
 - [GitHub Discussions](https://github.com/yourusername/home-agent/discussions)
 
 ## Changelog
+
+### 0.3.0 (Phase 3)
+
+- Custom tool framework with REST and service handlers
+- Define custom tools in `configuration.yaml`
+- REST API integration with template support
+- Home Assistant service tool integration
+- External LLM delegation via `query_external_llm` tool
+- Comprehensive error handling and validation
+- Standardized tool response format
+
+### 0.2.0 (Phase 2)
+
+- Vector DB (ChromaDB) integration for semantic entity search
+- Conversation history persistence across restarts
+- Context optimization with smart compression
+- Enhanced event system with performance metrics
+- Entity prioritization and relevance ranking
+- Token usage tracking and optimization
 
 ### 0.1.0 (Phase 1 MVP)
 

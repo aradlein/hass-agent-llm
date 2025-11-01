@@ -12,7 +12,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceNotFound
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.template import Template
 
@@ -101,17 +101,13 @@ class CustomToolHandler:
         # Create tool based on handler type
         if handler_type == CUSTOM_TOOL_HANDLER_REST:
             return RestCustomTool(hass, config)
-        elif handler_type == CUSTOM_TOOL_HANDLER_SERVICE:
-            # Future implementation for Phase 3
-            raise ValidationError(
-                f"Handler type '{handler_type}' is not yet implemented. "
-                f"Currently supported: {CUSTOM_TOOL_HANDLER_REST}"
-            )
-        else:
-            raise ValidationError(
-                f"Unknown handler type: '{handler_type}'. "
-                f"Supported types: {CUSTOM_TOOL_HANDLER_REST}, {CUSTOM_TOOL_HANDLER_SERVICE}"
-            )
+        if handler_type == CUSTOM_TOOL_HANDLER_SERVICE:
+            return ServiceCustomTool(hass, config)
+
+        raise ValidationError(
+            f"Unknown handler type: '{handler_type}'. "
+            f"Supported types: {CUSTOM_TOOL_HANDLER_REST}, {CUSTOM_TOOL_HANDLER_SERVICE}"
+        )
 
 
 class RestCustomTool(BaseTool):
@@ -456,4 +452,278 @@ class RestCustomTool(BaseTool):
         Note: We use Home Assistant's shared session, so we don't close it here.
         """
         # Don't close the shared session
-        pass
+
+
+class ServiceCustomTool(BaseTool):
+    """Custom tool that calls Home Assistant services.
+
+    This tool enables calling Home Assistant services with configurable
+    service domains, service names, and data parameters. It supports template
+    rendering for dynamic values and proper error handling.
+
+    Configuration example:
+        {
+            "name": "trigger_morning_routine",
+            "description": "Trigger the morning routine automation",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "handler": {
+                "type": "service",
+                "service": "automation.trigger",
+                "data": {
+                    "entity_id": "automation.morning_routine"
+                }
+            }
+        }
+
+    All custom tools return standardized format:
+        {
+            "success": true,
+            "result": "Service automation.trigger called successfully",
+            "error": null
+        }
+    """
+
+    def __init__(self, hass: HomeAssistant, config: dict[str, Any]) -> None:
+        """Initialize the service custom tool.
+
+        Args:
+            hass: Home Assistant instance
+            config: Tool configuration dictionary
+        """
+        super().__init__(hass)
+        self._config = config
+        self._handler_config = config["handler"]
+
+        # Validate service-specific configuration
+        self._validate_service_config()
+
+    def _validate_service_config(self) -> None:
+        """Validate service handler configuration.
+
+        Raises:
+            ValidationError: If service configuration is invalid
+        """
+        if "service" not in self._handler_config:
+            raise ValidationError(
+                "Service handler configuration missing required key: service"
+            )
+
+        # Validate service format (should be domain.service_name)
+        service = self._handler_config["service"]
+        if "." not in service:
+            raise ValidationError(
+                f"Invalid service format '{service}'. "
+                "Expected format: domain.service_name (e.g., 'automation.trigger')"
+            )
+
+        parts = service.split(".", 1)
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise ValidationError(
+                f"Invalid service format '{service}'. "
+                "Expected format: domain.service_name (e.g., 'automation.trigger')"
+            )
+
+        # Warn if service doesn't exist (but don't fail setup)
+        domain, service_name = parts
+        if not self.hass.services.has_service(domain, service_name):
+            _LOGGER.warning(
+                "Service '%s' not found in Home Assistant. "
+                "The tool will still be registered but may fail when executed.",
+                service,
+            )
+
+    @property
+    def name(self) -> str:
+        """Return the tool name."""
+        return self._config["name"]
+
+    @property
+    def description(self) -> str:
+        """Return the tool description."""
+        return self._config["description"]
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """Return the tool parameter schema."""
+        return self._config["parameters"]
+
+    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+        """Execute the Home Assistant service call with the given parameters.
+
+        Args:
+            **kwargs: Tool parameters as defined in the schema
+
+        Returns:
+            Dict containing:
+                - success: bool indicating if execution succeeded
+                - result: Success message (if successful)
+                - error: Error message (if failed)
+        """
+        try:
+            # Parse service domain and name
+            service = self._handler_config["service"]
+            domain, service_name = service.split(".", 1)
+
+            # Render data templates if present
+            service_data = {}
+            if "data" in self._handler_config:
+                for key, value in self._handler_config["data"].items():
+                    if isinstance(value, str):
+                        # Render template for string values
+                        service_data[key] = await self._render_template(value, kwargs)
+                    else:
+                        # Use non-string values as-is
+                        service_data[key] = value
+
+            # Handle target field if present
+            target = None
+            if "target" in self._handler_config:
+                target = {}
+                target_config = self._handler_config["target"]
+
+                # Render entity_id if present
+                if "entity_id" in target_config:
+                    entity_ids = target_config["entity_id"]
+                    if isinstance(entity_ids, str):
+                        target["entity_id"] = await self._render_template(
+                            entity_ids, kwargs
+                        )
+                    elif isinstance(entity_ids, list):
+                        # Render each entity_id in the list
+                        rendered_ids = []
+                        for entity_id in entity_ids:
+                            if isinstance(entity_id, str):
+                                rendered_ids.append(
+                                    await self._render_template(entity_id, kwargs)
+                                )
+                            else:
+                                rendered_ids.append(entity_id)
+                        target["entity_id"] = rendered_ids
+                    else:
+                        target["entity_id"] = entity_ids
+
+                # Render device_id if present
+                if "device_id" in target_config:
+                    device_id = target_config["device_id"]
+                    if isinstance(device_id, str):
+                        target["device_id"] = await self._render_template(
+                            device_id, kwargs
+                        )
+                    else:
+                        target["device_id"] = device_id
+
+                # Render area_id if present
+                if "area_id" in target_config:
+                    area_id = target_config["area_id"]
+                    if isinstance(area_id, str):
+                        target["area_id"] = await self._render_template(
+                            area_id, kwargs
+                        )
+                    else:
+                        target["area_id"] = area_id
+
+            _LOGGER.info(
+                "Executing service custom tool '%s': %s with data=%s, target=%s",
+                self.name,
+                service,
+                service_data,
+                target,
+            )
+
+            # Call the service
+            await self.hass.services.async_call(
+                domain=domain,
+                service=service_name,
+                service_data=service_data,
+                target=target,
+                blocking=True,  # Wait for service to complete
+            )
+
+            _LOGGER.info(
+                "Service custom tool '%s' executed successfully",
+                self.name,
+            )
+
+            return {
+                "success": True,
+                "result": f"Service {service} called successfully",
+                "error": None,
+            }
+
+        except ServiceNotFound as err:
+            error_msg = f"Service not found: {err}"
+            _LOGGER.warning(
+                "Service custom tool '%s' service not found: %s",
+                self.name,
+                error_msg,
+            )
+            return {
+                "success": False,
+                "result": None,
+                "error": error_msg,
+            }
+
+        except Exception as err:  # noqa: BLE001
+            error_msg = f"Service call failed: {err}"
+            _LOGGER.error(
+                "Service custom tool '%s' failed: %s",
+                self.name,
+                error_msg,
+                exc_info=True,
+            )
+            return {
+                "success": False,
+                "result": None,
+                "error": error_msg,
+            }
+
+    async def _render_template(
+        self,
+        template_str: str,
+        variables: dict[str, Any],
+    ) -> str:
+        """Render a template string with variables.
+
+        Supports Home Assistant template syntax including secrets.
+
+        Args:
+            template_str: Template string to render
+            variables: Variables to make available in the template
+
+        Returns:
+            Rendered string
+
+        Raises:
+            ValidationError: If template rendering fails
+        """
+        # Convert to string if not already
+        if not isinstance(template_str, str):
+            return str(template_str)
+
+        # If not a template (no {{ }}), return as-is
+        if "{{" not in template_str:
+            return template_str
+
+        try:
+            # Create Home Assistant template
+            template = Template(template_str, self.hass)
+
+            # Render with provided variables
+            rendered = template.async_render(variables)
+
+            return str(rendered)
+
+        except Exception as err:
+            raise ValidationError(
+                f"Failed to render template '{template_str}': {err}"
+            ) from err
+
+    async def close(self) -> None:
+        """Clean up resources.
+
+        No resources to clean up for service tools.
+        """

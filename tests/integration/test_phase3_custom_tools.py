@@ -23,7 +23,7 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_TIMEOUT,
 )
 from custom_components.home_agent.agent import HomeAgent
-from custom_components.home_agent.tools.custom import RestCustomTool
+from custom_components.home_agent.tools.custom import RestCustomTool, ServiceCustomTool
 
 
 @pytest.fixture
@@ -336,3 +336,320 @@ async def test_custom_tool_error_propagation(mock_hass_for_custom_tools, custom_
         assert tool_result["success"] is False
         assert tool_result["result"] is None
         assert "404" in tool_result["error"]
+
+
+@pytest.fixture
+def service_tools_config():
+    """Provide configuration with service-based custom tools."""
+    return {
+        # Primary LLM config
+        CONF_LLM_BASE_URL: "https://api.openai.com/v1",
+        CONF_LLM_API_KEY: "test-key-123",
+        CONF_LLM_MODEL: "gpt-4o-mini",
+        # Tool configuration
+        CONF_TOOLS_MAX_CALLS_PER_TURN: 5,
+        CONF_TOOLS_TIMEOUT: 30,
+        # Custom tools configuration
+        CONF_TOOLS_CUSTOM: [
+            {
+                "name": "trigger_morning_routine",
+                "description": "Trigger the morning routine automation",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                },
+                "handler": {
+                    "type": "service",
+                    "service": "automation.trigger",
+                    "data": {
+                        "entity_id": "automation.morning_routine"
+                    }
+                }
+            },
+            {
+                "name": "notify_arrival",
+                "description": "Send arrival notification",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "person": {"type": "string"},
+                        "location": {"type": "string"}
+                    },
+                    "required": ["person"]
+                },
+                "handler": {
+                    "type": "service",
+                    "service": "script.arrival_notification",
+                    "data": {
+                        "person": "{{ person }}",
+                        "location": "{{ location }}"
+                    }
+                }
+            },
+            {
+                "name": "set_movie_scene",
+                "description": "Activate movie watching scene",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                },
+                "handler": {
+                    "type": "service",
+                    "service": "scene.turn_on",
+                    "target": {
+                        "entity_id": "scene.movie_time"
+                    }
+                }
+            }
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_service_tools_registration(mock_hass_for_custom_tools, service_tools_config):
+    """Test that service-based custom tools are registered from configuration."""
+    # Mock has_service to return True for all services
+    mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
+
+    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+        mock_expose.return_value = False
+
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+
+        # Trigger lazy tool registration
+        agent._ensure_tools_registered()
+
+        # Verify custom service tools are registered
+        registered_tool_names = agent.tool_handler.get_registered_tools()
+
+        assert "trigger_morning_routine" in registered_tool_names
+        assert "notify_arrival" in registered_tool_names
+        assert "set_movie_scene" in registered_tool_names
+
+
+@pytest.mark.asyncio
+async def test_service_tool_has_correct_properties(mock_hass_for_custom_tools, service_tools_config):
+    """Test that registered service tools have correct properties."""
+    mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
+
+    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+        mock_expose.return_value = False
+
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent._ensure_tools_registered()
+
+        # Get the automation trigger tool
+        automation_tool = agent.tool_handler.tools.get("trigger_morning_routine")
+
+        assert automation_tool is not None
+        assert isinstance(automation_tool, ServiceCustomTool)
+        assert automation_tool.name == "trigger_morning_routine"
+        assert automation_tool.description == "Trigger the morning routine automation"
+        assert automation_tool.parameters["type"] == "object"
+
+
+@pytest.mark.asyncio
+async def test_service_tool_appears_in_llm_tools_list(mock_hass_for_custom_tools, service_tools_config):
+    """Test that service tools appear in the tools list for LLM."""
+    mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
+
+    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+        mock_expose.return_value = False
+
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent._ensure_tools_registered()
+
+        # Get tools formatted for LLM
+        llm_tools = agent.tool_handler.get_tool_definitions()
+
+        # Find service tools in the list
+        tool_names = [tool["function"]["name"] for tool in llm_tools]
+
+        assert "trigger_morning_routine" in tool_names
+        assert "notify_arrival" in tool_names
+        assert "set_movie_scene" in tool_names
+
+
+@pytest.mark.asyncio
+async def test_service_tool_execution_success(mock_hass_for_custom_tools, service_tools_config):
+    """Test successful execution of a custom service tool."""
+    mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
+    mock_hass_for_custom_tools.services.async_call = AsyncMock()
+
+    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+        mock_expose.return_value = False
+
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent._ensure_tools_registered()
+
+        # Execute the service tool
+        result = await agent.tool_handler.execute_tool(
+            "trigger_morning_routine",
+            {}
+        )
+
+        # Verify service was called
+        mock_hass_for_custom_tools.services.async_call.assert_called_once_with(
+            domain="automation",
+            service="trigger",
+            service_data={"entity_id": "automation.morning_routine"},
+            target=None,
+            blocking=True
+        )
+
+        # Tool handler wraps the result
+        assert result["success"] is True
+        tool_result = result["result"]
+        assert tool_result["success"] is True
+        assert "successfully" in tool_result["result"].lower()
+        assert tool_result["error"] is None
+
+
+@pytest.mark.asyncio
+async def test_service_tool_execution_with_parameters(mock_hass_for_custom_tools, service_tools_config):
+    """Test service tool execution with templated parameters."""
+    mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
+    mock_hass_for_custom_tools.services.async_call = AsyncMock()
+
+    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+        mock_expose.return_value = False
+
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent._ensure_tools_registered()
+
+        # Execute the service tool with parameters
+        with patch("custom_components.home_agent.tools.custom.Template") as mock_template_class:
+            mock_template = MagicMock()
+            mock_template.async_render = MagicMock(
+                side_effect=lambda x: x.get("person", "John") if "person" in x else x.get("location", "Home")
+            )
+            mock_template_class.return_value = mock_template
+
+            result = await agent.tool_handler.execute_tool(
+                "notify_arrival",
+                {"person": "John", "location": "Home"}
+            )
+
+        # Verify service was called
+        mock_hass_for_custom_tools.services.async_call.assert_called_once()
+        call_args = mock_hass_for_custom_tools.services.async_call.call_args
+        assert call_args[1]["domain"] == "script"
+        assert call_args[1]["service"] == "arrival_notification"
+
+        # Verify result
+        assert result["success"] is True
+        tool_result = result["result"]
+        assert tool_result["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_service_tool_execution_with_target(mock_hass_for_custom_tools, service_tools_config):
+    """Test service tool execution with target field."""
+    mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
+    mock_hass_for_custom_tools.services.async_call = AsyncMock()
+
+    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+        mock_expose.return_value = False
+
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent._ensure_tools_registered()
+
+        # Execute the service tool
+        result = await agent.tool_handler.execute_tool(
+            "set_movie_scene",
+            {}
+        )
+
+        # Verify service was called with target
+        mock_hass_for_custom_tools.services.async_call.assert_called_once()
+        call_args = mock_hass_for_custom_tools.services.async_call.call_args
+        assert call_args[1]["target"] == {"entity_id": "scene.movie_time"}
+
+        # Verify result
+        assert result["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_service_tool_error_propagation(mock_hass_for_custom_tools, service_tools_config):
+    """Test that service tool errors are properly propagated."""
+    from homeassistant.core import ServiceNotFound
+
+    mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
+
+    # Create ServiceNotFound with message pre-set to avoid translation system
+    error = ServiceNotFound("automation", "trigger")
+    error._message = "Service automation.trigger not found"
+    mock_hass_for_custom_tools.services.async_call = AsyncMock(side_effect=error)
+
+    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+        mock_expose.return_value = False
+
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent._ensure_tools_registered()
+
+        # Execute the service tool - should return error, not raise
+        result = await agent.tool_handler.execute_tool(
+            "trigger_morning_routine",
+            {}
+        )
+
+        # Tool handler wraps the result
+        assert result["success"] is True  # Tool handler success (tool executed)
+        tool_result = result["result"]
+        # But the tool itself reports failure
+        assert tool_result["success"] is False
+        assert tool_result["result"] is None
+        assert "not found" in tool_result["error"].lower() or "service" in tool_result["error"].lower()
+
+
+@pytest.mark.asyncio
+async def test_mixed_rest_and_service_tools(mock_hass_for_custom_tools):
+    """Test that both REST and service tools can be registered together."""
+    mixed_config = {
+        CONF_LLM_BASE_URL: "https://api.openai.com/v1",
+        CONF_LLM_API_KEY: "test-key-123",
+        CONF_LLM_MODEL: "gpt-4o-mini",
+        CONF_TOOLS_CUSTOM: [
+            {
+                "name": "check_weather",
+                "description": "Get weather forecast",
+                "parameters": {"type": "object", "properties": {}},
+                "handler": {
+                    "type": "rest",
+                    "url": "https://api.weather.com/v1/forecast",
+                    "method": "GET"
+                }
+            },
+            {
+                "name": "trigger_automation",
+                "description": "Trigger an automation",
+                "parameters": {"type": "object", "properties": {}},
+                "handler": {
+                    "type": "service",
+                    "service": "automation.trigger",
+                    "data": {"entity_id": "automation.test"}
+                }
+            }
+        ]
+    }
+
+    mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
+
+    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+        mock_expose.return_value = False
+
+        agent = HomeAgent(mock_hass_for_custom_tools, mixed_config)
+        agent._ensure_tools_registered()
+
+        # Verify both types of tools are registered
+        registered_tool_names = agent.tool_handler.get_registered_tools()
+
+        assert "check_weather" in registered_tool_names
+        assert "trigger_automation" in registered_tool_names
+
+        # Verify tool types
+        weather_tool = agent.tool_handler.tools["check_weather"]
+        automation_tool = agent.tool_handler.tools["trigger_automation"]
+
+        assert isinstance(weather_tool, RestCustomTool)
+        assert isinstance(automation_tool, ServiceCustomTool)
