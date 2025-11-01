@@ -362,6 +362,10 @@ class RestCustomTool(BaseTool):
         Raises:
             ValidationError: If template rendering fails
         """
+        # Convert to string if not already
+        if not isinstance(template_str, str):
+            return str(template_str)
+
         # If not a template (no {{ }}), return as-is
         if "{{" not in template_str:
             return template_str
