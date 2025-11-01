@@ -37,6 +37,7 @@ def mock_memory_manager():
     """Create a mock MemoryManager instance."""
     mock = MagicMock()
     mock.add_memory = AsyncMock(return_value="mem_123")
+    mock._is_transient_state = MagicMock(return_value=False)
     return mock
 
 
@@ -181,9 +182,7 @@ class TestCallPrimaryLLMForExtraction:
         with patch.object(
             home_agent,
             "_call_llm",
-            return_value={
-                "choices": [{"message": {"content": expected_result}}]
-            },
+            return_value={"choices": [{"message": {"content": expected_result}}]},
         ):
             result = await home_agent._call_primary_llm_for_extraction("test prompt")
 
@@ -193,9 +192,7 @@ class TestCallPrimaryLLMForExtraction:
 
     async def test_extraction_failure(self, home_agent):
         """Test extraction failure with primary LLM."""
-        with patch.object(
-            home_agent, "_call_llm", side_effect=Exception("LLM error")
-        ):
+        with patch.object(home_agent, "_call_llm", side_effect=Exception("LLM error")):
             result = await home_agent._call_primary_llm_for_extraction("test prompt")
 
             assert result["success"] is False
@@ -223,19 +220,19 @@ class TestParseAndStoreMemories:
         """Test parsing valid JSON response."""
         home_agent._memory_manager = mock_memory_manager
 
-        extraction_result = json.dumps([
-            {
-                "type": "preference",
-                "content": "User prefers 68°F",
-                "importance": 0.8,
-                "entities": ["climate.bedroom"],
-                "topics": ["temperature"],
-            }
-        ])
-
-        count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
+        extraction_result = json.dumps(
+            [
+                {
+                    "type": "preference",
+                    "content": "User prefers 68°F",
+                    "importance": 0.8,
+                    "entities": ["climate.bedroom"],
+                    "topics": ["temperature"],
+                }
+            ]
         )
+
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert count == 1
         mock_memory_manager.add_memory.assert_called_once()
@@ -244,7 +241,7 @@ class TestParseAndStoreMemories:
         """Test parsing JSON wrapped in markdown code block."""
         home_agent._memory_manager = mock_memory_manager
 
-        extraction_result = '''```json
+        extraction_result = """```json
 [
   {
     "type": "fact",
@@ -252,11 +249,9 @@ class TestParseAndStoreMemories:
     "importance": 0.5
   }
 ]
-```'''
+```"""
 
-        count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert count == 1
         mock_memory_manager.add_memory.assert_called_once()
@@ -267,9 +262,7 @@ class TestParseAndStoreMemories:
 
         extraction_result = "[]"
 
-        count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert count == 0
         mock_memory_manager.add_memory.assert_not_called()
@@ -280,9 +273,7 @@ class TestParseAndStoreMemories:
 
         extraction_result = "not valid json"
 
-        count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert count == 0
         mock_memory_manager.add_memory.assert_not_called()
@@ -293,9 +284,7 @@ class TestParseAndStoreMemories:
 
         extraction_result = '{"type": "fact"}'
 
-        count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert count == 0
 
@@ -303,22 +292,20 @@ class TestParseAndStoreMemories:
         """Test parsing multiple memories."""
         home_agent._memory_manager = mock_memory_manager
 
-        extraction_result = json.dumps([
-            {"type": "fact", "content": "Fact 1", "importance": 0.5},
-            {"type": "preference", "content": "Preference 1", "importance": 0.8},
-            {"type": "context", "content": "Context 1", "importance": 0.6},
-        ])
-
-        count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
+        extraction_result = json.dumps(
+            [
+                {"type": "fact", "content": "Fact 1", "importance": 0.5},
+                {"type": "preference", "content": "Preference 1", "importance": 0.8},
+                {"type": "context", "content": "Context 1", "importance": 0.6},
+            ]
         )
+
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert count == 3
         assert mock_memory_manager.add_memory.call_count == 3
 
-    async def test_parse_handles_storage_failure(
-        self, home_agent, mock_memory_manager
-    ):
+    async def test_parse_handles_storage_failure(self, home_agent, mock_memory_manager):
         """Test that storage failures don't stop other memories from being stored."""
         home_agent._memory_manager = mock_memory_manager
 
@@ -328,32 +315,30 @@ class TestParseAndStoreMemories:
             "mem_2",
         ]
 
-        extraction_result = json.dumps([
-            {"type": "fact", "content": "Fact 1", "importance": 0.5},
-            {"type": "fact", "content": "Fact 2", "importance": 0.5},
-        ])
-
-        count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
+        extraction_result = json.dumps(
+            [
+                {"type": "fact", "content": "Fact 1", "importance": 0.5},
+                {"type": "fact", "content": "Fact 2", "importance": 0.5},
+            ]
         )
+
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert count == 1  # Only one succeeded
         assert mock_memory_manager.add_memory.call_count == 2
 
-    async def test_parse_validates_memory_content(
-        self, home_agent, mock_memory_manager
-    ):
+    async def test_parse_validates_memory_content(self, home_agent, mock_memory_manager):
         """Test that memories without content are skipped."""
         home_agent._memory_manager = mock_memory_manager
 
-        extraction_result = json.dumps([
-            {"type": "fact"},  # Missing content
-            {"type": "fact", "content": "Valid fact"},
-        ])
-
-        count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
+        extraction_result = json.dumps(
+            [
+                {"type": "fact"},  # Missing content
+                {"type": "fact", "content": "Valid fact"},
+            ]
         )
+
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert count == 1  # Only the valid one
         mock_memory_manager.add_memory.assert_called_once()
@@ -373,9 +358,7 @@ class TestExtractAndStoreMemories:
 
             mock_build.assert_not_called()
 
-    async def test_extraction_skipped_when_no_memory_manager(
-        self, home_agent
-    ):
+    async def test_extraction_skipped_when_no_memory_manager(self, home_agent):
         """Test that extraction is skipped when memory manager is not available."""
         home_agent._memory_manager = None
 
@@ -386,9 +369,7 @@ class TestExtractAndStoreMemories:
 
             mock_build.assert_not_called()
 
-    async def test_extraction_with_local_llm(
-        self, home_agent, mock_memory_manager
-    ):
+    async def test_extraction_with_local_llm(self, home_agent, mock_memory_manager):
         """Test extraction using local LLM."""
         home_agent._memory_manager = mock_memory_manager
         home_agent.config[CONF_MEMORY_EXTRACTION_LLM] = "local"
@@ -407,9 +388,7 @@ class TestExtractAndStoreMemories:
             # Verify memory was stored
             mock_memory_manager.add_memory.assert_called_once()
 
-    async def test_extraction_with_external_llm(
-        self, home_agent, mock_memory_manager
-    ):
+    async def test_extraction_with_external_llm(self, home_agent, mock_memory_manager):
         """Test extraction using external LLM."""
         home_agent._memory_manager = mock_memory_manager
         home_agent.config[CONF_MEMORY_EXTRACTION_LLM] = "external"
@@ -421,9 +400,7 @@ class TestExtractAndStoreMemories:
             return_value={"success": True, "result": extraction_result}
         )
 
-        await home_agent._extract_and_store_memories(
-            "conv_123", "user msg", "assistant msg", []
-        )
+        await home_agent._extract_and_store_memories("conv_123", "user msg", "assistant msg", [])
 
         # Verify external LLM tool was called
         home_agent.tool_handler.execute_tool.assert_called_once()
@@ -473,9 +450,7 @@ class TestExtractAndStoreMemories:
             call_args = mock_hass.bus.async_fire.call_args
             assert "home_agent.memory.extracted" in call_args[0]
 
-    async def test_extraction_handles_llm_failure_gracefully(
-        self, home_agent, mock_memory_manager
-    ):
+    async def test_extraction_handles_llm_failure_gracefully(self, home_agent, mock_memory_manager):
         """Test that LLM failure doesn't crash extraction."""
         home_agent._memory_manager = mock_memory_manager
         home_agent.config[CONF_MEMORY_EXTRACTION_LLM] = "local"
@@ -490,9 +465,7 @@ class TestExtractAndStoreMemories:
                 "conv_123", "user msg", "assistant msg", []
             )
 
-    async def test_extraction_handles_unexpected_exception(
-        self, home_agent, mock_memory_manager
-    ):
+    async def test_extraction_handles_unexpected_exception(self, home_agent, mock_memory_manager):
         """Test that unexpected exceptions are handled gracefully."""
         home_agent._memory_manager = mock_memory_manager
         home_agent.config[CONF_MEMORY_EXTRACTION_LLM] = "local"
@@ -511,9 +484,7 @@ class TestExtractAndStoreMemories:
 class TestMemoryExtractionIntegration:
     """Integration tests for memory extraction in conversation flow."""
 
-    async def test_extraction_triggered_after_conversation(
-        self, home_agent, mock_hass
-    ):
+    async def test_extraction_triggered_after_conversation(self, home_agent, mock_hass):
         """Test that extraction is triggered after conversation completes."""
         # This would be tested in integration tests with full conversation flow
         # For now, we verify the hook exists
