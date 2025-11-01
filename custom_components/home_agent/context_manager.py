@@ -83,12 +83,31 @@ class ContextManager:
         # Initialize default provider
         self._initialize_provider()
 
+    def _get_mode_from_config(self, config: dict[str, Any] | None = None) -> str:
+        """Get mode from config, supporting both CONF_CONTEXT_MODE and 'mode' keys.
+
+        Args:
+            config: Config dict to check, or None to use self.config
+
+        Returns:
+            The mode value, or DEFAULT_CONTEXT_MODE if not found
+        """
+        cfg = config if config is not None else self.config
+        if CONF_CONTEXT_MODE in cfg:
+            return cfg[CONF_CONTEXT_MODE]
+        elif "mode" in cfg:
+            return cfg["mode"]
+        else:
+            return DEFAULT_CONTEXT_MODE
+
     def _initialize_provider(self) -> None:
         """Initialize the context provider based on configuration.
 
         Raises:
             ContextInjectionError: If provider initialization fails
         """
+        # During initialization, use standard config key (CONF_CONTEXT_MODE)
+        # The "mode" fallback is only for runtime config access
         mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
 
         try:
@@ -276,7 +295,7 @@ class ContextManager:
         # Populate metrics if provided
         if metrics is not None and "context" not in metrics:
             metrics["context"] = {
-                "mode": self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE),
+                "mode": self._get_mode_from_config(),
                 "original_tokens": original_tokens,
                 "optimized_tokens": estimated_tokens,
                 "compression_ratio": round(
@@ -435,7 +454,7 @@ class ContextManager:
         Returns:
             Cache key string
         """
-        mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
+        mode = self._get_mode_from_config()
 
         if mode == CONTEXT_MODE_DIRECT:
             # Direct mode always returns same entities
@@ -465,7 +484,7 @@ class ContextManager:
             token_count: Estimated token count
             user_input: The user's input (for vector DB query tracking)
         """
-        mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
+        mode = self._get_mode_from_config()
 
         # Extract entity IDs from provider if possible
         entities_included = []
@@ -519,11 +538,13 @@ class ContextManager:
             ... }
             >>> await context_manager.update_config(new_config)
         """
-        old_mode = self.config.get(CONF_CONTEXT_MODE)
-        new_mode = config.get(CONF_CONTEXT_MODE)
+        old_mode = self._get_mode_from_config()
 
         # Update configuration
         self.config.update(config)
+
+        # Get new mode after update
+        new_mode = self._get_mode_from_config()
 
         # Update cache settings
         self._cache_enabled = config.get("cache_enabled", self._cache_enabled)
@@ -553,7 +574,7 @@ class ContextManager:
         Returns:
             Current context mode ("direct" or "vector_db")
         """
-        return self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
+        return self._get_mode_from_config()
 
     def get_provider_info(self) -> dict[str, Any]:
         """Get information about the current provider.

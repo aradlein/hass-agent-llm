@@ -307,6 +307,9 @@ def format_duration(seconds: float) -> str:
         >>> format_duration(0.5)
         "0.5s"
     """
+    if seconds == 0:
+        return "0s"
+
     if seconds < 1:
         return f"{seconds:.2f}s"
 

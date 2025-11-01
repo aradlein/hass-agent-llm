@@ -28,7 +28,9 @@ class TestConversationHistoryManager:
 
         assert "conv_123" in manager._histories
         assert len(manager._histories["conv_123"]) == 1
-        assert manager._histories["conv_123"][0] == {"role": "user", "content": "Hello"}
+        assert manager._histories["conv_123"][0]["role"] == "user"
+        assert manager._histories["conv_123"][0]["content"] == "Hello"
+        assert "timestamp" in manager._histories["conv_123"][0]
 
     def test_add_multiple_messages(self):
         """Test adding multiple messages to same conversation."""

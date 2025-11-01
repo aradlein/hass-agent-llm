@@ -480,12 +480,16 @@ class HomeAgent(AbstractConversationAgent):
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
         """Call the LLM API.
 
         Args:
             messages: List of messages in OpenAI format
             tools: Optional list of tool definitions
+            temperature: Optional temperature override (uses config if not provided)
+            max_tokens: Optional max_tokens override (uses config if not provided)
 
         Returns:
             LLM response dictionary
@@ -505,8 +509,8 @@ class HomeAgent(AbstractConversationAgent):
         payload: dict[str, Any] = {
             "model": self.config[CONF_LLM_MODEL],
             "messages": messages,
-            "temperature": self.config.get(CONF_LLM_TEMPERATURE, 0.7),
-            "max_tokens": self.config.get(CONF_LLM_MAX_TOKENS, 500),
+            "temperature": temperature if temperature is not None else self.config.get(CONF_LLM_TEMPERATURE, 0.7),
+            "max_tokens": max_tokens if max_tokens is not None else self.config.get(CONF_LLM_MAX_TOKENS, 500),
             "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
         }
 
@@ -1098,10 +1102,11 @@ Return ONLY valid JSON, no other text:
             ]
 
             # Call LLM without tool definitions
-            # Note: Uses temperature and max_tokens from config
+            # Use lower temperature (0.3) for more consistent extraction
             response = await self._call_llm(
                 messages,
                 tools=None,
+                temperature=0.3,
             )
 
             content = response.get("choices", [{}])[0].get("message", {}).get("content", "")

@@ -286,18 +286,18 @@ class TestHomeAssistantQueryTool:
         assert "color_temp" not in formatted["attributes"]
 
     @pytest.mark.asyncio
-    async def test_query_history_with_duration(self, mock_hass, mock_history_states):
+    async def test_query_history_with_duration(self, mock_hass, mock_history_states, mock_recorder_instance):
         """Test querying historical data."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.async_recorder_ready") as mock_ready, \
+        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
+             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
              patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
 
             mock_migration.return_value = False
-            mock_ready.return_value = True
+            mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
@@ -311,18 +311,18 @@ class TestHomeAssistantQueryTool:
             assert result["duration"] == "24h"
 
     @pytest.mark.asyncio
-    async def test_query_history_with_avg_aggregation(self, mock_hass, mock_history_states):
+    async def test_query_history_with_avg_aggregation(self, mock_hass, mock_history_states, mock_recorder_instance):
         """Test querying historical data with average aggregation."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.async_recorder_ready") as mock_ready, \
+        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
+             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
              patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
 
             mock_migration.return_value = False
-            mock_ready.return_value = True
+            mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
@@ -337,18 +337,18 @@ class TestHomeAssistantQueryTool:
             assert isinstance(history_data["value"], (int, float))
 
     @pytest.mark.asyncio
-    async def test_query_history_with_min_aggregation(self, mock_hass, mock_history_states):
+    async def test_query_history_with_min_aggregation(self, mock_hass, mock_history_states, mock_recorder_instance):
         """Test querying historical data with min aggregation."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.async_recorder_ready") as mock_ready, \
+        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
+             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
              patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
 
             mock_migration.return_value = False
-            mock_ready.return_value = True
+            mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
@@ -362,18 +362,18 @@ class TestHomeAssistantQueryTool:
             assert history_data["value"] == 68
 
     @pytest.mark.asyncio
-    async def test_query_history_with_max_aggregation(self, mock_hass, mock_history_states):
+    async def test_query_history_with_max_aggregation(self, mock_hass, mock_history_states, mock_recorder_instance):
         """Test querying historical data with max aggregation."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.async_recorder_ready") as mock_ready, \
+        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
+             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
              patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
 
             mock_migration.return_value = False
-            mock_ready.return_value = True
+            mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
@@ -387,18 +387,18 @@ class TestHomeAssistantQueryTool:
             assert history_data["value"] == 77
 
     @pytest.mark.asyncio
-    async def test_query_history_with_count_aggregation(self, mock_hass, mock_history_states):
+    async def test_query_history_with_count_aggregation(self, mock_hass, mock_history_states, mock_recorder_instance):
         """Test querying historical data with count aggregation."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.async_recorder_ready") as mock_ready, \
+        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
+             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
              patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
 
             mock_migration.return_value = False
-            mock_ready.return_value = True
+            mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
@@ -411,18 +411,18 @@ class TestHomeAssistantQueryTool:
             assert history_data["value"] == len(mock_history_states)
 
     @pytest.mark.asyncio
-    async def test_query_history_with_sum_aggregation(self, mock_hass, mock_history_states):
+    async def test_query_history_with_sum_aggregation(self, mock_hass, mock_history_states, mock_recorder_instance):
         """Test querying historical data with sum aggregation."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.async_recorder_ready") as mock_ready, \
+        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
+             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
              patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
 
             mock_migration.return_value = False
-            mock_ready.return_value = True
+            mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
@@ -573,11 +573,11 @@ class TestHomeAssistantQueryTool:
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.temperature"]
 
-        with patch("homeassistant.components.recorder.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.async_recorder_ready") as mock_ready:
+        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
+             patch("homeassistant.components.recorder.get_instance") as mock_get_instance:
 
             mock_migration.return_value = False
-            mock_ready.return_value = False  # Recorder not ready
+            mock_get_instance.return_value = None  # Recorder not available
 
             with pytest.raises(ToolExecutionError) as exc_info:
                 await tool.execute(
@@ -588,7 +588,7 @@ class TestHomeAssistantQueryTool:
             assert "recorder" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_query_history_skips_failed_entities(self, mock_hass, mock_history_states):
+    async def test_query_history_skips_failed_entities(self, mock_hass, mock_history_states, mock_recorder_instance):
         """Test that history query continues if one entity fails."""
         tool = HomeAssistantQueryTool(mock_hass)
 
@@ -597,12 +597,12 @@ class TestHomeAssistantQueryTool:
             "sensor.temperature2"
         ]
 
-        with patch("homeassistant.components.recorder.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.async_recorder_ready") as mock_ready, \
+        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
+             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
              patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
 
             mock_migration.return_value = False
-            mock_ready.return_value = True
+            mock_get_instance.return_value = mock_recorder_instance
 
             # First entity succeeds, second fails
             call_count = [0]

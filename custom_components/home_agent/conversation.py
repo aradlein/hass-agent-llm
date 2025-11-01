@@ -467,7 +467,9 @@ class ConversationHistoryManager:
         if effective_max_tokens is not None:
             history = self._truncate_by_tokens(history, effective_max_tokens)
 
-        return history
+        # Filter out timestamp to maintain OpenAI compatibility
+        # Return only 'role' and 'content' fields
+        return [{"role": msg["role"], "content": msg["content"]} for msg in history]
 
     def clear_history(self, conversation_id: str) -> None:
         """Clear history for a specific conversation.
