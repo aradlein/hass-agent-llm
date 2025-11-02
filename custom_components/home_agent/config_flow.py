@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 
 import aiohttp
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
@@ -49,6 +48,7 @@ from .const import (
     CONF_OPENAI_API_KEY,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
+    CONF_STREAMING_ENABLED,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
     CONF_VECTOR_DB_COLLECTION,
@@ -87,6 +87,7 @@ from .const import (
     DEFAULT_MEMORY_MIN_IMPORTANCE,
     DEFAULT_NAME,
     DEFAULT_PROMPT_USE_DEFAULT,
+    DEFAULT_STREAMING_ENABLED,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DEFAULT_TOOLS_TIMEOUT,
@@ -124,9 +125,7 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._data: dict[str, Any] = {}
         self._test_connection_passed = False
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the initial step - LLM configuration.
 
         This step collects basic LLM configuration including:
@@ -227,14 +226,11 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         parsed = urlparse(base_url)
         if not parsed.scheme or not parsed.netloc:
             raise ValidationError(
-                f"Invalid URL format: {base_url}. "
-                "Expected format: https://api.example.com/v1"
+                f"Invalid URL format: {base_url}. " "Expected format: https://api.example.com/v1"
             )
 
         if parsed.scheme not in ("http", "https"):
-            raise ValidationError(
-                f"URL scheme must be http or https, got: {parsed.scheme}"
-            )
+            raise ValidationError(f"URL scheme must be http or https, got: {parsed.scheme}")
 
         # Validate API key
         api_key = config.get(CONF_LLM_API_KEY, "")
@@ -250,9 +246,7 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # but we can add additional checks here if needed
         temperature = config.get(CONF_LLM_TEMPERATURE, DEFAULT_TEMPERATURE)
         if not 0.0 <= temperature <= 2.0:
-            raise ValidationError(
-                f"Temperature must be between 0.0 and 2.0, got: {temperature}"
-            )
+            raise ValidationError(f"Temperature must be between 0.0 and 2.0, got: {temperature}")
 
         max_tokens = config.get(CONF_LLM_MAX_TOKENS, DEFAULT_MAX_TOKENS)
         if max_tokens < 1:
@@ -309,9 +303,7 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         )
                     if response.status >= 400:
                         error_text = await response.text()
-                        raise ValidationError(
-                            f"API returned error {response.status}: {error_text}"
-                        )
+                        raise ValidationError(f"API returned error {response.status}: {error_text}")
 
                     # Success
                     _LOGGER.debug("LLM connection test successful")
@@ -319,9 +311,7 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         except aiohttp.ClientError as err:
             _LOGGER.error("Connection error during LLM test: %s", err)
-            raise ValidationError(
-                f"Failed to connect to LLM at {base_url}: {err}"
-            ) from err
+            raise ValidationError(f"Failed to connect to LLM at {base_url}: {err}") from err
 
     @staticmethod
     @callback
@@ -359,9 +349,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
         """
         self._config_entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Manage the options - main menu.
 
         Presents a menu of configuration categories:
@@ -393,9 +381,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             ],
         )
 
-    async def async_step_llm_settings(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_llm_settings(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Configure LLM settings.
 
         Args:
@@ -456,15 +442,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     ): str,
                     vol.Optional(
                         CONF_LLM_TEMPERATURE,
-                        default=current_data.get(
-                            CONF_LLM_TEMPERATURE, DEFAULT_TEMPERATURE
-                        ),
+                        default=current_data.get(CONF_LLM_TEMPERATURE, DEFAULT_TEMPERATURE),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
                     vol.Optional(
                         CONF_LLM_MAX_TOKENS,
-                        default=current_data.get(
-                            CONF_LLM_MAX_TOKENS, DEFAULT_MAX_TOKENS
-                        ),
+                        default=current_data.get(CONF_LLM_MAX_TOKENS, DEFAULT_MAX_TOKENS),
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100000)),
                 }
             ),
@@ -499,15 +481,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         CONF_CONTEXT_MODE,
-                        default=current_options.get(
-                            CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE
-                        ),
+                        default=current_options.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE),
                     ): vol.In([CONTEXT_MODE_DIRECT, CONTEXT_MODE_VECTOR_DB]),
                     vol.Optional(
                         CONF_CONTEXT_FORMAT,
-                        default=current_options.get(
-                            CONF_CONTEXT_FORMAT, DEFAULT_CONTEXT_FORMAT
-                        ),
+                        default=current_options.get(CONF_CONTEXT_FORMAT, DEFAULT_CONTEXT_FORMAT),
                     ): vol.In(
                         [
                             CONTEXT_FORMAT_JSON,
@@ -551,15 +529,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Optional(
                         CONF_VECTOR_DB_HOST,
-                        default=current_options.get(
-                            CONF_VECTOR_DB_HOST, DEFAULT_VECTOR_DB_HOST
-                        ),
+                        default=current_options.get(CONF_VECTOR_DB_HOST, DEFAULT_VECTOR_DB_HOST),
                     ): str,
                     vol.Optional(
                         CONF_VECTOR_DB_PORT,
-                        default=current_options.get(
-                            CONF_VECTOR_DB_PORT, DEFAULT_VECTOR_DB_PORT
-                        ),
+                        default=current_options.get(CONF_VECTOR_DB_PORT, DEFAULT_VECTOR_DB_PORT),
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
                     vol.Optional(
                         CONF_VECTOR_DB_COLLECTION,
@@ -602,9 +576,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     ): str,
                     vol.Optional(
                         CONF_VECTOR_DB_TOP_K,
-                        default=current_options.get(
-                            CONF_VECTOR_DB_TOP_K, DEFAULT_VECTOR_DB_TOP_K
-                        ),
+                        default=current_options.get(CONF_VECTOR_DB_TOP_K, DEFAULT_VECTOR_DB_TOP_K),
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
                     vol.Optional(
                         CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
@@ -645,9 +617,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         CONF_HISTORY_ENABLED,
-                        default=current_options.get(
-                            CONF_HISTORY_ENABLED, DEFAULT_HISTORY_ENABLED
-                        ),
+                        default=current_options.get(CONF_HISTORY_ENABLED, DEFAULT_HISTORY_ENABLED),
                     ): bool,
                     vol.Optional(
                         CONF_HISTORY_MAX_MESSAGES,
@@ -695,9 +665,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_PROMPT_CUSTOM_ADDITIONS,
                         description={
-                            "suggested_value": current_options.get(
-                                CONF_PROMPT_CUSTOM_ADDITIONS, ""
-                            )
+                            "suggested_value": current_options.get(CONF_PROMPT_CUSTOM_ADDITIONS, "")
                         },
                     ): selector.TemplateSelector(),
                 }
@@ -741,9 +709,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=20)),
                     vol.Optional(
                         CONF_TOOLS_TIMEOUT,
-                        default=current_options.get(
-                            CONF_TOOLS_TIMEOUT, DEFAULT_TOOLS_TIMEOUT
-                        ),
+                        default=current_options.get(CONF_TOOLS_TIMEOUT, DEFAULT_TOOLS_TIMEOUT),
                     ): vol.All(vol.Coerce(int), vol.Range(min=5, max=300)),
                 }
             ),
@@ -811,9 +777,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 ): bool,
                 vol.Optional(
                     CONF_EXTERNAL_LLM_BASE_URL,
-                    default=current_options.get(
-                        CONF_EXTERNAL_LLM_BASE_URL, OPENAI_BASE_URL
-                    ),
+                    default=current_options.get(CONF_EXTERNAL_LLM_BASE_URL, OPENAI_BASE_URL),
                 ): str,
                 vol.Optional(
                     CONF_EXTERNAL_LLM_API_KEY,
@@ -904,7 +868,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 current_options = self._config_entry.options
                 external_llm_enabled = current_options.get(
                     CONF_EXTERNAL_LLM_ENABLED,
-                    current_data.get(CONF_EXTERNAL_LLM_ENABLED, DEFAULT_EXTERNAL_LLM_ENABLED)
+                    current_data.get(CONF_EXTERNAL_LLM_ENABLED, DEFAULT_EXTERNAL_LLM_ENABLED),
                 )
 
                 if not external_llm_enabled:
@@ -1023,8 +987,12 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         CONF_DEBUG_LOGGING,
+                        default=current_options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
+                    ): bool,
+                    vol.Required(
+                        CONF_STREAMING_ENABLED,
                         default=current_options.get(
-                            CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING
+                            CONF_STREAMING_ENABLED, DEFAULT_STREAMING_ENABLED
                         ),
                     ): bool,
                 }
@@ -1033,6 +1001,12 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 "warning": (
                     "Debug logging may expose sensitive information "
                     "in Home Assistant logs. Use with caution."
+                ),
+                "streaming_info": (
+                    "Enable streaming responses for low-latency TTS integration. "
+                    "Requires Assist Pipeline with Wyoming TTS. "
+                    "When enabled, responses are sent incrementally for faster audio playback. "
+                    "Automatically falls back to standard mode if streaming fails."
                 ),
             },
         )

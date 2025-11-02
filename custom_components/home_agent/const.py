@@ -88,6 +88,9 @@ CONF_MEMORY_CLEANUP_INTERVAL: Final = "memory_cleanup_interval"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
 CONF_EMIT_EVENTS: Final = "emit_events"
 
+# Configuration keys - Streaming
+CONF_STREAMING_ENABLED: Final = "streaming_enabled"
+
 # Context modes
 CONTEXT_MODE_DIRECT: Final = "direct"
 CONTEXT_MODE_VECTOR_DB: Final = "vector_db"
@@ -176,6 +179,9 @@ DEFAULT_MEMORY_CLEANUP_INTERVAL: Final = 300  # Run cleanup every 5 minutes
 DEFAULT_DEBUG_LOGGING: Final = False
 DEFAULT_EMIT_EVENTS: Final = True
 
+# Default values - Streaming
+DEFAULT_STREAMING_ENABLED: Final = False
+
 # Event names
 EVENT_CONVERSATION_STARTED: Final = f"{DOMAIN}.conversation.started"
 EVENT_CONVERSATION_FINISHED: Final = f"{DOMAIN}.conversation.finished"
@@ -186,6 +192,8 @@ EVENT_HISTORY_SAVED: Final = f"{DOMAIN}.history.saved"
 EVENT_VECTOR_DB_QUERIED: Final = f"{DOMAIN}.vector_db.queried"
 EVENT_MEMORY_EXTRACTED: Final = f"{DOMAIN}.memory.extracted"
 EVENT_ERROR: Final = f"{DOMAIN}.error"
+EVENT_STREAMING_ERROR: Final = f"{DOMAIN}.streaming.error"
+EVENT_TOOL_PROGRESS: Final = f"{DOMAIN}.tool.progress"
 
 # Tool names
 TOOL_HA_CONTROL: Final = "ha_control"

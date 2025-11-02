@@ -307,10 +307,12 @@
         "title": "Debug Settings",
         "description": "Configure debugging and logging options.",
         "data": {
-          "debug_logging": "Enable Debug Logging"
+          "debug_logging": "Enable Debug Logging",
+          "streaming_enabled": "Enable Streaming Responses"
         },
         "data_description": {
-          "debug_logging": "Enable detailed logging for troubleshooting (may expose sensitive data)"
+          "debug_logging": "Enable detailed logging for troubleshooting (may expose sensitive data)",
+          "streaming_enabled": "Enable streaming responses for low-latency TTS integration. Requires Assist Pipeline with Wyoming TTS. When enabled, responses are sent incrementally for faster audio playback. Automatically falls back to standard mode if streaming fails."
         }
       }
     },

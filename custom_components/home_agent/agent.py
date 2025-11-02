@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import aiohttp
 from homeassistant.components import conversation as ha_conversation
@@ -41,6 +41,7 @@ from .const import (
     CONF_MEMORY_EXTRACTION_LLM,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
+    CONF_STREAMING_ENABLED,
     CONF_TOOLS_CUSTOM,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
@@ -49,6 +50,7 @@ from .const import (
     DEFAULT_MEMORY_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_LLM,
+    DEFAULT_STREAMING_ENABLED,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DOMAIN,
@@ -56,6 +58,7 @@ from .const import (
     EVENT_CONVERSATION_STARTED,
     EVENT_ERROR,
     EVENT_MEMORY_EXTRACTED,
+    EVENT_STREAMING_ERROR,
     HTTP_TIMEOUT,
 )
 from .context_manager import ContextManager
@@ -134,6 +137,25 @@ class HomeAgent(AbstractConversationAgent):
                     break
         return self._memory_manager
 
+    def _can_stream(self) -> bool:
+        """Check if streaming is supported in the current context.
+
+        Returns:
+            True if streaming is enabled and ChatLog with delta_listener is available
+        """
+        from homeassistant.components.conversation.chat_log import current_chat_log
+
+        # Check if streaming is enabled in config
+        if not self.config.get(CONF_STREAMING_ENABLED, DEFAULT_STREAMING_ENABLED):
+            return False
+
+        # Check if ChatLog with delta_listener exists (means assist pipeline supports streaming)
+        chat_log = current_chat_log.get()
+        if chat_log is None or chat_log.delta_listener is None:
+            return False
+
+        return True
+
     def _ensure_tools_registered(self) -> None:
         """Ensure tools are registered (lazy registration).
 
@@ -154,10 +176,11 @@ class HomeAgent(AbstractConversationAgent):
     async def async_process(
         self, user_input: ha_conversation.ConversationInput
     ) -> ha_conversation.ConversationResult:
-        """Process a conversation turn.
+        """Process a conversation turn with optional streaming support.
 
-        This method is required by AbstractConversationAgent and bridges the
-        Home Assistant conversation platform with Home Agent's processing logic.
+        This method is required by AbstractConversationAgent. It processes user input
+        and returns a conversation result. It automatically detects if streaming is
+        available and uses the appropriate processing path.
 
         Args:
             user_input: Conversation input from Home Assistant
@@ -169,22 +192,29 @@ class HomeAgent(AbstractConversationAgent):
             # Ensure tools are registered (lazy initialization)
             self._ensure_tools_registered()
 
-            # Process the message using our internal method
-            response_text = await self.process_message(
-                text=user_input.text,
-                conversation_id=user_input.conversation_id,
-                user_id=user_input.context.user_id if user_input.context else None,
-                device_id=user_input.device_id,
-            )
+            # Check if we can stream
+            if self._can_stream():
+                try:
+                    return await self._async_process_streaming(user_input)
+                except Exception as err:
+                    # Fallback to synchronous on streaming errors
+                    _LOGGER.warning(
+                        "Streaming failed, falling back to synchronous mode: %s",
+                        err,
+                        exc_info=True,
+                    )
+                    self.hass.bus.async_fire(
+                        EVENT_STREAMING_ERROR,
+                        {
+                            "error": str(err),
+                            "error_type": type(err).__name__,
+                            "fallback": True,
+                        },
+                    )
+                    # Fall through to synchronous processing
 
-            # Create and return conversation result
-            intent_response = intent.IntentResponse(language=user_input.language)
-            intent_response.async_set_speech(response_text)
-
-            return ha_conversation.ConversationResult(
-                response=intent_response,
-                conversation_id=user_input.conversation_id,
-            )
+            # Synchronous processing (existing code path)
+            return await self._async_process_synchronous(user_input)
 
         except Exception as err:
             _LOGGER.error("Error in async_process: %s", err, exc_info=True)
@@ -532,6 +562,65 @@ class HomeAgent(AbstractConversationAgent):
         except aiohttp.ClientError as err:
             raise HomeAgentError(f"Failed to connect to LLM API: {err}") from err
 
+    async def _call_llm_streaming(
+        self, messages: list[dict[str, Any]]
+    ) -> AsyncGenerator[str, None]:
+        """Call LLM API with streaming enabled.
+
+        Args:
+            messages: Conversation messages
+
+        Yields:
+            SSE lines from the streaming response
+        """
+        session = await self._ensure_session()
+
+        url = f"{self.config[CONF_LLM_BASE_URL]}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.config[CONF_LLM_API_KEY]}",
+            "Content-Type": "application/json",
+        }
+
+        payload: dict[str, Any] = {
+            "model": self.config[CONF_LLM_MODEL],
+            "messages": messages,
+            "temperature": self.config.get(CONF_LLM_TEMPERATURE, 0.7),
+            "max_tokens": self.config.get(CONF_LLM_MAX_TOKENS, 1000),
+            "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
+            "stream": True,  # Enable streaming!
+        }
+
+        # Add tools if available
+        tool_definitions = self.tool_handler.get_tool_definitions()
+        if tool_definitions:
+            payload["tools"] = tool_definitions
+            payload["tool_choice"] = "auto"
+
+        if self.config.get(CONF_DEBUG_LOGGING):
+            _LOGGER.debug(
+                "Calling LLM (streaming) at %s with %d messages and %d tools",
+                redact_sensitive_data(url, self.config[CONF_LLM_API_KEY]),
+                len(messages),
+                len(tool_definitions) if tool_definitions else 0,
+            )
+
+        try:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status == 401:
+                    raise AuthenticationError("LLM API authentication failed. Check your API key.")
+
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise HomeAgentError(f"LLM API returned status {response.status}: {error_text}")
+
+                # Stream SSE lines
+                async for line in response.content:
+                    if line:
+                        yield line.decode("utf-8")
+
+        except aiohttp.ClientError as err:
+            raise HomeAgentError(f"Failed to connect to LLM API: {err}") from err
+
     async def process_message(
         self,
         text: str,
@@ -645,6 +734,198 @@ class HomeAgent(AbstractConversationAgent):
                     _LOGGER.warning("Failed to fire error event: %s", event_err)
 
             raise
+
+    async def _async_process_streaming(
+        self, user_input: ha_conversation.ConversationInput
+    ) -> ha_conversation.ConversationResult:
+        """Process conversation with streaming support.
+
+        Args:
+            user_input: The conversation input
+
+        Returns:
+            ConversationResult with the response
+        """
+        from homeassistant.components import conversation
+        from homeassistant.components.conversation.chat_log import current_chat_log
+
+        from .streaming import OpenAIStreamingHandler
+
+        chat_log = current_chat_log.get()
+        if chat_log is None:
+            raise RuntimeError("ChatLog not available in streaming mode")
+
+        conversation_id = user_input.conversation_id or "default"
+        user_message = user_input.text
+        device_id = user_input.device_id
+
+        # Get context from context manager
+        metrics: dict[str, Any] = {
+            "tokens": {"prompt": 0, "completion": 0, "total": 0},
+            "performance": {"llm_latency_ms": 0, "tool_latency_ms": 0, "context_latency_ms": 0},
+            "context": {},
+            "tool_calls": 0,
+        }
+
+        context_start = time.time()
+        context = await self.context_manager.get_formatted_context(
+            user_message, conversation_id, metrics
+        )
+        context_latency_ms = int((time.time() - context_start) * 1000)
+        metrics["performance"]["context_latency_ms"] = context_latency_ms
+
+        # Build system prompt with full context
+        system_prompt = self._build_system_prompt(
+            entity_context=context,
+            conversation_id=conversation_id,
+            device_id=device_id,
+            user_message=user_message,
+        )
+
+        # Build messages list
+        messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
+
+        # Add conversation history if enabled
+        if self.config.get(CONF_HISTORY_ENABLED, True):
+            history = self.conversation_manager.get_history(
+                conversation_id,
+                max_messages=self.config.get(
+                    CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES
+                ),
+            )
+            messages.extend(history)
+
+        # Add current user message
+        messages.append({"role": "user", "content": user_message})
+
+        # Tool calling loop (max iterations to prevent infinite loops)
+        max_iterations = self.config.get(
+            CONF_TOOLS_MAX_CALLS_PER_TURN, DEFAULT_TOOLS_MAX_CALLS_PER_TURN
+        )
+
+        entry_id = None
+        # Try to find entry_id from config or hass.data
+        if "entry_id" in self.config:
+            entry_id = self.config["entry_id"]
+        else:
+            # Try to find it from domain data
+            domain_data = self.hass.data.get(DOMAIN, {})
+            for config_entry_id, entry_data in domain_data.items():
+                if isinstance(entry_data, dict) and entry_data.get("agent") is self:
+                    entry_id = config_entry_id
+                    break
+
+        if entry_id is None:
+            _LOGGER.warning("Could not find entry_id for streaming, using 'home_agent'")
+            entry_id = "home_agent"
+
+        for iteration in range(max_iterations):
+            # Call LLM with streaming
+            stream = self._call_llm_streaming(messages)
+
+            # Transform and send to chat log
+            handler = OpenAIStreamingHandler()
+
+            # This will:
+            # 1. Transform OpenAI SSE to HA deltas
+            # 2. Send deltas to assist pipeline (via chat_log.delta_listener)
+            # 3. Execute tools automatically (chat_log.async_add_delta_content_stream does this)
+            # 4. Return the content that was added
+            new_content = []
+            async for content in chat_log.async_add_delta_content_stream(
+                entry_id,
+                handler.transform_openai_stream(stream),
+            ):
+                new_content.append(content)
+
+            # Convert new content back to messages for next iteration
+            for content_item in new_content:
+                if isinstance(content_item, conversation.AssistantContent):
+                    if content_item.content:
+                        messages.append(
+                            {
+                                "role": "assistant",
+                                "content": content_item.content,
+                            }
+                        )
+                    if content_item.tool_calls:
+                        # Add tool calls to messages
+                        tool_calls_msg = {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": tc.id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc.tool_name,
+                                        "arguments": json.dumps(tc.tool_args),
+                                    },
+                                }
+                                for tc in content_item.tool_calls
+                            ],
+                        }
+                        messages.append(tool_calls_msg)
+
+                elif isinstance(content_item, conversation.ToolResultContent):
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": content_item.tool_call_id,
+                            "name": content_item.tool_name,
+                            "content": json.dumps(content_item.tool_result),
+                        }
+                    )
+
+            # Check if we need another iteration (are there unresponded tool results?)
+            if not chat_log.unresponded_tool_results:
+                break
+
+        # Save to conversation history if enabled
+        if self.config.get(CONF_HISTORY_ENABLED, True):
+            # Extract final response from chat log
+            final_response = ""
+            for content_item in new_content:
+                if isinstance(content_item, conversation.AssistantContent) and content_item.content:
+                    final_response = content_item.content
+                    break
+
+            self.conversation_manager.add_message(conversation_id, "user", user_message)
+            if final_response:
+                self.conversation_manager.add_message(conversation_id, "assistant", final_response)
+
+        # Extract result from chat log
+        return conversation.async_get_result_from_chat_log(user_input, chat_log)
+
+    async def _async_process_synchronous(
+        self, user_input: ha_conversation.ConversationInput
+    ) -> ha_conversation.ConversationResult:
+        """Process conversation without streaming (backward compatible mode).
+
+        This is the original processing logic, preserved for backward compatibility
+        and as a fallback when streaming fails.
+
+        Args:
+            user_input: The conversation input
+
+        Returns:
+            ConversationResult with the complete response
+        """
+        # Use the existing process_message method
+        response_text = await self.process_message(
+            text=user_input.text,
+            conversation_id=user_input.conversation_id,
+            user_id=user_input.context.user_id if user_input.context else None,
+            device_id=user_input.device_id,
+        )
+
+        # Create and return conversation result
+        intent_response = intent.IntentResponse(language=user_input.language)
+        intent_response.async_set_speech(response_text)
+
+        return ha_conversation.ConversationResult(
+            response=intent_response,
+            conversation_id=user_input.conversation_id,
+        )
 
     async def _process_conversation(
         self,

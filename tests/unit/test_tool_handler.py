@@ -9,6 +9,7 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
     EVENT_TOOL_EXECUTED,
+    EVENT_TOOL_PROGRESS,
 )
 from custom_components.home_agent.exceptions import ToolExecutionError, ValidationError
 from custom_components.home_agent.tool_handler import ToolHandler
@@ -39,11 +40,9 @@ class MockTool:
             "description": f"Test tool {self.name}",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "test_param": {"type": "string"}
-                },
-                "required": ["test_param"]
-            }
+                "properties": {"test_param": {"type": "string"}},
+                "required": ["test_param"],
+            },
         }
 
     def to_openai_format(self):
@@ -324,11 +323,7 @@ class TestExecuteTool:
         tool = MockTool("test_tool")
         tool_handler.register_tool(tool)
 
-        result = await tool_handler.execute_tool(
-            "test_tool",
-            {"test_param": "value"},
-            "conv_123"
-        )
+        result = await tool_handler.execute_tool("test_tool", {"test_param": "value"}, "conv_123")
 
         assert result["success"] is True
         assert "result" in result
@@ -353,6 +348,7 @@ class TestExecuteTool:
 
     async def test_execute_tool_timeout(self, tool_handler):
         """Test tool execution timeout."""
+
         async def slow_execute(**kwargs):
             await asyncio.sleep(100)
             return {"result": "too slow"}
@@ -380,18 +376,23 @@ class TestExecuteTool:
         tool = MockTool("test_tool")
         tool_handler.register_tool(tool)
 
-        await tool_handler.execute_tool(
-            "test_tool",
-            {"test_param": "value"},
-            "conv_123"
-        )
+        await tool_handler.execute_tool("test_tool", {"test_param": "value"}, "conv_123")
 
-        mock_hass.bus.async_fire.assert_called_once()
-        call_args = mock_hass.bus.async_fire.call_args
-        assert call_args[0][0] == EVENT_TOOL_EXECUTED
-        assert "tool_name" in call_args[0][1]
-        assert call_args[0][1]["tool_name"] == "test_tool"
-        assert call_args[0][1]["success"] is True
+        # Should have fired multiple events (started, completed, executed)
+        assert mock_hass.bus.async_fire.call_count >= 1
+
+        # Find the EVENT_TOOL_EXECUTED event
+        executed_events = [
+            call
+            for call in mock_hass.bus.async_fire.call_args_list
+            if call[0][0] == EVENT_TOOL_EXECUTED
+        ]
+
+        assert len(executed_events) == 1
+        event_data = executed_events[0][0][1]
+        assert "tool_name" in event_data
+        assert event_data["tool_name"] == "test_tool"
+        assert event_data["success"] is True
 
     async def test_execute_tool_no_event_firing(self, tool_handler, mock_hass):
         """Test tool execution without event firing."""
@@ -405,6 +406,7 @@ class TestExecuteTool:
 
     async def test_execute_tool_large_result_truncation(self, tool_handler, mock_hass):
         """Test that large results are truncated in events."""
+
         async def large_result_execute(**kwargs):
             return {"result": "x" * 2000}
 
@@ -414,8 +416,8 @@ class TestExecuteTool:
 
         await tool_handler.execute_tool("test_tool", {"test_param": "value"})
 
-        # Event should be fired with truncated result
-        mock_hass.bus.async_fire.assert_called_once()
+        # Event should be fired (multiple events due to progress tracking)
+        assert mock_hass.bus.async_fire.call_count >= 1
 
 
 @pytest.mark.asyncio
@@ -575,14 +577,20 @@ class TestEventFiring:
         tool = MockTool("test_tool")
         tool_handler.register_tool(tool)
 
-        await tool_handler.execute_tool(
-            "test_tool",
-            {"test_param": "value"},
-            "conv_123"
-        )
+        await tool_handler.execute_tool("test_tool", {"test_param": "value"}, "conv_123")
 
-        mock_hass.bus.async_fire.assert_called_once()
-        event_name, event_data = mock_hass.bus.async_fire.call_args[0]
+        # Should have multiple events fired (progress + executed)
+        assert mock_hass.bus.async_fire.call_count >= 1
+
+        # Find the EVENT_TOOL_EXECUTED event
+        executed_events = [
+            call[0]
+            for call in mock_hass.bus.async_fire.call_args_list
+            if call[0][0] == EVENT_TOOL_EXECUTED
+        ]
+
+        assert len(executed_events) == 1
+        event_name, event_data = executed_events[0]
 
         assert event_name == EVENT_TOOL_EXECUTED
         assert event_data["tool_name"] == "test_tool"
@@ -598,25 +606,29 @@ class TestEventFiring:
         tool_handler.register_tool(tool)
 
         try:
-            await tool_handler.execute_tool(
-                "test_tool",
-                {"test_param": "value"},
-                "conv_123"
-            )
+            await tool_handler.execute_tool("test_tool", {"test_param": "value"}, "conv_123")
         except ToolExecutionError:
             pass
 
-        mock_hass.bus.async_fire.assert_called_once()
-        event_name, event_data = mock_hass.bus.async_fire.call_args[0]
+        # Should have multiple events fired (progress + executed)
+        assert mock_hass.bus.async_fire.call_count >= 1
+
+        # Find the EVENT_TOOL_EXECUTED event
+        executed_events = [
+            call[0]
+            for call in mock_hass.bus.async_fire.call_args_list
+            if call[0][0] == EVENT_TOOL_EXECUTED
+        ]
+
+        assert len(executed_events) == 1
+        event_name, event_data = executed_events[0]
 
         assert event_name == EVENT_TOOL_EXECUTED
         assert event_data["success"] is False
         assert "error" in event_data
 
     @pytest.mark.asyncio
-    async def test_fire_tool_executed_event_without_conversation_id(
-        self, tool_handler, mock_hass
-    ):
+    async def test_fire_tool_executed_event_without_conversation_id(self, tool_handler, mock_hass):
         """Test firing event without conversation ID."""
         tool = MockTool("test_tool")
         tool_handler.register_tool(tool)
@@ -625,3 +637,214 @@ class TestEventFiring:
 
         event_data = mock_hass.bus.async_fire.call_args[0][1]
         assert "conversation_id" not in event_data
+
+
+class TestToolProgressEvents:
+    """Test tool progress event emission."""
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_emits_started_event(self, tool_handler, mock_hass):
+        """Test that tool execution emits started event."""
+        tool = MockTool("test_tool")
+        tool_handler.register_tool(tool)
+
+        # Execute tool
+        await tool_handler.execute_tool(
+            "test_tool", {"test_param": "value"}, tool_call_id="call_123"
+        )
+
+        # Get all async_fire calls
+        calls = mock_hass.bus.async_fire.call_args_list
+
+        # Find started event
+        started_events = [
+            call
+            for call in calls
+            if call[0][0] == EVENT_TOOL_PROGRESS and call[0][1].get("status") == "started"
+        ]
+
+        assert len(started_events) == 1
+        event_data = started_events[0][0][1]
+        assert event_data["tool_name"] == "test_tool"
+        assert event_data["tool_call_id"] == "call_123"
+        assert event_data["status"] == "started"
+        assert "timestamp" in event_data
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_emits_completed_event(self, tool_handler, mock_hass):
+        """Test that successful tool execution emits completed event."""
+        tool = MockTool("test_tool")
+        tool_handler.register_tool(tool)
+
+        # Execute tool
+        await tool_handler.execute_tool(
+            "test_tool", {"test_param": "value"}, tool_call_id="call_123"
+        )
+
+        # Get all async_fire calls
+        calls = mock_hass.bus.async_fire.call_args_list
+
+        # Find completed event
+        completed_events = [
+            call
+            for call in calls
+            if call[0][0] == EVENT_TOOL_PROGRESS and call[0][1].get("status") == "completed"
+        ]
+
+        assert len(completed_events) == 1
+        event_data = completed_events[0][0][1]
+        assert event_data["tool_name"] == "test_tool"
+        assert event_data["tool_call_id"] == "call_123"
+        assert event_data["status"] == "completed"
+        assert event_data["success"] is True
+        assert "timestamp" in event_data
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_emits_failed_event_on_error(self, tool_handler, mock_hass):
+        """Test that failed tool execution emits failed event."""
+        tool = MockTool("failing_tool", should_fail=True)
+        tool_handler.register_tool(tool)
+
+        # Execute tool (should raise)
+        with pytest.raises(ToolExecutionError):
+            await tool_handler.execute_tool(
+                "failing_tool", {"test_param": "value"}, tool_call_id="call_123"
+            )
+
+        # Get all async_fire calls
+        calls = mock_hass.bus.async_fire.call_args_list
+
+        # Find failed event
+        failed_events = [
+            call
+            for call in calls
+            if call[0][0] == EVENT_TOOL_PROGRESS and call[0][1].get("status") == "failed"
+        ]
+
+        assert len(failed_events) == 1
+        event_data = failed_events[0][0][1]
+        assert event_data["tool_name"] == "failing_tool"
+        assert event_data["tool_call_id"] == "call_123"
+        assert event_data["status"] == "failed"
+        assert event_data["success"] is False
+        assert "error" in event_data
+        assert "error_type" in event_data
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_emits_failed_event_on_timeout(self, tool_handler, mock_hass):
+        """Test that timeout emits failed event with TimeoutError."""
+
+        async def slow_execute(**kwargs):
+            await asyncio.sleep(100)
+            return {"result": "too slow"}
+
+        tool = MockTool("test_tool")
+        tool.execute = slow_execute
+        tool_handler.register_tool(tool)
+        tool_handler.timeout = 0.1
+
+        # Execute tool (should timeout)
+        with pytest.raises(ToolExecutionError, match="timed out"):
+            await tool_handler.execute_tool(
+                "test_tool", {"test_param": "value"}, tool_call_id="call_123"
+            )
+
+        # Get all async_fire calls
+        calls = mock_hass.bus.async_fire.call_args_list
+
+        # Find failed event
+        failed_events = [
+            call
+            for call in calls
+            if call[0][0] == EVENT_TOOL_PROGRESS and call[0][1].get("status") == "failed"
+        ]
+
+        assert len(failed_events) == 1
+        event_data = failed_events[0][0][1]
+        assert event_data["error_type"] == "TimeoutError"
+        assert "timed out" in event_data["error"]
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_event_includes_timestamp(self, tool_handler, mock_hass):
+        """Test that progress events include timestamps."""
+        tool = MockTool("test_tool")
+        tool_handler.register_tool(tool)
+
+        # Execute tool
+        await tool_handler.execute_tool(
+            "test_tool", {"test_param": "value"}, tool_call_id="call_123"
+        )
+
+        # Get all async_fire calls
+        calls = mock_hass.bus.async_fire.call_args_list
+
+        # Find all progress events
+        progress_events = [call for call in calls if call[0][0] == EVENT_TOOL_PROGRESS]
+
+        # Verify all events have timestamps
+        assert len(progress_events) >= 2  # At least started and completed
+        for call in progress_events:
+            event_data = call[0][1]
+            assert "timestamp" in event_data
+            assert isinstance(event_data["timestamp"], (int, float))
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_no_progress_events_when_disabled(self, tool_handler, mock_hass):
+        """Test that progress events are not emitted when emit_events is False."""
+        tool_handler.emit_events = False
+        tool = MockTool("test_tool")
+        tool_handler.register_tool(tool)
+
+        # Execute tool
+        await tool_handler.execute_tool(
+            "test_tool", {"test_param": "value"}, tool_call_id="call_123"
+        )
+
+        # Verify no events were fired
+        mock_hass.bus.async_fire.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_progress_events_without_tool_call_id(self, tool_handler, mock_hass):
+        """Test that progress events work without tool_call_id."""
+        tool = MockTool("test_tool")
+        tool_handler.register_tool(tool)
+
+        # Execute tool without tool_call_id
+        await tool_handler.execute_tool("test_tool", {"test_param": "value"})
+
+        # Get all async_fire calls
+        calls = mock_hass.bus.async_fire.call_args_list
+
+        # Find progress events
+        progress_events = [call for call in calls if call[0][0] == EVENT_TOOL_PROGRESS]
+
+        # Verify events were emitted with None tool_call_id
+        assert len(progress_events) >= 2
+        for call in progress_events:
+            event_data = call[0][1]
+            assert event_data["tool_call_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_event_order(self, tool_handler, mock_hass):
+        """Test that events are emitted in correct order."""
+        tool = MockTool("test_tool")
+        tool_handler.register_tool(tool)
+
+        # Execute tool
+        await tool_handler.execute_tool(
+            "test_tool", {"test_param": "value"}, tool_call_id="call_123"
+        )
+
+        # Get all async_fire calls
+        calls = mock_hass.bus.async_fire.call_args_list
+
+        # Find progress events in order
+        progress_events = [call[0][1] for call in calls if call[0][0] == EVENT_TOOL_PROGRESS]
+
+        # Should have started, then completed
+        assert len(progress_events) >= 2
+        assert progress_events[0]["status"] == "started"
+        assert progress_events[1]["status"] == "completed"
+
+        # Timestamps should be in order
+        assert progress_events[0]["timestamp"] <= progress_events[1]["timestamp"]

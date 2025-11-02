@@ -21,6 +21,7 @@ from .const import (
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DEFAULT_TOOLS_TIMEOUT,
     EVENT_TOOL_EXECUTED,
+    EVENT_TOOL_PROGRESS,
 )
 from .exceptions import ToolExecutionError, ValidationError
 from .helpers import truncate_text
@@ -104,9 +105,7 @@ class ToolHandler:
             raise ValidationError(f"Tool '{tool.name}' must have an 'execute' method")
 
         if not hasattr(tool, "get_definition"):
-            raise ValidationError(
-                f"Tool '{tool.name}' must have a 'get_definition' method"
-            )
+            raise ValidationError(f"Tool '{tool.name}' must have a 'get_definition' method")
 
         # Check for duplicate registration
         if tool.name in self.tools:
@@ -212,6 +211,7 @@ class ToolHandler:
         tool_name: str,
         parameters: dict[str, Any],
         conversation_id: str | None = None,
+        tool_call_id: str | None = None,
     ) -> dict[str, Any]:
         """Execute a tool call from the LLM.
 
@@ -222,6 +222,7 @@ class ToolHandler:
             tool_name: Name of the tool to execute
             parameters: Parameters to pass to the tool
             conversation_id: Optional conversation ID for event tracking
+            tool_call_id: Optional tool call ID for tracking
 
         Returns:
             Dictionary containing execution result with keys:
@@ -251,6 +252,18 @@ class ToolHandler:
         result = None
         error_message = None
 
+        # Fire "started" event
+        if self.emit_events:
+            self.hass.bus.async_fire(
+                EVENT_TOOL_PROGRESS,
+                {
+                    "tool_name": tool_name,
+                    "tool_call_id": tool_call_id,
+                    "status": "started",
+                    "timestamp": start_time,
+                },
+            )
+
         try:
             # Validate the tool call
             self.validate_tool_call(tool_name, parameters)
@@ -259,14 +272,10 @@ class ToolHandler:
             tool = self.tools[tool_name]
 
             # Execute with timeout
-            _LOGGER.debug(
-                "Executing tool '%s' with timeout %ds", tool_name, self.timeout
-            )
+            _LOGGER.debug("Executing tool '%s' with timeout %ds", tool_name, self.timeout)
 
             try:
-                result = await asyncio.wait_for(
-                    tool.execute(**parameters), timeout=self.timeout
-                )
+                result = await asyncio.wait_for(tool.execute(**parameters), timeout=self.timeout)
                 success = True
                 self._success_count += 1
                 _LOGGER.info(
@@ -274,6 +283,19 @@ class ToolHandler:
                     tool_name,
                     (time.time() - start_time) * 1000,
                 )
+
+                # Fire "completed" event
+                if self.emit_events:
+                    self.hass.bus.async_fire(
+                        EVENT_TOOL_PROGRESS,
+                        {
+                            "tool_name": tool_name,
+                            "tool_call_id": tool_call_id,
+                            "status": "completed",
+                            "timestamp": time.time(),
+                            "success": True,
+                        },
+                    )
 
             except asyncio.TimeoutError as error:
                 error_message = f"Tool execution timed out after {self.timeout}s"
@@ -283,6 +305,22 @@ class ToolHandler:
                     tool_name,
                     self.timeout,
                 )
+
+                # Fire "failed" event
+                if self.emit_events:
+                    self.hass.bus.async_fire(
+                        EVENT_TOOL_PROGRESS,
+                        {
+                            "tool_name": tool_name,
+                            "tool_call_id": tool_call_id,
+                            "status": "failed",
+                            "error": error_message,
+                            "error_type": "TimeoutError",
+                            "timestamp": time.time(),
+                            "success": False,
+                        },
+                    )
+
                 raise ToolExecutionError(error_message) from error
 
             except Exception as error:
@@ -294,9 +332,23 @@ class ToolHandler:
                     error,
                     exc_info=True,
                 )
-                raise ToolExecutionError(
-                    f"Tool '{tool_name}' execution failed: {error}"
-                ) from error
+
+                # Fire "failed" event
+                if self.emit_events:
+                    self.hass.bus.async_fire(
+                        EVENT_TOOL_PROGRESS,
+                        {
+                            "tool_name": tool_name,
+                            "tool_call_id": tool_call_id,
+                            "status": "failed",
+                            "error": error_message,
+                            "error_type": type(error).__name__,
+                            "timestamp": time.time(),
+                            "success": False,
+                        },
+                    )
+
+                raise ToolExecutionError(f"Tool '{tool_name}' execution failed: {error}") from error
 
         finally:
             # Track execution metrics
@@ -392,9 +444,7 @@ class ToolHandler:
                         "duration_ms": 0,
                     }
                 )
-                _LOGGER.error(
-                    "Tool call %d failed with exception: %s", i, result, exc_info=result
-                )
+                _LOGGER.error("Tool call %d failed with exception: %s", i, result, exc_info=result)
             else:
                 formatted_results.append(result)
 
