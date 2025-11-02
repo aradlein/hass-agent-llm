@@ -4,68 +4,51 @@ A highly customizable Home Assistant custom component that provides intelligent 
 
 ## Overview
 
-Home Agent extends Home Assistant's native conversation platform to provide:
+Home Agent extends Home Assistant's native conversation platform to enable natural language control and monitoring of your smart home. It works with any OpenAI-compatible LLM provider, giving you flexibility to use cloud services or run models locally.
 
-- **OpenAI-Compatible LLM Integration** - Works with any OpenAI-compatible API (OpenAI, Ollama, LM Studio, LocalAI, etc.)
-- **Smart Context Injection** - Automatically provides relevant entity states to the LLM
-- **Conversation History** - Maintains conversation context across multiple interactions
-- **Tool Calling** - Native Home Assistant control and query capabilities
-- **Flexible Configuration** - Extensive UI-based configuration options
+**Key Capabilities:**
+- Natural language home control through any OpenAI-compatible LLM
+- Automatic context injection - LLM knows your home's current state
+- Persistent conversation memory across interactions
+- Extensible tool system for custom integrations
+- Streaming responses for voice assistants
+- Long-term memory system for personalized experiences
 
 ## Features
 
-### Phase 1 (MVP) ✅
+### Core Features
 
-- ✅ OpenAI-compatible LLM API integration
-- ✅ Direct entity context injection
-- ✅ Conversation history management
-- ✅ Core tools: `ha_control` and `ha_query`
-- ✅ UI-based configuration flow
-- ✅ Service endpoints for automation
-- ✅ Event system for monitoring
-- ✅ Comprehensive unit tests (376+ passing tests)
+- **LLM Integration** - Works with OpenAI, Ollama, LocalAI, LM Studio, or any OpenAI-compatible endpoint
+- **Entity Context** - Automatically provides relevant entity states to the LLM
+- **Conversation History** - Maintains context across multiple interactions with persistent storage
+- **Native Tools** - Built-in `ha_control` and `ha_query` tools for home automation
+- **Custom Tools** - Define REST API and Home Assistant service tools in configuration
+- **Event System** - Rich events for automation triggers and monitoring
+- **Streaming Responses** - Low-latency streaming for voice assistant integration (~10x faster)
 
-### Phase 2 (Current) ✅
+### Advanced Features
 
-- ✅ **Vector DB (ChromaDB) Integration** - Semantic entity search using embeddings
-- ✅ **History Persistence** - Conversations saved across HA restarts
-- ✅ **Context Optimization** - Intelligent compression to stay within token limits
-- ✅ **Enhanced Events** - Detailed metrics including tokens, latency, and compression ratios
-- ✅ **Smart Truncation** - Preserves important information when context is large
-- ✅ **Entity Prioritization** - Ranks entities by relevance to user query
+- **Vector Database Integration** - Semantic entity search using ChromaDB for efficient context management
+- **Multi-LLM Support** - Use a fast local model for control + powerful cloud model for analysis
+- **Memory System** - Automatic extraction and recall of facts, preferences, and context
+- **Context Optimization** - Intelligent compression to stay within token limits
+- **Tool Progress Indicators** - Real-time feedback during tool execution
 
-### Phase 3 ✅
+## Requirements
 
-- ✅ **External LLM Tool** - Delegate complex queries to more powerful models via `query_external_llm`
-- ✅ **Custom Tool Framework** - Define custom tools in `configuration.yaml` (REST + Service handlers)
-- ✅ Tool execution with standardized response format and error handling
+### Required
+- **Home Assistant** - Version 2024.1.0 or later
+- **Python Dependencies** - `aiohttp >= 3.9.0` (included with Home Assistant)
 
-### Phase 4: Streaming Response Support ✅ (Completed)
-
-Low-latency streaming response support for real-time TTS integration with Home Assistant's Assist Pipeline.
-
-**Features**:
-- ✅ Streaming response delivery via ChatLog API
-- ✅ OpenAI-compatible streaming (works with Ollama)
-- ✅ Tool progress indicators during execution
-- ✅ Configurable streaming toggle (UI)
-- ✅ Automatic fallback to synchronous mode
-- ✅ ~10x latency improvement (5s → ~500ms first audio)
-
-**Configuration**:
-Navigate to Settings → Devices & Services → Home Agent → Configure → Debug Settings and enable "Streaming Responses".
-
-**Requirements**:
-- Home Assistant Assist Pipeline configured
-- Wyoming Protocol TTS integration (Piper, etc.)
-- Voice Assistant pipeline using Home Agent
-
-See [Manual Testing Guide](docs/MANUAL_TESTING_ISSUE10.md) for setup and validation instructions.
-
-### Phase 5 (Planned)
-
-- **MCP Server Integration** - Connect to external Model Context Protocol servers for data collection
-- Extended custom tool handlers with OAuth support
+### Optional (Enable Advanced Features)
+- **ChromaDB** - For vector database context mode
+  - `chromadb-client >= 0.4.0`
+  - Required for: Vector DB context injection and memory system
+- **OpenAI** - For embeddings in vector DB mode
+  - `openai >= 1.3.8`
+  - Required for: Vector DB entity indexing (alternative: use Ollama)
+- **Wyoming Protocol TTS** - For streaming responses
+  - Required for: Low-latency voice assistant integration
 
 ## Installation
 
@@ -73,790 +56,99 @@ See [Manual Testing Guide](docs/MANUAL_TESTING_ISSUE10.md) for setup and validat
 
 1. Open HACS in Home Assistant
 2. Search for "Home Agent"
-3. Install the integration
+3. Click Install
 4. Restart Home Assistant
+5. Go to Settings > Devices & Services > Add Integration
+6. Search for "Home Agent" and follow the setup wizard
 
 ### Manual Installation
 
-1. Copy the `custom_components/home_agent` directory to your Home Assistant `custom_components` folder
-2. Restart Home Assistant
-3. Go to Settings > Devices & Services > Add Integration
-4. Search for "Home Agent" and follow the setup wizard
+1. Download the latest release from GitHub
+2. Copy the `custom_components/home_agent` directory to your Home Assistant `config/custom_components` folder
+3. Restart Home Assistant
+4. Go to Settings > Devices & Services > Add Integration
+5. Search for "Home Agent" and complete the configuration
 
-## Configuration
+**For detailed installation instructions, see [Installation Guide](docs/INSTALLATION.md)**
 
-### Initial Setup
+## Quick Start
 
-1. **Add Integration**: Go to Settings > Devices & Services > Add Integration
-2. **Configure LLM**:
-   - **Name**: Friendly name for this instance (default: "Home Agent")
-   - **LLM Base URL**: Your OpenAI-compatible endpoint (e.g., `https://api.openai.com/v1` or `http://localhost:11434/v1` for Ollama)
-   - **API Key**: Your API key (if required)
-   - **Model**: Model name (e.g., `gpt-4o-mini`, `llama2`, etc.)
-   - **Temperature**: Creativity level, 0.0-2.0 (default: 0.7)
-   - **Max Tokens**: Maximum response length (default: 500)
+### 1. Add the Integration
 
-### Advanced Configuration (Options)
+Navigate to Settings > Devices & Services > Add Integration, search for "Home Agent", and configure:
 
-Access via: Settings > Devices & Services > Home Agent > Configure
+- **Name**: Friendly name (e.g., "Home Agent")
+- **LLM Base URL**: Your OpenAI-compatible endpoint
+  - OpenAI: `https://api.openai.com/v1`
+  - Ollama (local): `http://localhost:11434/v1`
+  - LocalAI: Your LocalAI URL
+- **API Key**: Your API key (if required)
+- **Model**: Model name (e.g., `gpt-4o-mini`, `llama3.2`, etc.)
+- **Temperature**: 0.7 (recommended for most use cases)
+- **Max Tokens**: 500 (adjust based on your needs)
 
-Home Agent provides a menu-based options flow with the following categories:
+### 2. Test Basic Functionality
 
-#### LLM Settings
-
-Edit the primary LLM connection and parameters:
-
-- **LLM Base URL**: OpenAI-compatible API endpoint
-- **API Key**: Authentication key for the LLM service
-- **Model**: Model name to use
-- **Temperature**: Creativity level, 0.0-2.0 (default: 0.7)
-- **Max Tokens**: Maximum response length (default: 500)
-
-#### Context Settings
-
-Configure how entity context is provided to the LLM:
-
-- **Context Mode**: Direct (Phase 1) or Vector DB (Phase 2)
-- **Context Format**: JSON, Natural Language, or Hybrid
-- **Entities to Include**: Comma-separated list of entity IDs or patterns
-
-#### Conversation History
-
-Manage conversation history:
-
-- **Enable History**: Track conversation context across turns
-- **Max Messages**: Maximum conversation turns to retain (default: 10)
-- **Max Tokens**: Token-based limit for history (default: 4000)
-
-#### System Prompt
-
-Customize the agent's behavior:
-
-- **Use Default Prompt**: Use Home Agent's built-in system prompt
-- **Custom Additions**: Additional instructions to append
-
-#### Tool Configuration
-
-Control tool execution limits:
-
-- **Max Tool Calls Per Turn**: Maximum executions per message (default: 5)
-- **Tool Timeout**: Timeout in seconds for each tool call (default: 30)
-
-#### External LLM (Phase 3)
-
-Configure an optional external LLM for complex queries:
-
-- **Enable External LLM**: Expose `query_external_llm` tool to primary LLM
-- **Base URL, API Key, Model**: External LLM connection details
-- **Tool Description**: Customize when primary LLM should delegate to external LLM
-- **Context Handling**: Only explicit `prompt` and `context` parameters are passed (not full conversation history)
-
-#### Debug Settings
-
-Enable detailed logging and streaming:
-
-- **Debug Logging**: Enable verbose logging for troubleshooting
-- **Streaming Responses**: Enable streaming for low-latency TTS (requires Voice Assistant pipeline)
-
-## Streaming Responses
-
-Home Agent supports streaming responses for low-latency TTS integration with Home Assistant's Voice Assistant (Assist) Pipeline.
-
-### Benefits:
-- **10x faster first audio**: ~500ms vs 5+ seconds
-- **Real-time feel**: Audio playback starts immediately
-- **Tool feedback**: Progress indicators during tool execution
-- **Graceful fallback**: Automatic fallback to synchronous if streaming fails
-
-### Setup:
-1. Configure Wyoming Protocol TTS (Piper recommended)
-2. Create Voice Assistant pipeline with Home Agent
-3. Enable streaming: Settings → Home Agent → Configure → Debug Settings
-4. Test with voice commands or conversation service
-
-### How It Works:
-When streaming is enabled, Home Agent:
-1. Detects Voice Assistant pipeline with TTS support
-2. Streams LLM response chunks incrementally
-3. Pipeline sends chunks to TTS immediately
-4. Audio playback begins before full response complete
-5. Automatically falls back to synchronous if errors occur
-
-See [Manual Testing Guide](docs/MANUAL_TESTING_ISSUE10.md) for detailed setup and validation.
-
-## Usage
-
-### As a Service
-
-Call the `home_agent.process` service to interact with the agent:
+Call the conversation service:
 
 ```yaml
 service: home_agent.process
 data:
-  text: "Turn on the living room lights to 50%"
-  conversation_id: "living_room_chat" # Optional, for history tracking
-  user_id: "user123" # Optional
+  text: "Turn on the living room lights"
 ```
 
-### In Automations
+### 3. Explore Advanced Configuration
+
+Access Settings > Devices & Services > Home Agent > Configure to:
+- Configure context injection mode (direct or vector DB)
+- Enable conversation history
+- Set up custom tools
+- Configure external LLM for complex queries
+- Enable memory system
+- Enable streaming for voice assistants
+
+**For detailed configuration options, see [Configuration Reference](docs/CONFIGURATION.md)**
+
+## Documentation
+
+### Getting Started
+- [Installation Guide](docs/INSTALLATION.md) - Detailed installation and initial setup
+- [Configuration Reference](docs/CONFIGURATION.md) - Complete configuration options
+- [FAQ](docs/FAQ.md) - Frequently asked questions
+
+### Features
+- [Memory System Guide](docs/MEMORY_SYSTEM.md) - Long-term memory configuration and usage
+- [Vector DB Setup](docs/VECTOR_DB_SETUP.md) - ChromaDB integration for semantic search
+- [Custom Tools](docs/CUSTOM_TOOLS.md) - Creating custom REST and service tools
+- [External LLM](docs/EXTERNAL_LLM.md) - Multi-LLM workflow patterns
+
+### Reference
+- [API Reference](docs/API_REFERENCE.md) - Services, events, and tools
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [Examples](docs/EXAMPLES.md) - Automation examples and use cases
+
+### For Developers
+- [Project Specification](docs/PROJECT_SPEC.md) - Technical specifications and roadmap
+- [Development Standards](docs/DEVELOPMENT.md) - Code quality and testing requirements
+- [Migration Guide](docs/MIGRATION.md) - Migrating from extended_openai_conversation
+
+## Usage Examples
+
+### Voice Control
+
+```yaml
+# Use with Home Assistant voice assistant
+# Just speak naturally to your voice assistant
+"Turn on the kitchen lights to 50%"
+"What's the temperature in the living room?"
+"Is the front door locked?"
+```
+
+### Automation Integration
 
 ```yaml
 automation:
-  - alias: "Voice Command Handler"
-    trigger:
-      - platform: voice_assistant
-        event_type: intent
-    action:
-      - service: home_agent.process
-        data:
-          text: "{{ trigger.event.data.text }}"
-          conversation_id: "{{ trigger.event.data.conversation_id }}"
-```
-
-### Services
-
-#### `home_agent.process`
-
-Process a conversation message through the agent.
-
-**Parameters:**
-
-- `text` (required): The user's message
-- `conversation_id` (optional): ID for history tracking
-- `user_id` (optional): User identifier
-
-#### `home_agent.clear_history`
-
-Clear conversation history.
-
-**Parameters:**
-
-- `conversation_id` (optional): Specific conversation to clear (omit for all)
-
-#### `home_agent.reload_context`
-
-Reload entity context (useful after entity changes).
-
-#### `home_agent.execute_tool`
-
-Manually execute a tool for testing/debugging.
-
-**Parameters:**
-
-- `tool_name` (required): Tool to execute (e.g., "ha_control", "ha_query")
-- `parameters` (required): Tool parameters as JSON
-
-### Memory Management Services (Phase 3.5) 🆕
-
-#### `home_agent.list_memories`
-
-List all stored memories with optional filtering.
-
-**Parameters:**
-
-- `memory_type` (optional): Filter by type (fact, preference, context, event)
-- `limit` (optional): Maximum number of memories to return
-
-**Example:**
-
-```yaml
-service: home_agent.list_memories
-data:
-  memory_type: preference
-  limit: 50
-```
-
-#### `home_agent.search_memories`
-
-Search memories using semantic similarity.
-
-**Parameters:**
-
-- `query` (required): What to search for
-- `limit` (optional): Maximum number of results (default: 10)
-- `min_importance` (optional): Filter by minimum importance (0.0-1.0)
-
-**Example:**
-
-```yaml
-service: home_agent.search_memories
-data:
-  query: "temperature preferences"
-  limit: 10
-  min_importance: 0.5
-```
-
-#### `home_agent.add_memory`
-
-Manually add a memory to the system.
-
-**Parameters:**
-
-- `content` (required): The memory content to store
-- `type` (optional): Memory type (fact, preference, context, event)
-- `importance` (optional): Importance score (0.0-1.0, default: 0.5)
-
-**Example:**
-
-```yaml
-service: home_agent.add_memory
-data:
-  content: "User prefers bedroom temperature at 68°F for sleeping"
-  type: preference
-  importance: 0.8
-```
-
-#### `home_agent.delete_memory`
-
-Delete a specific memory by ID.
-
-**Parameters:**
-
-- `memory_id` (required): The ID of the memory to delete
-
-**Example:**
-
-```yaml
-service: home_agent.delete_memory
-data:
-  memory_id: "mem_abc123xyz"
-```
-
-#### `home_agent.clear_memories`
-
-Clear all stored memories (requires confirmation).
-
-**Parameters:**
-
-- `confirm` (required): Must be set to true to confirm deletion
-
-**Example:**
-
-```yaml
-service: home_agent.clear_memories
-data:
-  confirm: true
-```
-
-## Tool System
-
-### ha_control
-
-Control Home Assistant devices and services.
-
-**Actions:**
-
-- `turn_on` - Turn on entities
-- `turn_off` - Turn off entities
-- `toggle` - Toggle state
-- `set_value` - Set specific values (brightness, temperature, etc.)
-
-**Example:**
-
-```json
-{
-  "action": "turn_on",
-  "entity_id": "light.living_room",
-  "parameters": {
-    "brightness_pct": 50
-  }
-}
-```
-
-### ha_query
-
-Query Home Assistant entity states and history.
-
-**Features:**
-
-- Current state queries
-- Wildcard matching (`light.*`, `*.bedroom`)
-- Attribute filtering
-- Historical data with aggregation (avg, min, max, sum, count)
-
-**Example:**
-
-```json
-{
-  "entity_id": "sensor.temperature",
-  "history": {
-    "duration": "24h",
-    "aggregate": "avg"
-  }
-}
-```
-
-### query_external_llm (Phase 3) 🆕
-
-Delegate complex queries to a more powerful external LLM.
-
-**Use Cases:**
-
-- Complex analysis requiring advanced reasoning
-- Detailed explanations or recommendations
-- Tasks requiring larger context windows
-- Specialized tasks better suited for specific models
-
-**Configuration:**
-
-Enable via Integration Options > External LLM:
-
-- **Enable External LLM**: Expose the tool to primary LLM
-- **Base URL**: External LLM endpoint (e.g., `https://api.openai.com/v1`)
-- **API Key**: Authentication key
-- **Model**: Model name (e.g., `gpt-4o`, `claude-3-5-sonnet`)
-- **Tool Description**: Customize when primary LLM should delegate
-
-**Example:**
-
-```json
-{
-  "prompt": "Analyze the energy consumption patterns and provide optimization recommendations",
-  "context": "Living room lights used 45kWh this month, bedroom 32kWh, kitchen 28kWh"
-}
-```
-
-**Parameters:**
-
-- `prompt` (required): The query to send to external LLM
-- `context` (optional): Additional context to provide
-
-**Note:** Only explicit parameters are passed to external LLM - full conversation history is NOT automatically included for efficiency.
-
-## Context Injection
-
-### Direct Mode (Phase 1)
-
-Specify entities to always include in LLM context:
-
-```yaml
-context_entities:
-  - entity_id: sensor.living_room_temperature
-    attributes: [state, unit_of_measurement]
-  - entity_id: light.living_room
-    attributes: [state, brightness]
-  - entity_id: climate.* # Wildcard support
-```
-
-### Vector DB Mode (Phase 2) 🆕
-
-Use semantic search to dynamically find relevant entities based on user query:
-
-**Setup:**
-
-1. Install and run ChromaDB server
-2. Configure Vector DB settings in integration options
-3. Index entities: Call `home_agent.index_entities` service (coming soon)
-
-**Configuration:**
-
-```yaml
-context_mode: vector_db
-vector_db:
-  host: localhost
-  port: 8000
-  collection: home_entities
-  embedding_model: text-embedding-3-small
-  top_k: 5 # Number of entities to retrieve
-  similarity_threshold: 0.7
-```
-
-**How it works:**
-
-- User query is embedded using the configured model
-- ChromaDB finds semantically similar entities
-- Only relevant entities are included in context
-- More efficient token usage compared to direct mode
-
-## Custom Tools (Phase 3) 🆕
-
-Define custom tools in your `configuration.yaml` to extend the LLM's capabilities with REST APIs and Home Assistant services.
-
-### REST Tools
-
-Call external HTTP APIs with full template support:
-
-```yaml
-home_agent:
-  tools_custom:
-    - name: check_weather
-      description: "Get weather forecast for a location"
-      parameters:
-        type: object
-        properties:
-          location:
-            type: string
-            description: "City name or coordinates"
-        required:
-          - location
-      handler:
-        type: rest
-        url: "https://api.weather.com/v1/forecast"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ secrets.weather_api_key }}"
-        query_params:
-          location: "{{ location }}"
-          format: "json"
-```
-
-**REST Handler Options:**
-
-- `url` (required): API endpoint (supports Jinja2 templates)
-- `method` (required): HTTP method (GET, POST, PUT, DELETE)
-- `headers` (optional): Request headers with template support
-- `query_params` (optional): URL query parameters with template support
-- `body` (optional): JSON request body for POST/PUT requests
-- `timeout` (optional): Request timeout in seconds
-
-**Template Variables:**
-
-- Tool parameters are available as template variables
-- Access secrets via `{{ secrets.key_name }}`
-- Standard Home Assistant Jinja2 template syntax
-
-### Service Tools
-
-Trigger Home Assistant services, automations, scripts, and scenes:
-
-```yaml
-home_agent:
-  tools_custom:
-    # Simple automation trigger
-    - name: trigger_morning_routine
-      description: "Trigger the morning routine automation"
-      handler:
-        type: service
-        service: automation.trigger
-        data:
-          entity_id: automation.morning_routine
-
-    # Script with parameters
-    - name: notify_family
-      description: "Send a notification to the family with a custom message"
-      parameters:
-        type: object
-        properties:
-          message:
-            type: string
-            description: "The message to send"
-        required:
-          - message
-      handler:
-        type: service
-        service: script.notify_family
-        data:
-          message: "{{ message }}"
-
-    # Scene activation with target
-    - name: set_movie_scene
-      description: "Activate the movie watching scene"
-      handler:
-        type: service
-        service: scene.turn_on
-        target:
-          entity_id: scene.movie_time
-```
-
-**Service Handler Options:**
-
-- `service` (required): Service to call (format: `domain.service_name`)
-- `data` (optional): Service data with template support
-- `target` (optional): Target entities, devices, or areas
-  - `entity_id`: Single entity, list, or templated
-  - `device_id`: Device identifier
-  - `area_id`: Area identifier
-
-**Common Use Cases:**
-
-- **Trigger Automations**: `automation.trigger` with `entity_id`
-- **Run Scripts**: `script.my_script` with templated parameters
-- **Control Scenes**: `scene.turn_on` with target
-- **Custom Notifications**: `notify.mobile_app` with message templates
-- **Climate Control**: `climate.set_temperature` with templated values
-
-### Response Format
-
-All custom tools return a standardized response:
-
-```json
-{
-  "success": true,
-  "result": { /* API response or success message */ },
-  "error": null
-}
-```
-
-On error:
-
-```json
-{
-  "success": false,
-  "result": null,
-  "error": "Error message description"
-}
-```
-
-### Advanced Examples
-
-#### POST Request with Body
-
-```yaml
-- name: create_task
-  description: "Create a new task in external system"
-  parameters:
-    type: object
-    properties:
-      title:
-        type: string
-      priority:
-        type: string
-        enum: [low, medium, high]
-  handler:
-    type: rest
-    url: "https://api.tasks.com/v1/tasks"
-    method: POST
-    headers:
-      Content-Type: "application/json"
-      Authorization: "Bearer {{ secrets.tasks_api_key }}"
-    body:
-      title: "{{ title }}"
-      priority: "{{ priority }}"
-      created_by: "home_assistant"
-```
-
-#### Dynamic Service Targeting
-
-```yaml
-- name: control_room_lights
-  description: "Turn on/off lights in a specific room"
-  parameters:
-    type: object
-    properties:
-      room:
-        type: string
-      action:
-        type: string
-        enum: [turn_on, turn_off]
-  handler:
-    type: service
-    service: "light.{{ action }}"
-    target:
-      area_id: "{{ room }}"
-```
-
-#### Climate Control with Templates
-
-```yaml
-- name: set_room_temperature
-  description: "Set temperature for a specific room"
-  parameters:
-    type: object
-    properties:
-      room:
-        type: string
-      temperature:
-        type: number
-  handler:
-    type: service
-    service: climate.set_temperature
-    data:
-      temperature: "{{ temperature }}"
-    target:
-      area_id: "{{ room }}"
-```
-
-### Configuration Tips
-
-1. **Parameter Schema**: Use JSON Schema to define tool parameters for proper LLM understanding
-2. **Descriptions**: Write clear descriptions to help the LLM know when to use each tool
-3. **Templates**: Leverage Jinja2 templates for dynamic values
-4. **Error Handling**: Tools automatically handle errors and return structured responses
-5. **Validation**: Service tools validate that services exist at startup (warns if not found)
-
-### Complete Configuration Example
-
-Here's a complete example showing both REST and service tools in your `configuration.yaml`:
-
-```yaml
-home_agent:
-  tools_custom:
-    # Example REST tool - calls external weather API
-    - name: check_weather
-      description: "Get weather forecast"
-      handler:
-        type: rest
-        url: "https://api.open-meteo.com/v1/forecast"
-        method: GET
-        query_params:
-          latitude: "47.6788491"
-          longitude: "-122.3971093"
-          forecast_days: 3
-          precipitation_unit: "inch"
-          current: "temperature_2m,precipitation"
-          hourly: "temperature_2m,precipitation,showers"
-
-    # Example service tool - triggers Home Assistant automation
-    - name: trigger_morning_routine
-      description: "Trigger the morning routine automation"
-      handler:
-        type: service
-        service: automation.trigger
-        data:
-          entity_id: automation.morning_routine
-
-    # Example service tool with parameters - runs script with template variables
-    - name: notify_family
-      description: "Send a notification to the family with a custom message"
-      parameters:
-        type: object
-        properties:
-          message:
-            type: string
-            description: "The message to send"
-        required:
-          - message
-      handler:
-        type: service
-        service: script.notify_family
-        data:
-          message: "{{ message }}"
-
-    # Example service tool with target - controls scene
-    - name: set_movie_scene
-      description: "Activate the movie watching scene"
-      handler:
-        type: service
-        service: scene.turn_on
-        target:
-          entity_id: scene.movie_time
-```
-
-This configuration provides:
-- **External API integration** with weather data
-- **Automation control** for morning routines
-- **Parameterized scripts** for family notifications
-- **Scene management** for movie time
-
-### Context Optimization (Phase 2) 🆕
-
-Automatically compresses context when approaching token limits:
-
-- **Smart Truncation** - Preserves entity IDs and critical information
-- **Entity Prioritization** - Ranks by relevance to user query
-- **Whitespace Removal** - Removes redundant formatting
-- **Compression Levels** - Low, medium, high
-- **Metrics Tracking** - Monitor compression ratios via events
-
-## Events
-
-Home Agent fires events for monitoring and automation:
-
-### `home_agent.conversation.started`
-
-Fired when a conversation begins.
-
-**Data:**
-
-- `conversation_id`
-- `user_id`
-- `timestamp`
-- `context_mode`
-
-### `home_agent.conversation.finished`
-
-Fired when a conversation completes.
-
-**Data (Enhanced in Phase 2):**
-
-- `conversation_id`
-- `user_id`
-- `duration_ms`
-- `tool_calls`
-- `tokens` - Breakdown: `prompt`, `completion`, `total` 🆕
-- `performance` - Latency: `llm_latency_ms`, `tool_latency_ms`, `context_latency_ms` 🆕
-- `context` - Optimization metrics: `original_tokens`, `optimized_tokens`, `compression_ratio` 🆕
-
-### `home_agent.tool.executed`
-
-Fired after each tool execution.
-
-**Data:**
-
-- `tool_name`
-- `parameters`
-- `result`
-- `success`
-- `duration_ms`
-
-### `home_agent.context.injected`
-
-Fired when context is injected.
-
-**Data:**
-
-- `conversation_id`
-- `mode`
-- `entities_included`
-- `token_count`
-
-### `home_agent.context.optimized` 🆕
-
-Fired when context is compressed (Phase 2).
-
-**Data:**
-
-- `original_tokens`
-- `optimized_tokens`
-- `compression_ratio`
-- `was_truncated`
-
-### `home_agent.history.saved` 🆕
-
-Fired when history is persisted (Phase 2).
-
-**Data:**
-
-- `conversation_count`
-- `message_count`
-- `size_bytes`
-- `timestamp`
-
-### `home_agent.error`
-
-Fired on errors.
-
-**Data:**
-
-- `error_type`
-- `error_message`
-- `conversation_id`
-- `component`
-
-## Examples
-
-### Basic Light Control
-
-```yaml
-service: home_agent.process
-data:
-  text: "Turn on the bedroom lights"
-```
-
-### Complex Query with History
-
-```yaml
-service: home_agent.process
-data:
-  text: "What was the average temperature yesterday?"
-  conversation_id: "climate_analysis"
-```
-
-### Automation Trigger
-
-```yaml
-automation:
-  - alias: "Morning Routine Assistant"
+  - alias: "Morning Briefing"
     trigger:
       - platform: time
         at: "07:00:00"
@@ -864,120 +156,65 @@ automation:
       - service: home_agent.process
         data:
           text: "Good morning! Please prepare for the day."
+          conversation_id: "morning_routine"
 ```
 
-## Development
+### Custom Tool Example
 
-### Code Quality
-
-Home Agent follows Home Assistant's code quality standards using `ruff` for linting and formatting.
-
-```bash
-# Quick format (auto-fix + format)
-./scripts/format.sh
-
-# Full linting (includes pylint)
-./scripts/lint.sh
-
-# Or run tools individually:
-python3 -m ruff check --fix custom_components/home_agent/
-python3 -m ruff format custom_components/home_agent/
-python3 -m pylint custom_components/home_agent/
+```yaml
+# configuration.yaml
+home_agent:
+  tools_custom:
+    - name: check_weather
+      description: "Get weather forecast"
+      handler:
+        type: rest
+        url: "https://api.open-meteo.com/v1/forecast"
+        method: GET
+        query_params:
+          latitude: "47.6062"
+          longitude: "-122.3321"
+          current: "temperature_2m,precipitation"
 ```
 
-### Running Tests
-
-```bash
-# Set up virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements_dev.txt
-
-# Run tests
-pytest tests/unit/ -v
-
-# With coverage
-pytest tests/unit/ --cov=custom_components.home_agent --cov-report=html
-```
-
-### Project Structure
-
-```
-custom_components/home_agent/
-├── __init__.py              # Component initialization
-├── agent.py                 # Main conversation agent
-├── config_flow.py           # UI configuration
-├── const.py                 # Constants
-├── context_manager.py       # Context injection orchestration
-├── conversation.py          # History management
-├── exceptions.py            # Custom exceptions
-├── helpers.py               # Utility functions
-├── manifest.json            # Component metadata
-├── services.yaml            # Service definitions
-├── strings.json             # UI text
-├── tool_handler.py          # Tool execution orchestration
-├── context_providers/       # Context injection strategies
-│   ├── base.py             # Base provider interface
-│   └── direct.py           # Direct entity injection
-├── tools/                   # Tool implementations
-│   ├── registry.py         # Tool registry
-│   ├── ha_control.py       # Home Assistant control
-│   └── ha_query.py         # Home Assistant queries
-└── translations/            # Localization
-    └── en.json
-```
+**For more examples, see [Examples Documentation](docs/EXAMPLES.md)**
 
 ## Contributing
 
 Contributions are welcome! Please:
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Write tests for new functionality
-4. Ensure all tests pass
-5. Follow the development standards in `docs/DEVELOPMENT.md`
+4. Ensure all tests pass (`pytest tests/`)
+5. Follow the coding standards in [Development Guide](docs/DEVELOPMENT.md)
 6. Submit a pull request
 
 ## Testing
 
-This project maintains >80% code coverage with comprehensive unit and integration tests.
+Home Agent maintains >80% code coverage with comprehensive unit and integration tests:
 
-**Current Test Status:**
+```bash
+# Set up environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements_dev.txt
 
-- ✅ 400+ passing unit tests
-- ✅ 16+ integration tests
-- ✅ Comprehensive coverage of core functionality including:
-  - Phase 1: LLM integration, context injection, history, core tools
-  - Phase 2: Vector DB, persistence, optimization
-  - Phase 3: Custom tools (REST + Service handlers), external LLM
-- ✅ Mock-based testing for fast execution
+# Run tests
+pytest tests/unit/ -v
 
-## Documentation
+# Run with coverage
+pytest tests/ --cov=custom_components.home_agent --cov-report=html
+```
 
-- [Project Specification](docs/PROJECT_SPEC.md) - Complete feature specifications
-- [Development Standards](docs/DEVELOPMENT.md) - Coding standards and test requirements
+**Test Status**: 400+ passing tests across core functionality, vector DB, memory system, custom tools, and streaming.
 
-## Troubleshooting
+## Support
 
-### LLM Connection Issues
-
-- Verify your API endpoint is accessible
-- Check API key is correct
-- Ensure model name is valid for your endpoint
-- Check Home Assistant logs for detailed error messages
-
-### Tool Execution Failures
-
-- Verify entities are exposed to the agent
-- Check entity IDs are correct
-- Ensure required integrations (like recorder for history) are available
-
-### Debug Mode
-
-Enable debug logging in the integration options to see detailed execution logs.
+- **Issues**: [GitHub Issues](https://github.com/aradlein/home-agent/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/aradlein/home-agent/discussions)
+- **Documentation**: See [docs/](docs/) directory
 
 ## License
 
@@ -985,41 +222,35 @@ Enable debug logging in the integration options to see detailed execution logs.
 
 ## Credits
 
-Built with inspiration from the extended_openai_conversation integration.
-
-## Support
-
-- [GitHub Issues](https://github.com/yourusername/home-agent/issues)
-- [GitHub Discussions](https://github.com/yourusername/home-agent/discussions)
+Built with inspiration from the extended_openai_conversation integration. Special thanks to the Home Assistant community.
 
 ## Changelog
 
-### 0.3.0 (Phase 3)
+### v0.4.2-beta (Latest)
+- Streaming response support for voice assistants
+- Tool progress indicators
+- Automatic fallback to synchronous mode
+- ~10x latency improvement for TTS integration
 
-- Custom tool framework with REST and service handlers
-- Define custom tools in `configuration.yaml`
-- REST API integration with template support
-- Home Assistant service tool integration
-- External LLM delegation via `query_external_llm` tool
-- Comprehensive error handling and validation
-- Standardized tool response format
+### v0.4.0
+- Long-term memory system with automatic extraction
+- Memory management services
+- Memory context provider for enhanced responses
 
-### 0.2.0 (Phase 2)
+### v0.3.0
+- Custom tool framework (REST + Service handlers)
+- External LLM delegation tool
+- Comprehensive error handling
 
-- Vector DB (ChromaDB) integration for semantic entity search
-- Conversation history persistence across restarts
-- Context optimization with smart compression
-- Enhanced event system with performance metrics
-- Entity prioritization and relevance ranking
-- Token usage tracking and optimization
+### v0.2.0
+- Vector DB (ChromaDB) integration
+- History persistence across restarts
+- Context optimization and compression
+- Enhanced event system
 
-### 0.1.0 (Phase 1 MVP)
-
+### v0.1.0 (MVP)
 - Initial release
 - OpenAI-compatible LLM integration
-- Direct context injection
-- Conversation history
 - Core tools (ha_control, ha_query)
+- Conversation history
 - UI configuration
-- Service endpoints
-- Event system
