@@ -691,24 +691,42 @@ Now respond to the user's request:
 
 ## 12. Development Phases
 
-### Phase 1: Foundation (MVP)
-- [ ] Core architecture setup
-- [ ] Home Assistant ConversationEntity implementation
-- [ ] OpenAI-compatible API client
-- [ ] Direct entity context injection
-- [ ] Basic conversation history management
-- [ ] Core tools: ha_control and ha_query
-- [ ] Default system prompt
-- [ ] Configuration flow (basic)
-- [ ] Basic error handling
+### Phase 1: Foundation (MVP) ✅ COMPLETE
+- [x] Core architecture setup
+- [x] Home Assistant ConversationEntity implementation
+- [x] OpenAI-compatible API client
+- [x] Direct entity context injection
+- [x] Basic conversation history management
+- [x] Core tools: ha_control and ha_query
+- [x] Default system prompt
+- [x] Configuration flow (basic)
+- [x] Basic error handling and exceptions system
+- [x] Comprehensive test coverage (376+ tests passing)
 
-### Phase 2: Enhanced Context & History
-- [ ] Vector DB (Chroma) integration
-- [ ] Configurable context strategies
-- [ ] Advanced history management (token limits, persistence)
-- [ ] Context optimization and compression
-- [ ] Event system implementation
-- [ ] Enhanced configuration UI
+**Implementation Files:**
+- `agent.py` - Main agent class (ConversationEntity)
+- `tools/ha_control.py` - Control tool
+- `tools/ha_query.py` - Query tool
+- `config_flow.py` - Configuration UI
+- `context_manager.py` - Context injection
+- `conversation.py` - History management
+- `tool_handler.py` - Tool execution
+- `exceptions.py` - Custom exception definitions
+
+### Phase 2: Enhanced Context & History ✅ COMPLETE
+- [x] Vector DB (Chroma) integration
+- [x] Configurable context strategies (direct vs vector DB)
+- [x] Advanced history management (token limits, persistence)
+- [x] Context optimization and compression
+- [x] Event system implementation
+- [x] Enhanced configuration UI with menu-based options
+
+**Implementation Files:**
+- `vector_db_manager.py` - Vector DB integration
+- `context_optimizer.py` - Context compression
+- `context_providers/vector_db.py` - Vector DB provider
+- Services: `reindex_entities`, `index_entity`
+- Events: `EVENT_CONTEXT_OPTIMIZED`, `EVENT_HISTORY_SAVED`, `EVENT_VECTOR_DB_QUERIED`
 
 ### Phase 3: External LLM Tool & Custom Tools ✅ COMPLETE
 - [x] **External LLM Tool (`query_external_llm`)**
@@ -750,62 +768,78 @@ home_agent:
           Authorization: "Bearer {{ weather_api_key }}"
 ```
 
-### Phase 3.5: Long-Term Memory System
-- [ ] **Core Memory Manager**
+### Phase 3.5: Long-Term Memory System ✅ COMPLETE
+- [x] **Core Memory Manager**
   - Persistent storage using Home Assistant Store (`.storage/home_agent.memories`)
-  - ChromaDB indexing for semantic search (collection: `home_agent_memories`)
+  - ChromaDB indexing for semantic search (collection: configurable via `CONF_MEMORY_COLLECTION_NAME`)
   - Memory data structure with metadata:
-    - `id`: Unique memory identifier
+    - `id`: Unique memory identifier (UUID)
     - `type`: fact, preference, context, event
     - `content`: The actual memory text
     - `source_conversation_id`: Origin conversation
     - `extracted_at`: Timestamp
     - `last_accessed`: Last retrieval time
-    - `importance`: Score 0.0-1.0
+    - `importance`: Score 0.0-1.0 with access boost (0.05)
     - `metadata`: Additional context (entities, topics, etc.)
-  - Deduplication and consolidation logic
-  - Importance scoring and optional decay
-  - Memory retention policies
-- [ ] **Automatic Memory Extraction**
-  - Post-conversation hook triggered by `EVENT_CONVERSATION_FINISHED`
-  - **Configurable LLM selection**: Use external LLM OR local LLM for extraction
-  - Extraction prompt: Analyze conversation and extract facts/preferences
-  - Parse structured JSON response from LLM
-  - Store extracted memories in MemoryManager + ChromaDB
-  - Error handling for extraction failures
-- [ ] **Manual Memory Tools**
+    - `expires_at`: TTL support for transient memories
+    - `is_transient`: Flag for temporary memories
+  - Deduplication logic with configurable similarity threshold (`CONF_MEMORY_DEDUP_THRESHOLD`)
+  - Importance scoring with access boost and optional decay (`CONF_MEMORY_IMPORTANCE_DECAY`)
+  - Memory retention policies with per-type TTL settings
+  - Periodic cleanup task for expired memories (`CONF_MEMORY_CLEANUP_INTERVAL`)
+  - **Implementation**: `memory_manager.py` (887 lines)
+- [x] **Automatic Memory Extraction**
+  - Post-conversation hook triggered by conversation completion in `agent.py`
+  - **Configurable LLM selection**: Use external LLM OR local LLM for extraction (`CONF_MEMORY_EXTRACTION_LLM`)
+  - Extraction prompt builder (`_build_extraction_prompt()`) with conversation context
+  - Parse structured JSON response from LLM with markdown code block handling
+  - Store extracted memories in MemoryManager + ChromaDB indexing
+  - Error handling for extraction failures with event firing
+  - Event: `EVENT_MEMORY_EXTRACTED` with extraction details
+  - **Implementation**: `agent.py` lines 1226-1587
+- [x] **Manual Memory Tools**
   - `store_memory` tool: Explicitly save a fact/preference during conversation
-  - `recall_memory` tool: Search and retrieve relevant memories
+  - `recall_memory` tool: Search and retrieve relevant memories semantically
   - Standardized response format: `{success, result, error}`
-  - Tool definitions exposed to primary LLM
-- [ ] **Memory Context Integration**
-  - `MemoryContextProvider` for semantic search
-  - Integrate with `ContextManager` to inject relevant memories
-  - Query ChromaDB based on user input
-  - Format memories for system prompt injection
-  - Track access patterns (update `last_accessed`)
-  - Configurable top-K retrieval and minimum importance threshold
-- [ ] **Memory Management UI & Services**
-  - Configuration options in `config_flow.py`:
-    - Enable/disable memory system (privacy toggle)
-    - Enable/disable automatic extraction
-    - Choose extraction LLM (external vs local)
-    - Max memories limit
-    - Minimum importance threshold
-    - Memory collection name
-  - Home Assistant services:
+  - Tool definitions exposed to primary LLM in tool registry
+  - **Implementation**: `tools/memory_tools.py`
+- [x] **Memory Context Integration**
+  - `MemoryContextProvider` for semantic search via ChromaDB
+  - Integrate with `ContextManager` to inject relevant memories into system prompt
+  - Query ChromaDB based on user input for relevant recall
+  - Format memories for system prompt injection with metadata
+  - Track access patterns (updates `last_accessed` timestamp)
+  - Configurable top-K retrieval (`CONF_MEMORY_CONTEXT_TOP_K`)
+  - Importance threshold filtering (`CONF_MEMORY_MIN_IMPORTANCE`)
+  - **Implementation**: `context_providers/memory.py`
+- [x] **Memory Management UI & Services**
+  - Configuration options in `const.py`:
+    - `CONF_MEMORY_ENABLED` - Enable/disable memory system (privacy toggle)
+    - `CONF_MEMORY_EXTRACTION_ENABLED` - Enable/disable automatic extraction
+    - `CONF_MEMORY_EXTRACTION_LLM` - Choose extraction LLM ("external" or "local")
+    - `CONF_MEMORY_MAX_MEMORIES` - Max memories limit
+    - `CONF_MEMORY_MIN_IMPORTANCE` - Minimum importance threshold
+    - `CONF_MEMORY_COLLECTION_NAME` - ChromaDB collection name
+    - `CONF_MEMORY_IMPORTANCE_DECAY` - Optional decay rate
+    - `CONF_MEMORY_DEDUP_THRESHOLD` - Deduplication similarity threshold
+    - `CONF_MEMORY_CONTEXT_TOP_K` - Number of memories to inject
+    - `CONF_MEMORY_EVENT_TTL`, `CONF_MEMORY_FACT_TTL`, etc. - Per-type TTL settings
+    - `CONF_MEMORY_CLEANUP_INTERVAL` - Cleanup task frequency
+  - Home Assistant services (in `services.yaml`):
     - `home_agent.list_memories` - List all stored memories
     - `home_agent.delete_memory` - Delete specific memory by ID
-    - `home_agent.clear_memories` - Clear all memories
+    - `home_agent.clear_memories` - Clear all memories (with confirmation)
     - `home_agent.search_memories` - Manually search memories
-  - Integration UI to view and manage memories
-- [ ] **Configuration & Testing**
-  - Add memory-related constants to `const.py`
+    - `home_agent.add_memory` - Manually add a memory
+  - Configuration UI integration in `config_flow.py` (Memory System menu)
+- [x] **Configuration & Testing**
+  - Memory-related constants added to `const.py`
   - Default values for all memory settings
-  - Unit tests for MemoryManager
-  - Unit tests for memory extraction
-  - Integration tests for context injection
-  - Documentation and examples
+  - Unit tests: `test_memory_manager.py`, `test_memory_extraction.py`, `test_memory_tools.py`
+  - Service tests: `test_memory_services.py`
+  - Context provider tests: `test_memory_context_provider.py`
+  - Integration tests for memory + conversation flows
+  - **Test Coverage**: >80% for memory system code
 
 **Memory Scope:** Global (shared across all users and conversations)
 
@@ -930,31 +964,254 @@ home_agent:
 ```
 
 ### Phase 6: Performance & Reliability
-- [ ] Caching layer implementation
-- [ ] Rate limiting and quota management
-- [ ] Enhanced error handling and recovery
-- [ ] Comprehensive testing suite
-- [ ] Performance benchmarking and tuning
+- [ ] **Caching Layer Implementation**
+  - LLM response caching with configurable TTL
+    - Cache identical prompts + context combinations
+    - Configurable cache size and eviction policy (LRU)
+    - Cache key generation based on prompt hash + model + temperature
+    - Bypass cache option for time-sensitive queries
+  - Template rendering results caching
+    - Cache Jinja2 template compilation
+    - Cache rendered system prompts for repeated context
+  - Entity state snapshot caching
+    - Short-lived cache (30-60s) for entity states
+    - Reduce Home Assistant state API calls
+    - Invalidate on state change events
+  - ChromaDB query result caching
+    - Cache vector search results for similar queries
+    - Configurable similarity threshold for cache hits
+- [ ] **Rate Limiting and Quota Management**
+  - Per-user conversation limits
+    - Max conversations per hour/day per user
+    - Configurable limits via UI
+    - Grace period for admin users
+  - Function execution throttling
+    - Max tool calls per conversation turn (already implemented)
+    - Max tool calls per minute per user
+    - Cooldown periods for expensive operations
+  - API call rate limiting
+    - LLM API rate limiting with respect to provider limits
+    - Exponential backoff on rate limit errors
+    - Queue system for pending requests
+  - Token usage quotas
+    - Per-user daily/monthly token limits
+    - Token usage tracking and reporting
+    - Warning notifications at 80% quota
+    - Configurable quota reset periods
+- [ ] **Enhanced Error Handling and Recovery**
+  - Automatic retry with exponential backoff
+    - Retry on transient errors (503, timeout, connection errors)
+    - Configurable max retry attempts (default: 3)
+    - Exponential backoff: 1s, 2s, 4s, etc.
+    - Circuit breaker pattern for repeated failures
+  - Fallback to alternative providers
+    - Secondary LLM endpoint configuration
+    - Automatic failover on primary failure
+    - Health check system for providers
+    - Manual provider selection override
+  - Graceful degradation
+    - Disable specific tools on repeated failures
+    - Reduce context size on token limit errors
+    - Fallback to simpler responses on tool failures
+    - User-friendly error messages
+  - Error notification system
+    - Persistent notification in Home Assistant UI
+    - Optional notification via notify service
+    - Detailed error logging with context
+- [ ] **Performance Benchmarking and Tuning**
+  - Benchmarking tools
+    - Response time measurement per phase (context, LLM, tools)
+    - Token usage tracking and reporting
+    - Tool execution latency monitoring
+    - Memory usage profiling
+  - Performance metrics collection
+    - Average response time by query type
+    - P50, P95, P99 latency percentiles
+    - Token efficiency metrics (tokens per response)
+    - Cache hit rate monitoring
+  - Automated performance testing
+    - Regression tests for performance
+    - Load testing scenarios
+    - Stress testing for concurrent conversations
+  - Optimization targets
+    - < 2s response time for simple queries (no tools)
+    - < 5s response time for complex queries (with tools)
+    - > 50% cache hit rate for repeated queries
+    - > 99% uptime for core functionality
 
 ### Phase 7: Polish & Production Ready
-- [ ] Complete documentation
-- [ ] User guides and examples
-- [ ] Migration tools (if needed)
-- [ ] Security audit
-- [ ] HACS integration
-- [ ] Community feedback iteration
-- [ ] Release preparation
+- [ ] **Complete Documentation**
+  - Comprehensive user documentation
+    - Installation guide (HACS + manual installation)
+    - Initial setup and configuration walkthrough
+    - LLM provider setup guides (OpenAI, Ollama, LocalAI, etc.)
+    - Feature guide for each major feature
+    - Configuration reference (all options explained)
+  - Memory system documentation
+    - User guide for memory features
+    - How memory extraction works
+    - Configuring memory settings
+    - Managing memories via services
+    - Privacy and data retention information
+  - Vector DB setup guide
+    - ChromaDB installation and configuration
+    - Embedding model selection
+    - Indexing entities for vector search
+    - Troubleshooting vector DB issues
+  - Troubleshooting guide
+    - Common issues and solutions
+    - LLM connection problems
+    - Tool execution errors
+    - Memory/vector DB issues
+    - Debugging techniques
+  - API reference documentation
+    - Service call documentation
+    - Event schema reference
+    - Configuration schema reference
+    - Tool development guide
+  - Example automations and use cases
+    - Voice assistant integration examples
+    - Automation triggers using events
+    - Multi-LLM workflow examples
+    - Custom tool examples
+  - FAQ section
+    - Common questions about features
+    - Performance and cost considerations
+    - Comparison with extended_openai_conversation
+    - Privacy and security FAQs
+- [ ] **Migration Tools and Guides**
+  - Migration from extended_openai_conversation
+    - Configuration import tool
+    - Function definition converter (REST/service)
+    - Step-by-step migration guide
+    - Breaking changes documentation
+    - Compatibility mode (if needed)
+  - Version migration tools
+    - Database schema migrations
+    - Configuration format updates
+    - Deprecation warnings
+- [ ] **Security Audit**
+  - Code security review
+    - Input validation audit
+    - API key handling verification
+    - Entity access control review
+    - SQL injection prevention (if applicable)
+  - Dependency security audit
+    - Check for known vulnerabilities
+    - Pin dependency versions
+    - Regular security updates
+  - Privacy review
+    - Data retention policies
+    - Memory storage security
+    - Conversation history encryption (optional)
+    - GDPR compliance considerations
+  - Penetration testing
+    - API endpoint security testing
+    - Authentication bypass attempts
+    - Rate limiting effectiveness
+    - Tool execution sandbox verification
+- [ ] **HACS Integration**
+  - HACS compliance checklist
+    - Repository structure validation
+    - manifest.json compliance
+    - Version tagging strategy
+    - Changelog maintenance
+  - HACS submission
+    - Submit to HACS default repository
+    - Category assignment (integration)
+    - Documentation URL configuration
+    - Issue tracker setup
+  - Release workflow
+    - GitHub Actions for releases
+    - Automated version bumping
+    - Release notes generation
+    - Asset packaging
+- [ ] **Community Feedback and Iteration**
+  - Beta testing program
+    - Recruit beta testers from community
+    - Gather feedback on usability
+    - Identify edge cases and bugs
+    - Performance testing on diverse setups
+  - Issue tracking and management
+    - GitHub issue templates
+    - Bug triage process
+    - Feature request management
+    - Community contribution guidelines
+  - Community engagement
+    - Home Assistant forums thread
+    - Discord/Reddit presence
+    - Release announcements
+    - User testimonials and case studies
+- [ ] **Release Preparation**
+  - Pre-release checklist
+    - All tests passing (>80% coverage)
+    - Documentation complete and reviewed
+    - Security audit passed
+    - Performance benchmarks met
+    - HACS compliance verified
+  - Release strategy
+    - Semantic versioning policy
+    - Breaking change communication
+    - Deprecation timeline
+    - Support policy (versions supported)
+  - Initial release (v1.0.0)
+    - Release notes highlighting features
+    - Upgrade instructions
+    - Known issues documentation
+    - Community announcement
+  - Post-release monitoring
+    - Issue response SLA
+    - Performance monitoring
+    - User feedback collection
+    - Hotfix process
 
 ---
 
 ## 13. Success Metrics
 
-- **Functionality:** All function types working reliably
-- **Performance:** < 2s response time for simple queries
+### Current Status (as of 2025-11-02)
+- **Code Quality:** ✅ **400+ tests passing**, >80% test coverage achieved
+  - Phase 1-2: 376+ unit tests
+  - Phase 3: 95.58% coverage (76 unit + 23 integration tests)
+  - Phase 3.5: 6+ memory test files
+  - Phase 4: 26 streaming tests (16 unit + 10 integration)
+- **Functionality:** ✅ Phases 1-4 + 3.5 complete and tested
+- **Performance:** ⏳ In Progress
+  - Streaming: First audio chunk ~500ms (Phase 4)
+  - Target: < 2s response time for simple queries
+  - Target: < 5s response time for complex queries
+- **Reliability:** ⏳ In Progress
+  - Basic error handling implemented
+  - Target: > 99% uptime for core features
+  - Missing: Rate limiting, caching, automatic retry
+- **User Satisfaction:** ⏳ Not yet measured
+  - Pre-release phase
+  - Beta testing not started
+  - Community feedback pending
+- **Adoption:** ⏳ Not yet released
+  - HACS integration pending (Phase 7)
+  - Installation metrics pending release
+- **Security:** ⏳ In Progress
+  - Entity access control implemented
+  - API key handling secure
+  - Security audit pending (Phase 7)
+
+### Target Metrics (Phase 7)
+- **Functionality:** All function types working reliably across all phases
+- **Performance:**
+  - < 2s response time for simple queries (no tools)
+  - < 5s response time for complex queries (with tools)
+  - > 50% cache hit rate for repeated queries
 - **Reliability:** > 99% uptime for core features
-- **User Satisfaction:** Positive community feedback
-- **Adoption:** Installation and usage metrics
-- **Code Quality:** > 80% test coverage
+- **User Satisfaction:** Positive community feedback and testimonials
+- **Adoption:**
+  - HACS installation available
+  - 100+ active installations within 3 months
+  - Active community engagement (issues, PRs, discussions)
+- **Code Quality:**
+  - Maintain > 80% test coverage
+  - All critical paths covered
+  - No security vulnerabilities
 
 ---
 
@@ -1176,6 +1433,6 @@ emit_events: true
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2025-10-25
-**Status:** Initial Draft
+**Document Version:** 2.0
+**Last Updated:** 2025-11-02
+**Status:** Active Development - Phases 1-4 + 3.5 Complete
