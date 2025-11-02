@@ -12,6 +12,8 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.components import conversation as ha_conversation
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.helpers.event import async_track_time_interval
@@ -81,9 +83,7 @@ class VectorDBManager:
         # ChromaDB configuration
         self.host = config.get(CONF_VECTOR_DB_HOST, DEFAULT_VECTOR_DB_HOST)
         self.port = config.get(CONF_VECTOR_DB_PORT, DEFAULT_VECTOR_DB_PORT)
-        self.collection_name = config.get(
-            CONF_VECTOR_DB_COLLECTION, DEFAULT_VECTOR_DB_COLLECTION
-        )
+        self.collection_name = config.get(CONF_VECTOR_DB_COLLECTION, DEFAULT_VECTOR_DB_COLLECTION)
 
         # Embedding configuration
         self.embedding_model = config.get(
@@ -227,6 +227,11 @@ class VectorDBManager:
         try:
             await self._ensure_initialized()
 
+            # Skip entities that shouldn't be indexed
+            if self._should_skip_entity(entity_id):
+                _LOGGER.debug("Skipping non-exposed entity: %s", entity_id)
+                return
+
             # Get entity state
             state = self.hass.states.get(entity_id)
             if state is None:
@@ -277,9 +282,7 @@ class VectorDBManager:
         try:
             await self._ensure_initialized()
 
-            await self.hass.async_add_executor_job(
-                lambda: self._collection.delete(ids=[entity_id])
-            )
+            await self.hass.async_add_executor_job(lambda: self._collection.delete(ids=[entity_id]))
 
             _LOGGER.debug("Removed entity from index: %s", entity_id)
 
@@ -329,9 +332,7 @@ class VectorDBManager:
             _LOGGER.debug("Running vector DB maintenance")
 
             # Get all indexed entity IDs
-            result = await self.hass.async_add_executor_job(
-                lambda: self._collection.get()
-            )
+            result = await self.hass.async_add_executor_job(lambda: self._collection.get())
 
             if not result or "ids" not in result:
                 return
@@ -369,6 +370,11 @@ class VectorDBManager:
 
         # Skip persistent notification entities
         if entity_id.startswith("persistent_notification."):
+            return True
+
+        # Skip entities that are not exposed to conversation/voice assistant
+        # This ensures we only index entities the user has explicitly exposed
+        if not async_should_expose(self.hass, ha_conversation.DOMAIN, entity_id):
             return True
 
         return False
@@ -445,9 +451,7 @@ class VectorDBManager:
                 )
                 _LOGGER.debug("ChromaDB client connected to %s:%s", self.host, self.port)
             except Exception as err:
-                raise ContextInjectionError(
-                    f"Failed to connect to ChromaDB: {err}"
-                ) from err
+                raise ContextInjectionError(f"Failed to connect to ChromaDB: {err}") from err
 
         if self._collection is None:
             try:
@@ -462,9 +466,7 @@ class VectorDBManager:
                 self._collection = await self.hass.async_add_executor_job(get_collection)
                 _LOGGER.debug("ChromaDB collection ready")
             except Exception as err:
-                raise ContextInjectionError(
-                    f"Failed to access collection: {err}"
-                ) from err
+                raise ContextInjectionError(f"Failed to access collection: {err}") from err
 
     async def _embed_text(self, text: str) -> list[float]:
         """Embed text using configured embedding model.
@@ -511,8 +513,7 @@ class VectorDBManager:
 
         if not self.openai_api_key:
             raise ContextInjectionError(
-                "OpenAI API key not configured. "
-                "Please configure it in Vector DB settings."
+                "OpenAI API key not configured. " "Please configure it in Vector DB settings."
             )
 
         # Set API key for OpenAI client
