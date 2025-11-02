@@ -1,6 +1,19 @@
 # Home Agent
 
+[![Version](https://img.shields.io/badge/version-0.4.3--beta-blue.svg)](https://github.com/yourusername/home-agent/releases)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1.0+-blue.svg)](https://www.home-assistant.io/)
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
+
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
+
+## What's New in v0.4.3-beta
+
+🎨 **New Integration Icon** - Professional icon now displays in Home Assistant UI
+🔒 **Entity Privacy Fix** - Vector DB now only indexes exposed entities (respects voice assistant settings)
+📦 **HACS Support** - Easy installation via HACS custom repositories
+🚀 **Automated Releases** - GitHub Actions for version management and releases
+
+[View Full Changelog](https://github.com/yourusername/home-agent/releases)
 
 ## Overview
 
@@ -52,14 +65,22 @@ Home Agent extends Home Assistant's native conversation platform to enable natur
 
 ## Installation
 
-### HACS (Recommended - Coming Soon)
+### HACS (Recommended)
 
-1. Open HACS in Home Assistant
-2. Search for "Home Agent"
-3. Click Install
-4. Restart Home Assistant
-5. Go to Settings > Devices & Services > Add Integration
-6. Search for "Home Agent" and follow the setup wizard
+**For private repository installation:**
+
+1. Generate a GitHub Personal Access Token with `repo` scope
+2. In HACS, go to **Integrations** → **⋮** → **Custom repositories**
+3. Add repository: `https://YOUR_TOKEN@github.com/YOUR_USERNAME/home-agent`
+4. Category: **Integration**
+5. Click **Add**
+6. Search for "Home Agent" in HACS
+7. Click Install
+8. Restart Home Assistant
+9. Go to Settings > Devices & Services > Add Integration
+10. Search for "Home Agent" and follow the setup wizard
+
+**See [HACS Private Installation Guide](docs/HACS_PRIVATE_INSTALL.md) for detailed instructions.**
 
 ### Manual Installation
 
