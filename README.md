@@ -111,26 +111,29 @@ Access Settings > Devices & Services > Home Agent > Configure to:
 
 ## Documentation
 
-### Getting Started
-- [Installation Guide](docs/INSTALLATION.md) - Detailed installation and initial setup
-- [Configuration Reference](docs/CONFIGURATION.md) - Complete configuration options
-- [FAQ](docs/FAQ.md) - Frequently asked questions
+### Quick Start Guides
+- [Installation](docs/INSTALLATION.md) - Get up and running in minutes
+- [Configuration](docs/CONFIGURATION.md) - Essential settings explained
+- [FAQ](docs/FAQ.md) - Top 20 questions answered
 
-### Features
-- [Memory System Guide](docs/MEMORY_SYSTEM.md) - Long-term memory configuration and usage
-- [Vector DB Setup](docs/VECTOR_DB_SETUP.md) - ChromaDB integration for semantic search
-- [Custom Tools](docs/CUSTOM_TOOLS.md) - Creating custom REST and service tools
-- [External LLM](docs/EXTERNAL_LLM.md) - Multi-LLM workflow patterns
+### Feature Guides
+- [Memory System](docs/MEMORY_SYSTEM.md) - Enable long-term memory
+- [Vector DB Setup](docs/VECTOR_DB_SETUP.md) - Semantic entity search
+- [Custom Tools](docs/CUSTOM_TOOLS.md) - Extend with REST APIs and services
+- [External LLM](docs/EXTERNAL_LLM.md) - Multi-LLM workflows
 
 ### Reference
 - [API Reference](docs/API_REFERENCE.md) - Services, events, and tools
-- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
-- [Examples](docs/EXAMPLES.md) - Automation examples and use cases
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - Quick fixes for common issues
+- [Examples](docs/EXAMPLES.md) - 10 ready-to-use examples
+- [Migration Guide](docs/MIGRATION.md) - Moving from extended_openai_conversation
+
+### Complete Reference
+For comprehensive documentation, see [docs/reference/](docs/reference/) for detailed guides covering all configuration options, advanced scenarios, and troubleshooting.
 
 ### For Developers
-- [Project Specification](docs/PROJECT_SPEC.md) - Technical specifications and roadmap
-- [Development Standards](docs/DEVELOPMENT.md) - Code quality and testing requirements
-- [Migration Guide](docs/MIGRATION.md) - Migrating from extended_openai_conversation
+- [Project Specification](.claude/docs/PROJECT_SPEC.md) - Technical specs and roadmap
+- [Development Standards](.claude/docs/DEVELOPMENT.md) - Code quality and testing
 
 ## Usage Examples
 

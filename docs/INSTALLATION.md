@@ -1,359 +1,156 @@
-# Home Agent Installation Guide
+# Home Agent Installation - Quick Start
 
 ## Overview
 
-Home Agent is a highly customizable Home Assistant custom component that extends conversational AI capabilities with advanced tool execution, context injection, and intelligent automation management. This guide will help you install and configure Home Agent for the first time.
-
-## What is Home Agent?
-
-Home Agent integrates with Home Assistant's native conversation platform to provide:
-
-- **OpenAI-Compatible LLM Integration** - Works with OpenAI, Ollama, LocalAI, LM Studio, and any OpenAI-compatible endpoint
-- **Smart Context Injection** - Automatically provides relevant entity states to the LLM using direct or semantic vector search
-- **Conversation History** - Maintains context across multiple interactions
-- **Tool Calling** - Native Home Assistant control and query capabilities
-- **Long-Term Memory** - Remembers facts, preferences, and events across conversations
-- **Streaming Responses** - Low-latency TTS integration for real-time voice interaction
+Home Agent is a Home Assistant custom component that brings advanced conversational AI capabilities with tool execution, context injection, and intelligent automation management. Works with OpenAI, Ollama, LocalAI, and any OpenAI-compatible endpoint.
 
 ## Prerequisites
 
-### Minimum Requirements
+- Home Assistant 2024.1.0 or later
+- Network access to your chosen LLM endpoint (cloud or local)
+- Optional: ChromaDB server (for vector search and memory features)
 
-- **Home Assistant Version**: 2024.1.0 or later
-- **Python Version**: 3.11+ (included with Home Assistant)
-- **Network Access**: Connection to your chosen LLM endpoint (cloud or local)
+## HACS Installation (Coming Soon)
 
-### Required Dependencies
+1. Open Home Assistant and navigate to **HACS** in the sidebar
+2. Click **Integrations** then the **+** button
+3. Search for **Home Agent**
+4. Click **Download**
+5. Restart Home Assistant
 
-The following dependencies are automatically installed with Home Agent:
+Note: Currently in development. Use manual installation below.
 
-- `aiohttp >= 3.9.0` - HTTP client for LLM API calls
-- `chromadb-client == 1.3.0` - Vector database client (optional, for semantic search)
+## Manual Installation
 
-### Optional Dependencies
-
-For advanced features, you may want to set up:
-
-- **ChromaDB Server** - For vector-based semantic entity search and memory storage
-  - Enables dynamic context injection based on query relevance
-  - Required for long-term memory system
-  - Docker installation recommended
-- **OpenAI API Key** - For embedding generation (if using ChromaDB with OpenAI embeddings)
-  - Alternative: Use Ollama for local embeddings (no API key needed)
-
-## Installation Methods
-
-### HACS Installation (Recommended - Coming Soon)
-
-HACS (Home Assistant Community Store) is the easiest way to install and update Home Agent.
-
-**Note**: Home Agent is not yet available in the default HACS repository. Manual installation is currently required.
-
-Once available in HACS:
-
-1. Open Home Assistant
-2. Navigate to **HACS** in the sidebar
-3. Click **Integrations**
-4. Click the **+** button in the bottom right
-5. Search for "**Home Agent**"
-6. Click **Download**
-7. Restart Home Assistant
-8. Continue to [Initial Configuration](#initial-configuration)
-
-### Manual Installation
-
-If HACS is not available or you prefer manual installation:
-
-1. **Download the Integration**
-
-   Download the latest release from GitHub or clone the repository:
-
+1. **Clone or download** the repository:
    ```bash
-   cd /config  # Your Home Assistant config directory
+   cd /config
    git clone https://github.com/yourusername/home-agent.git
    ```
 
-2. **Copy Files to Custom Components**
-
-   Copy the `custom_components/home_agent` directory to your Home Assistant `custom_components` folder:
-
+2. **Copy to custom components**:
    ```bash
    cp -r home-agent/custom_components/home_agent /config/custom_components/
    ```
 
-   Your directory structure should look like:
-
-   ```
-   /config/
-   ├── custom_components/
-   │   └── home_agent/
-   │       ├── __init__.py
-   │       ├── agent.py
-   │       ├── config_flow.py
-   │       ├── manifest.json
-   │       └── ... (other files)
-   ├── configuration.yaml
-   └── ... (other files)
-   ```
-
-3. **Verify Installation**
-
-   Check that the files are in place:
-
+3. **Verify files are in place**:
    ```bash
    ls -la /config/custom_components/home_agent/
    ```
 
-   You should see the integration files listed.
-
-4. **Restart Home Assistant**
-
-   Restart Home Assistant to load the new integration:
-
-   - Navigate to **Settings** > **System** > **Restart**
-   - Or use the command line: `ha core restart`
+4. **Restart Home Assistant** via Settings > System > Restart
 
 ## Initial Configuration
 
-### Adding the Integration
+### Add the Integration
 
-1. **Open Home Assistant**
+1. Navigate to **Settings** > **Devices & Services**
+2. Click **+ Add Integration** and search for **Home Agent**
+3. Configure the primary LLM:
 
-   Navigate to **Settings** > **Devices & Services**
-
-2. **Add Integration**
-
-   - Click the **+ Add Integration** button in the bottom right
-   - Search for "**Home Agent**"
-   - Click on the **Home Agent** integration
-
-3. **Configure Primary LLM**
-
-   You'll be presented with the initial configuration form:
-
-   | Field | Description | Example |
-   |-------|-------------|---------|
-   | **Name** | Friendly name for this instance | `Home Agent` |
-   | **LLM Base URL** | OpenAI-compatible API endpoint | See examples below |
-   | **API Key** | Authentication key for the LLM service | Your API key or leave blank for local models |
-   | **Model** | Model name to use | See examples below |
-   | **Temperature** | Creativity level (0.0-2.0) | `0.7` (default) |
-   | **Max Tokens** | Maximum response length | `500` (default) |
+| Field | Example Value |
+|-------|---------------|
+| Name | `Home Agent` |
+| LLM Base URL | `https://api.openai.com/v1` (OpenAI) or `http://localhost:11434/v1` (Ollama) |
+| API Key | Your API key (or leave blank for local models) |
+| Model | `gpt-4o-mini` (OpenAI) or `llama3.2:3b` (Ollama) |
+| Temperature | `0.7` |
+| Max Tokens | `500` |
 
 ### LLM Provider Examples
 
-#### OpenAI
+**OpenAI:**
+- Base URL: `https://api.openai.com/v1`
+- API Key: Your OpenAI API key (sk-...)
+- Model: `gpt-4o-mini` or `gpt-4o`
 
-For OpenAI's GPT models:
+**Ollama (Local):**
+- Install Ollama: `https://ollama.ai/download`
+- Pull model: `ollama pull llama3.2:3b`
+- Base URL: `http://localhost:11434/v1`
+- API Key: Leave blank
+- Model: `llama3.2:3b`
 
-- **Base URL**: `https://api.openai.com/v1`
-- **API Key**: Your OpenAI API key (e.g., `sk-...`)
-- **Model**: `gpt-4o-mini` (cost-effective) or `gpt-4o` (more capable)
-- **Temperature**: `0.7`
-- **Max Tokens**: `500`
-
-#### Ollama (Local)
-
-For locally-hosted Ollama models:
-
-- **Base URL**: `http://localhost:11434/v1`
-- **API Key**: Leave blank or enter `ollama`
-- **Model**: `llama3.2:3b` or `qwen2.5:7b` (any Ollama model)
-- **Temperature**: `0.7`
-- **Max Tokens**: `500`
-
-**Setup Ollama**:
-1. Install Ollama: `https://ollama.ai/download`
-2. Pull a model: `ollama pull llama3.2:3b`
-3. Ollama runs on port 11434 by default
-
-#### LocalAI
-
-For LocalAI installations:
-
-- **Base URL**: `http://localhost:8080/v1`
-- **API Key**: Leave blank or use configured key
-- **Model**: Name of your loaded model
-- **Temperature**: `0.7`
-- **Max Tokens**: `500`
-
-#### LM Studio
-
-For LM Studio local server:
-
-- **Base URL**: `http://localhost:1234/v1`
-- **API Key**: Leave blank
-- **Model**: Model name loaded in LM Studio
-- **Temperature**: `0.7`
-- **Max Tokens**: `500`
-
-### API Key Setup
-
-**For Cloud LLMs (OpenAI, etc.)**:
-- Obtain an API key from your provider
-- Keep it secure - it provides access to your account
-- Add billing information if required
-
-**For Local LLMs (Ollama, LocalAI)**:
-- No API key needed in most cases
-- Leave the field blank or enter a placeholder like `local`
-
-### Model Selection
-
-Choose a model based on your needs:
-
-| Model Type | Examples | Best For | Cost |
-|------------|----------|----------|------|
-| **Fast & Efficient** | `gpt-4o-mini`, `llama3.2:3b` | Quick responses, simple tasks | Low |
-| **Balanced** | `gpt-4o`, `qwen2.5:7b` | General use, good reasoning | Medium |
-| **Advanced** | `gpt-4-turbo`, `llama3.1:70b` | Complex analysis, detailed responses | High |
+Other providers (LocalAI, LM Studio) follow similar patterns - see reference docs for details.
 
 ## Basic Setup
 
-### Choosing Context Mode
+### Configure Context Mode
 
-After initial setup, configure how Home Agent provides entity context to the LLM:
+1. Go to **Settings** > **Devices & Services** > **Home Agent** > **Configure**
+2. Select **Context Settings**
+3. Choose your mode:
 
-1. **Go to Integration Options**
+**Direct Mode (Simple):**
+- Specify entities to always include
+- Enter comma-separated entity IDs:
+  ```
+  climate.*,sensor.temperature_*,light.bedroom
+  ```
+- Good for small setups or specific use cases
 
-   Navigate to **Settings** > **Devices & Services** > **Home Agent** > **Configure**
+**Vector DB Mode (Advanced):**
+- Requires ChromaDB server (see [VECTOR_DB_SETUP.md](VECTOR_DB_SETUP.md))
+- Automatically finds relevant entities via semantic search
+- Required for memory features
+- Better for large setups
 
-2. **Select Context Settings**
+### Enable Conversation History
 
-   Choose **Context Settings** from the menu
+1. Navigate to **Configure** > **History Settings**
+2. Configure:
+   - **Enable History**: On
+   - **Max Messages**: `10`
+   - **Max Tokens**: `4000`
 
-3. **Choose Context Mode**
+## Quick Test
 
-   - **Direct Mode** (default): Specify entities to always include
-     - Simple and reliable
-     - Lower latency
-     - Good for small setups or specific use cases
+Test your installation:
 
-   - **Vector DB Mode** (advanced): Semantic search for relevant entities
-     - Requires ChromaDB server (see [Vector DB Setup Guide](VECTOR_DB_SETUP.md))
-     - More efficient for large setups
-     - Automatically finds relevant entities based on query
-     - Required for long-term memory features
-
-4. **Configure Direct Entities** (if using Direct Mode)
-
-   Enter entity IDs as a comma-separated list:
-
-   ```
-   sensor.living_room_temperature,light.living_room,climate.thermostat
-   ```
-
-   Supports wildcards:
-
-   ```
-   climate.*,sensor.temperature_*,light.bedroom
-   ```
-
-### Configuring Conversation History
-
-Enable conversation history to maintain context across interactions:
-
-1. **Go to History Settings**
-
-   Navigate to **Configure** > **History Settings**
-
-2. **Configure History**
-
-   - **Enable History**: `On` (recommended)
-   - **Max Messages**: `10` (number of conversation turns to keep)
-   - **Max Tokens**: `4000` (token limit for history)
-
-### Testing Basic Functionality
-
-Test your installation with a simple query:
-
-1. **Open Developer Tools**
-
-   Navigate to **Developer Tools** > **Services**
-
-2. **Call the Process Service**
-
-   Select `home_agent.process` and enter:
-
+1. Open **Developer Tools** > **Services**
+2. Select `home_agent.process`
+3. Enter:
    ```yaml
    text: "What is the current temperature?"
    ```
+4. Verify you receive a response
 
-3. **Check the Response**
+Test control:
+```yaml
+text: "Turn on the living room lights"
+```
 
-   You should see a response from the LLM in the service response.
+## Troubleshooting
 
-4. **Verify Tool Execution**
+**Connection Errors:**
+- Verify base URL is correct and accessible
+- For local models, ensure server is running (e.g., `ollama list`)
+- Check firewall rules
 
-   Try a control command:
+**Authentication Errors:**
+- Verify API key is correct
+- Ensure billing is enabled (for paid services)
+- For local models, try leaving API key blank
 
-   ```yaml
-   text: "Turn on the living room lights"
-   ```
+**Model Not Found:**
+- For Ollama: `ollama list` to see available models
+- Verify model name spelling
 
-   Verify that the lights actually turn on (if the entity exists).
-
-### Troubleshooting Initial Setup
-
-#### Connection Errors
-
-**Symptom**: "Failed to connect to LLM" error
-
-**Solutions**:
-- Verify the base URL is correct and accessible
-- Check network connectivity to the LLM endpoint
-- For local models, ensure the server is running (e.g., `ollama list` for Ollama)
-- Check firewall rules if running on a different machine
-
-#### Authentication Errors
-
-**Symptom**: "Invalid API key" or 401 errors
-
-**Solutions**:
-- Verify your API key is correct and active
-- Check for extra spaces or newlines in the API key field
-- Ensure your API key has billing enabled (for paid services)
-- For local models, try leaving the API key blank
-
-#### Model Not Found
-
-**Symptom**: "Model not found" or 404 errors
-
-**Solutions**:
-- Verify the model name is spelled correctly
-- For Ollama: Run `ollama list` to see available models
-- For OpenAI: Check the [models documentation](https://platform.openai.com/docs/models)
-- Ensure the model is pulled/downloaded on local installations
-
-#### Entity Not Found
-
-**Symptom**: "Entity not found" errors in tool calls
-
-**Solutions**:
-- Verify entity IDs are correct in Home Assistant
-- Check that entities are exposed to voice assistants (required for agent access)
-- Navigate to **Settings** > **Voice Assistants** > **Expose Entities** to configure
+**Entity Not Found:**
+- Check entity IDs in Home Assistant
+- Expose entities via **Settings** > **Voice Assistants** > **Expose Entities**
 
 ## Next Steps
 
-Once Home Agent is installed and configured:
+1. **Advanced Features:**
+   - [Vector DB Setup](VECTOR_DB_SETUP.md) - Enable semantic entity search
+   - [Memory System](MEMORY_SYSTEM.md) - Add long-term memory capabilities
 
-1. **Explore Advanced Features**
-
-   - [Vector DB Setup Guide](VECTOR_DB_SETUP.md) - Enable semantic search for entities
-   - [Memory System Guide](MEMORY_SYSTEM.md) - Set up long-term memory for facts and preferences
-   - [Custom Tools Guide](../README.md#custom-tools-phase-3-) - Extend functionality with REST APIs and services
-
-2. **Configure Voice Assistant Integration**
-
+2. **Voice Assistant Integration:**
    - Navigate to **Settings** > **Voice Assistants**
-   - Create a new assistant or edit an existing one
    - Select **Home Agent** as the conversation agent
 
-3. **Set Up Automations**
-
-   Use Home Agent in automations to create intelligent home behaviors:
-
+3. **Use in Automations:**
    ```yaml
    automation:
      - alias: "Morning Briefing"
@@ -363,28 +160,19 @@ Once Home Agent is installed and configured:
        action:
          - service: home_agent.process
            data:
-             text: "Give me a morning briefing with weather and calendar events"
+             text: "Give me a morning briefing"
    ```
 
-4. **Monitor Performance**
+4. **Monitor Performance:**
+   - Enable debug logging in **Configure** > **Debug Settings**
+   - Check logs for detailed execution info
+   - Monitor events in **Developer Tools** > **Events**
 
-   - Enable **Debug Logging** in **Configure** > **Debug Settings** (temporarily)
-   - Check Home Assistant logs for detailed execution information
-   - Monitor events in **Developer Tools** > **Events** (filter for `home_agent.*`)
+## Need More Details?
 
-## Getting Help
-
-If you encounter issues:
-
-- **Documentation**: Check the [troubleshooting section](#troubleshooting-initial-setup) above
-- **Logs**: Enable debug logging and check Home Assistant logs
-- **Community**:
-  - [GitHub Issues](https://github.com/yourusername/home-agent/issues)
-  - [GitHub Discussions](https://github.com/yourusername/home-agent/discussions)
-  - Home Assistant Community Forums
-
-## Additional Resources
-
-- [Project Specification](PROJECT_SPEC.md) - Technical details and architecture
-- [Development Guide](DEVELOPMENT.md) - Contributing and development standards
-- [README](../README.md) - Feature overview and examples
+See the [Complete Installation Reference](reference/INSTALLATION.md) for:
+- Detailed configuration options
+- All LLM provider examples
+- Advanced troubleshooting
+- Custom tool setup
+- Performance optimization
