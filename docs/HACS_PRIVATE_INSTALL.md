@@ -21,38 +21,51 @@ This guide explains how to install Home Agent via HACS from a private GitHub rep
 
 ## Step 2: Add Repository to HACS
 
-### Method 1: Using HACS UI (Recommended)
+### Method 1: Configuration File (RECOMMENDED - Most Reliable)
 
-1. Open Home Assistant
-2. Go to **HACS** → **Integrations**
-3. Click the three-dot menu (⋮) in the top right
-4. Select **Custom repositories**
-5. Add the repository:
-   - **Repository URL**:
-     ```
-     https://YOUR_TOKEN@github.com/YOUR_USERNAME/home-agent
-     ```
-     Replace `YOUR_TOKEN` with your personal access token and `YOUR_USERNAME` with your GitHub username
-   - **Category**: Select "Integration"
-6. Click **Add**
+**The token-in-URL method does NOT work with HACS. Use this method instead:**
 
-### Method 2: Manual Configuration File
-
-Alternatively, you can add it directly to your HACS configuration:
-
-1. Edit your Home Assistant configuration file
-2. Add to your `configuration.yaml` or create a HACS packages file:
+1. **Add HACS configuration to `configuration.yaml`**:
 
 ```yaml
-# In configuration.yaml or packages/hacs.yaml
 hacs:
-  custom_repositories:
-    - repository: YOUR_USERNAME/home-agent
-      token: YOUR_TOKEN
-      type: integration
+  token: !secret github_token
 ```
 
-3. Restart Home Assistant
+2. **Add your token to `secrets.yaml`**:
+
+```yaml
+github_token: ghp_YOUR_PERSONAL_ACCESS_TOKEN_HERE
+```
+
+3. **Restart Home Assistant**
+
+4. **Add repository in HACS UI** (now without token in URL):
+   - Go to HACS → Integrations
+   - Click three-dot menu (⋮) → Custom repositories
+   - Repository: `aradlein/home-agent` (just username/repo, no https://, no token!)
+   - Category: Integration
+   - Click Add
+
+### Method 2: Manual Installation (If HACS Issues Persist)
+
+If HACS still has issues accessing the private repository:
+
+1. **Download latest release** from GitHub:
+   - Visit: https://github.com/aradlein/home-agent/releases
+   - Download `home-agent-0.4.3-beta.zip` (or latest version)
+
+2. **Extract and install**:
+   ```bash
+   # Extract the downloaded ZIP
+   unzip home-agent-0.4.3-beta.zip
+
+   # Copy to Home Assistant
+   cp -r home-agent-0.4.3-beta/custom_components/home_agent \
+     /config/custom_components/
+   ```
+
+3. **Restart Home Assistant**
 
 ## Step 3: Install Home Agent
 
