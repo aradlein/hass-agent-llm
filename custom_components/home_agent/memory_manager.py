@@ -365,6 +365,11 @@ class MemoryManager:
         Returns:
             List of memories sorted by relevance
         """
+        # Early return if no memories exist
+        if not self._memories:
+            _LOGGER.debug("No memories to search")
+            return []
+
         if not self._chromadb_available:
             _LOGGER.warning("ChromaDB not available, falling back to keyword search")
             return await self._fallback_search(query, top_k, min_importance, memory_types)
@@ -373,11 +378,14 @@ class MemoryManager:
             # Generate embedding for query
             embedding = await self.vector_db_manager._embed_text(query)
 
+            # Query ChromaDB - ensure n_results is at least 1
+            n_results = min(top_k * 2, len(self._memories))
+
             # Query ChromaDB
             results = await self.hass.async_add_executor_job(
                 lambda: self._collection.query(
                     query_embeddings=[embedding],
-                    n_results=min(top_k * 2, len(self._memories)),  # Get more to filter
+                    n_results=n_results,  # Get more to filter
                 )
             )
 
