@@ -166,8 +166,8 @@ print_success "Git repository found at: $GIT_REPO_PATH"
 # Change to git repository
 execute_cmd "cd $GIT_REPO_PATH" "Changing to git repository"
 
-# Fetch latest tags
-execute_cmd "git fetch --tags" "Fetching latest tags from remote"
+# Fetch latest tags (force update existing tags)
+execute_cmd "git fetch --tags --force" "Fetching latest tags from remote"
 
 # Determine target tag
 if [ "$USE_LATEST" = true ] || [ -z "$TARGET_TAG" ]; then
