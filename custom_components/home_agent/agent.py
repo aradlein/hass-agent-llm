@@ -893,6 +893,25 @@ class HomeAgent(AbstractConversationAgent):
             if final_response:
                 self.conversation_manager.add_message(conversation_id, "assistant", final_response)
 
+        # Extract and store memories if enabled (fire and forget)
+        if self.config.get(CONF_MEMORY_EXTRACTION_ENABLED, DEFAULT_MEMORY_EXTRACTION_ENABLED):
+            # Extract final response for memory extraction
+            final_response = ""
+            for content_item in new_content:
+                if isinstance(content_item, conversation.AssistantContent) and content_item.content:
+                    final_response = content_item.content
+                    break
+
+            if final_response:
+                self.hass.async_create_task(
+                    self._extract_and_store_memories(
+                        conversation_id=conversation_id,
+                        user_message=user_message,
+                        assistant_response=final_response,
+                        full_messages=messages,
+                    )
+                )
+
         # Extract result from chat log
         return conversation.async_get_result_from_chat_log(user_input, chat_log)
 

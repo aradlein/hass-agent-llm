@@ -1,5 +1,5 @@
 """Unit tests for HomeAgent streaming integration."""
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.components import conversation as ha_conversation
@@ -373,6 +373,170 @@ class TestBackwardCompatibility:
                 user_id="test-user",
                 device_id=None,
             )
+
+            # Verify result
+            assert result is not None
+            assert result.conversation_id == "test-conv"
+
+
+class TestStreamingMemoryExtraction:
+    """Test memory extraction in streaming mode."""
+
+    @pytest.mark.asyncio
+    async def test_memory_extraction_triggered_after_streaming(self, agent, mock_hass):
+        """Test that memory extraction is triggered after streaming completes."""
+        from custom_components.home_agent.const import (
+            CONF_MEMORY_ENABLED,
+            CONF_MEMORY_EXTRACTION_ENABLED,
+        )
+
+        # Enable streaming and memory extraction
+        agent.config[CONF_STREAMING_ENABLED] = True
+        agent.config[CONF_MEMORY_ENABLED] = True
+        agent.config[CONF_MEMORY_EXTRACTION_ENABLED] = True
+
+        # Create mock conversation input
+        mock_input = MagicMock(spec=ha_conversation.ConversationInput)
+        mock_input.text = "Remember that I like pizza"
+        mock_input.conversation_id = "test-conv"
+        mock_input.language = "en"
+        mock_input.context = MagicMock()
+        mock_input.device_id = None
+
+        # Mock chat log
+        mock_chat_log_instance = MagicMock()
+        mock_chat_log_instance.delta_listener = MagicMock()
+        mock_chat_log_instance.unresponded_tool_results = []
+
+        # Mock assistant content
+        from homeassistant.components.conversation import AssistantContent
+
+        mock_content = AssistantContent(
+            agent_id="home_agent", content="I'll remember that you like pizza!"
+        )
+
+        # Mock async_add_delta_content_stream as an async generator
+        async def mock_content_stream(*args, **kwargs):
+            yield mock_content
+
+        mock_chat_log_instance.async_add_delta_content_stream = mock_content_stream
+
+        # Mock the result extraction
+        mock_result = MagicMock(spec=ha_conversation.ConversationResult)
+        mock_result.conversation_id = "test-conv"
+
+        with (
+            patch(
+                "homeassistant.components.conversation.chat_log.current_chat_log"
+            ) as mock_chat_log,
+            patch.object(agent, "_call_llm_streaming") as mock_stream,
+            patch.object(
+                agent, "_extract_and_store_memories", new_callable=AsyncMock
+            ) as mock_extract,
+            patch(
+                "homeassistant.components.conversation.async_get_result_from_chat_log",
+                return_value=mock_result,
+            ),
+        ):
+            mock_chat_log.get.return_value = mock_chat_log_instance
+
+            # Mock streaming response
+            async def mock_stream_gen():
+                yield "data: {}"
+
+            mock_stream.return_value = mock_stream_gen()
+
+            # Call async_process with streaming
+            result = await agent.async_process(mock_input)
+
+            # Wait a moment for the async task to be created
+            import asyncio
+
+            await asyncio.sleep(0.1)
+
+            # Verify memory extraction was triggered
+            mock_extract.assert_called_once()
+            call_args = mock_extract.call_args[1]
+            assert call_args["conversation_id"] == "test-conv"
+            assert call_args["user_message"] == "Remember that I like pizza"
+            assert call_args["assistant_response"] == "I'll remember that you like pizza!"
+
+            # Verify result
+            assert result is not None
+            assert result.conversation_id == "test-conv"
+
+    @pytest.mark.asyncio
+    async def test_memory_extraction_skipped_when_disabled(self, agent, mock_hass):
+        """Test that memory extraction is skipped when disabled in streaming mode."""
+        from custom_components.home_agent.const import (
+            CONF_MEMORY_ENABLED,
+            CONF_MEMORY_EXTRACTION_ENABLED,
+        )
+
+        # Enable streaming but disable memory extraction
+        agent.config[CONF_STREAMING_ENABLED] = True
+        agent.config[CONF_MEMORY_ENABLED] = True
+        agent.config[CONF_MEMORY_EXTRACTION_ENABLED] = False
+
+        # Create mock conversation input
+        mock_input = MagicMock(spec=ha_conversation.ConversationInput)
+        mock_input.text = "Hello"
+        mock_input.conversation_id = "test-conv"
+        mock_input.language = "en"
+        mock_input.context = MagicMock()
+        mock_input.device_id = None
+
+        # Mock chat log
+        mock_chat_log_instance = MagicMock()
+        mock_chat_log_instance.delta_listener = MagicMock()
+        mock_chat_log_instance.unresponded_tool_results = []
+
+        # Mock assistant content
+        from homeassistant.components.conversation import AssistantContent
+
+        mock_content = AssistantContent(agent_id="home_agent", content="Hi there!")
+
+        # Mock async_add_delta_content_stream as an async generator
+        async def mock_content_stream(*args, **kwargs):
+            yield mock_content
+
+        mock_chat_log_instance.async_add_delta_content_stream = mock_content_stream
+
+        # Mock the result extraction
+        mock_result = MagicMock(spec=ha_conversation.ConversationResult)
+        mock_result.conversation_id = "test-conv"
+
+        with (
+            patch(
+                "homeassistant.components.conversation.chat_log.current_chat_log"
+            ) as mock_chat_log,
+            patch.object(agent, "_call_llm_streaming") as mock_stream,
+            patch.object(
+                agent, "_extract_and_store_memories", new_callable=AsyncMock
+            ) as mock_extract,
+            patch(
+                "homeassistant.components.conversation.async_get_result_from_chat_log",
+                return_value=mock_result,
+            ),
+        ):
+            mock_chat_log.get.return_value = mock_chat_log_instance
+
+            # Mock streaming response
+            async def mock_stream_gen():
+                yield "data: {}"
+
+            mock_stream.return_value = mock_stream_gen()
+
+            # Call async_process with streaming
+            result = await agent.async_process(mock_input)
+
+            # Wait a moment for any async tasks
+            import asyncio
+
+            await asyncio.sleep(0.1)
+
+            # Verify memory extraction was NOT triggered
+            mock_extract.assert_not_called()
 
             # Verify result
             assert result is not None
