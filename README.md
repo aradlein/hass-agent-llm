@@ -1,12 +1,12 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.4.3-blue.svg)](https://github.com/yourusername/home-agent/releases)
+[![Version](https://img.shields.io/badge/version-0.4.4--beta-blue.svg)](https://github.com/yourusername/home-agent/releases)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1.0+-blue.svg)](https://www.home-assistant.io/)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.4.3
+## What's New in v0.4.4-beta
 
 🎨 **New Integration Icon** - Professional icon now displays in Home Assistant UI
 🔒 **Entity Privacy Fix** - Vector DB now only indexes exposed entities (respects voice assistant settings)
