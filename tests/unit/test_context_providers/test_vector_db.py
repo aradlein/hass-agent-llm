@@ -5,26 +5,28 @@ for semantic entity search and intelligent context injection.
 """
 
 import json
-import pytest
-from unittest.mock import AsyncMock, Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
+import pytest
 from homeassistant.core import State
 
-from custom_components.home_agent.context_providers.vector_db import (
-    VectorDBContextProvider,
-    CHROMADB_AVAILABLE,
-    OPENAI_AVAILABLE,
-)
-from custom_components.home_agent.exceptions import ContextInjectionError
 from custom_components.home_agent.const import (
+    CONF_OPENAI_API_KEY,
     CONF_VECTOR_DB_COLLECTION,
+    CONF_VECTOR_DB_EMBEDDING_MODEL,
+    CONF_VECTOR_DB_EMBEDDING_PROVIDER,
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
-    CONF_VECTOR_DB_TOP_K,
     CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
-    CONF_VECTOR_DB_EMBEDDING_MODEL,
-    CONF_OPENAI_API_KEY,
+    CONF_VECTOR_DB_TOP_K,
+    EMBEDDING_PROVIDER_OPENAI,
 )
+from custom_components.home_agent.context_providers.vector_db import (
+    CHROMADB_AVAILABLE,
+    OPENAI_AVAILABLE,
+    VectorDBContextProvider,
+)
+from custom_components.home_agent.exceptions import ContextInjectionError
 
 
 class TestVectorDBContextProviderInit:
@@ -42,7 +44,7 @@ class TestVectorDBContextProviderInit:
             CONF_VECTOR_DB_EMBEDDING_MODEL: "text-embedding-3-small",
             CONF_VECTOR_DB_TOP_K: 5,
             CONF_VECTOR_DB_SIMILARITY_THRESHOLD: 0.7,
-            CONF_OPENAI_API_KEY: "sk-test-key"
+            CONF_OPENAI_API_KEY: "sk-test-key",
         }
         provider = VectorDBContextProvider(mock_hass, config)
 
@@ -76,8 +78,7 @@ class TestVectorDBContextProviderInit:
     def test_vector_db_provider_init_chromadb_not_available(self, mock_hass):
         """Test initialization fails when ChromaDB is not installed."""
         with patch(
-            "custom_components.home_agent.context_providers.vector_db.CHROMADB_AVAILABLE",
-            False
+            "custom_components.home_agent.context_providers.vector_db.CHROMADB_AVAILABLE", False
         ):
             config = {CONF_OPENAI_API_KEY: "sk-test"}
             with pytest.raises(ContextInjectionError) as exc_info:
@@ -110,22 +111,21 @@ class TestGetContext:
         config = {CONF_OPENAI_API_KEY: "sk-test", CONF_VECTOR_DB_TOP_K: 3}
         provider = VectorDBContextProvider(mock_hass, config)
 
-        # Mock initialization
-        provider._initialized = True
+        # Mock ChromaDB client and collection to prevent real connections
+        provider._client = Mock()
         provider._collection = Mock()
 
         # Mock embedding
-        with patch.object(provider, '_embed_query', return_value=[0.1, 0.2, 0.3]):
-            # Mock vector DB query
-            with patch.object(provider, '_query_vector_db', return_value={
-                "ids": [["light.living_room", "sensor.temp"]],
-                "distances": [[0.1, 0.2]],
-                "documents": [["doc1", "doc2"]],
-                "metadatas": [[
-                    {"entity_id": "light.living_room"},
-                    {"entity_id": "sensor.temp"}
-                ]]
-            }):
+        with patch.object(provider, "_embed_query", return_value=[0.1, 0.2, 0.3]):
+            # Mock vector DB query - returns list of dicts with entity_id and distance
+            with patch.object(
+                provider,
+                "_query_vector_db",
+                return_value=[
+                    {"entity_id": "light.living_room", "distance": 0.1},
+                    {"entity_id": "sensor.temp", "distance": 0.2},
+                ],
+            ):
                 # Mock entity state retrieval
                 light_state = Mock(spec=State)
                 light_state.state = "on"
@@ -149,11 +149,15 @@ class TestGetContext:
                 # Verify result
                 assert isinstance(result, str)
                 parsed = json.loads(result)
-                assert "query" in parsed
-                assert "relevant_entities" in parsed
+                assert "entities" in parsed
                 assert "count" in parsed
-                assert parsed["query"] == "turn on the lights"
                 assert parsed["count"] == 2
+                assert len(parsed["entities"]) == 2
+                # Verify entity data
+                assert parsed["entities"][0]["entity_id"] == "light.living_room"
+                assert parsed["entities"][0]["state"] == "on"
+                assert parsed["entities"][1]["entity_id"] == "sensor.temp"
+                assert parsed["entities"][1]["state"] == "72"
 
     @pytest.mark.asyncio
     async def test_get_context_no_results(self, mock_hass):
@@ -163,18 +167,17 @@ class TestGetContext:
 
         config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
-        provider._initialized = True
 
-        with patch.object(provider, '_embed_query', return_value=[0.1, 0.2]):
-            with patch.object(provider, '_query_vector_db', return_value={
-                "ids": [[]],
-                "distances": [[]],
-                "documents": [[]],
-                "metadatas": [[]]
-            }):
+        # Mock ChromaDB client and collection
+        provider._client = Mock()
+        provider._collection = Mock()
+
+        with patch.object(provider, "_embed_query", return_value=[0.1, 0.2]):
+            # Mock query returning empty list (no results)
+            with patch.object(provider, "_query_vector_db", return_value=[]):
                 result = await provider.get_context("test query")
 
-                assert "No relevant entities found" in result
+                assert "No relevant context found" in result
 
     @pytest.mark.asyncio
     async def test_get_context_error_handling(self, mock_hass):
@@ -184,13 +187,12 @@ class TestGetContext:
 
         config = {CONF_OPENAI_API_KEY: "sk-test"}
         provider = VectorDBContextProvider(mock_hass, config)
-        provider._initialized = True
 
-        with patch.object(
-            provider,
-            '_embed_query',
-            side_effect=Exception("Embedding failed")
-        ):
+        # Mock ChromaDB client and collection
+        provider._client = Mock()
+        provider._collection = Mock()
+
+        with patch.object(provider, "_embed_query", side_effect=Exception("Embedding failed")):
             with pytest.raises(ContextInjectionError) as exc_info:
                 await provider.get_context("test query")
 
@@ -207,20 +209,24 @@ class TestEmbedQuery:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {CONF_OPENAI_API_KEY: "sk-test"}
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_VECTOR_DB_EMBEDDING_PROVIDER: EMBEDDING_PROVIDER_OPENAI,
+        }
         provider = VectorDBContextProvider(mock_hass, config)
 
-        mock_openai = AsyncMock()
-        mock_response = Mock()
-        mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3])]
-        mock_openai.embeddings.create.return_value = mock_response
-        provider._openai_client = mock_openai
-
-        result = await provider._embed_query("test query")
+        # Mock the openai.Embedding.create call
+        mock_response = {"data": [{"embedding": [0.1, 0.2, 0.3]}]}
+        with patch("openai.Embedding.create", return_value=mock_response):
+            result = await provider._embed_query("test query")
 
         assert result == [0.1, 0.2, 0.3]
-        assert "test query" in provider._embedding_cache
-        assert provider._embedding_cache["test query"] == [0.1, 0.2, 0.3]
+        # Cache key is MD5 hash of the text
+        import hashlib
+
+        cache_key = hashlib.md5("test query".encode()).hexdigest()
+        assert cache_key in provider._embedding_cache
+        assert provider._embedding_cache[cache_key] == [0.1, 0.2, 0.3]
 
     @pytest.mark.asyncio
     async def test_embed_query_uses_cache(self, mock_hass):
@@ -228,35 +234,42 @@ class TestEmbedQuery:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {CONF_OPENAI_API_KEY: "sk-test"}
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_VECTOR_DB_EMBEDDING_PROVIDER: EMBEDDING_PROVIDER_OPENAI,
+        }
         provider = VectorDBContextProvider(mock_hass, config)
 
-        # Populate cache
-        provider._embedding_cache["cached query"] = [0.5, 0.6, 0.7]
+        # Populate cache with MD5 hash key
+        import hashlib
 
-        mock_openai = AsyncMock()
-        provider._openai_client = mock_openai
+        cache_key = hashlib.md5("cached query".encode()).hexdigest()
+        provider._embedding_cache[cache_key] = [0.5, 0.6, 0.7]
 
-        result = await provider._embed_query("cached query")
+        # Mock openai.Embedding.create - should not be called due to cache
+        with patch("openai.Embedding.create") as mock_create:
+            result = await provider._embed_query("cached query")
 
-        # Should use cached value, not call API
-        assert result == [0.5, 0.6, 0.7]
-        mock_openai.embeddings.create.assert_not_called()
+            # Should use cached value, not call API
+            assert result == [0.5, 0.6, 0.7]
+            mock_create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_embed_query_no_client(self, mock_hass):
-        """Test embedding fails when client not initialized."""
+        """Test embedding fails when API key not configured."""
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {CONF_OPENAI_API_KEY: "sk-test"}
+        config = {
+            CONF_OPENAI_API_KEY: "",  # Empty API key
+            CONF_VECTOR_DB_EMBEDDING_PROVIDER: EMBEDDING_PROVIDER_OPENAI,
+        }
         provider = VectorDBContextProvider(mock_hass, config)
-        provider._openai_client = None
 
         with pytest.raises(ContextInjectionError) as exc_info:
             await provider._embed_query("test")
 
-        assert "OpenAI client not initialized" in str(exc_info.value)
+        assert "OpenAI API key not configured" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_embed_query_api_error(self, mock_hass):
@@ -264,14 +277,15 @@ class TestEmbedQuery:
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
-        config = {CONF_OPENAI_API_KEY: "sk-test"}
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_VECTOR_DB_EMBEDDING_PROVIDER: EMBEDDING_PROVIDER_OPENAI,
+        }
         provider = VectorDBContextProvider(mock_hass, config)
 
-        mock_openai = AsyncMock()
-        mock_openai.embeddings.create.side_effect = Exception("API error")
-        provider._openai_client = mock_openai
+        # Mock openai.Embedding.create to raise an error
+        with patch("openai.Embedding.create", side_effect=Exception("API error")):
+            with pytest.raises(ContextInjectionError) as exc_info:
+                await provider._embed_query("test")
 
-        with pytest.raises(ContextInjectionError) as exc_info:
-            await provider._embed_query("test")
-
-        assert "Embedding generation failed" in str(exc_info.value)
+            assert "Embedding failed" in str(exc_info.value)
