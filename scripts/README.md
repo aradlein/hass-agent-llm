@@ -2,6 +2,60 @@
 
 This directory contains utility scripts for managing the Home Agent project.
 
+## Production Deployment
+
+### update_integration.sh
+
+A script to safely update your Home Assistant production installation from a specific git tag.
+
+**Usage:**
+```bash
+./scripts/update_integration.sh [OPTIONS] [TAG]
+```
+
+**Options:**
+- `--dry-run` - Show all commands without executing them
+- `--latest` - Use the latest git tag (default if no tag specified)
+- `--help` - Show help message
+
+**Examples:**
+```bash
+# Dry run to see what would happen with a specific tag
+./scripts/update_integration.sh --dry-run v0.4.4-beta
+
+# Update to the latest tag
+./scripts/update_integration.sh --latest
+
+# Update to a specific tag
+./scripts/update_integration.sh v0.4.3-beta
+
+# Dry run with latest tag
+./scripts/update_integration.sh --dry-run --latest
+```
+
+**What it does:**
+1. Validates that git repository exists at `/root/home-agent`
+2. Fetches latest tags from remote
+3. Determines target tag (latest or specified)
+4. Stashes any local changes in the repo
+5. Checks out the target tag
+6. Creates a timestamped backup of current installation
+7. Copies new version to `/root/config/custom_components/home_agent`
+8. Verifies installation succeeded
+9. Provides rollback instructions if needed
+
+**Important:**
+- Always run with `--dry-run` first to verify the commands
+- Automatically creates backups before updating
+- Requires Home Assistant restart after update (`ha core restart`)
+- Provides rollback instructions in case of issues
+
+**Paths:**
+- Git Repository: `/root/home-agent`
+- Source: `/root/home-agent/custom_components/home_agent`
+- Destination: `/root/config/custom_components/home_agent`
+- Backups: `/root/config/custom_components/home_agent_backup_YYYYMMDD_HHMMSS`
+
 ## Version Management
 
 ### bump_version.sh
