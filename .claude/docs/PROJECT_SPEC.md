@@ -575,6 +575,38 @@ The component provides flexible context injection to give the LLM relevant infor
   4. More efficient token usage - only relevant entities included
 - **Example:** User asks "Is it cold in the bedroom?" → retrieves bedroom temperature sensor context
 
+#### Additional Collections Support (Planned Enhancement)
+- **Purpose:** Query additional ChromaDB collections alongside entity embeddings for supplementary context
+- **Use Cases:**
+  - Product manuals and documentation
+  - FAQs and knowledge bases
+  - Custom procedures and notes
+  - Domain-specific information
+- **Two-Tier Ranking System:**
+  - **Entity Collection (Priority):** Always queries main entity collection first
+    - Returns top K entities based on `CONF_TOP_K`
+    - Filtered by `L2_DISTANCE_THRESHOLD`
+    - Results always appear first in context
+  - **Additional Collections (Supplementary):** Queries all specified additional collections
+    - Results from ALL additional collections merged together
+    - Sorted by distance and filtered by `CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD`
+    - Returns top K from merged pool based on `CONF_ADDITIONAL_TOP_K`
+    - Results appear after entity context with clear header
+- **Configuration:**
+  - `CONF_ADDITIONAL_COLLECTIONS`: Comma-separated collection names (default: empty)
+  - `CONF_ADDITIONAL_TOP_K`: Number of results from additional collections (default: 5)
+  - `CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD`: Separate threshold for additional collections (default: 250.0)
+- **Context Format:**
+  ```
+  [Entity embeddings results - CSV/JSON format]
+
+  ### RELEVANT ADDITIONAL CONTEXT FOR ANSWERING QUESTIONS, NOT CONTROL ###
+  [Additional collections results - JSON with metadata]
+  ```
+- **Error Handling:** Non-existent collections skipped silently with warning logged
+- **Documentation:** See `docs/reference/VECTOR_DB_SETUP.md` (lines 597-676)
+- **Status:** Planned feature - GitHub Issue #15
+
 #### Context Format Options
 - **JSON Format:** Structured data for precise parsing
 - **Natural Language:** Human-readable entity descriptions

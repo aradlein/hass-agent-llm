@@ -594,6 +594,87 @@ You can use multiple collections for different purposes:
 **Switching collections**:
 Change the **Collection Name** in Vector DB settings and re-index.
 
+### Additional Collections for Context Enhancement
+
+Home Agent supports querying additional ChromaDB collections alongside the main entity collection. This allows you to inject supplementary context (documentation, knowledge bases, etc.) into prompts without mixing it with entity data.
+
+#### How It Works
+
+When additional collections are configured, Home Agent uses a **two-tier ranking system**:
+
+1. **Entity Collection (Priority)**: Always queries the main entity collection first
+   - Returns top K entities based on `CONF_TOP_K` setting
+   - Filtered by `L2_DISTANCE_THRESHOLD`
+   - These results always appear first in context
+
+2. **Additional Collections (Supplementary)**: Queries all specified additional collections
+   - Results from all additional collections are merged and ranked together
+   - Returns top K results from the merged pool based on `CONF_ADDITIONAL_TOP_K`
+   - Filtered by `CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD`
+   - These results appear after entity context
+
+#### Configuration
+
+Additional collections can be configured through the Vector DB settings:
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| **Additional Collections** | Comma-separated list of collection names | (empty) |
+| **Additional Top K** | Number of results from additional collections | `5` |
+| **Additional Similarity Threshold** | L2 distance threshold for additional collections | `250.0` |
+
+**Example Configuration**:
+```
+Additional Collections: company_docs,project_notes,faq_data
+Additional Top K: 5
+Additional Similarity Threshold: 250.0
+```
+
+#### Context Format
+
+Additional collection results are injected into the prompt with a clear header:
+
+```
+[Entity embeddings results - CSV table format]
+
+### RELEVANT ADDITIONAL CONTEXT FOR ANSWERING QUESTIONS, NOT CONTROL ###
+[Additional collections results - JSON with metadata]
+```
+
+This format ensures the LLM understands that additional context is informational only and not related to Home Assistant control.
+
+#### Use Cases
+
+**Knowledge Base Integration**:
+- Store product manuals, documentation, or FAQs in a separate collection
+- Agent can reference this information when answering questions
+- Example: "How do I reset my Philips Hue bulb?"
+
+**Custom Context**:
+- Add domain-specific knowledge relevant to your home
+- Store information about devices, routines, or preferences
+- Example: Device installation dates, warranty information, custom procedures
+
+**Multi-Source Information**:
+- Combine multiple knowledge sources (docs, notes, logs)
+- Each collection can serve a different purpose
+- Agent retrieves most relevant information from all sources
+
+#### Error Handling
+
+- If a specified collection doesn't exist, it will be skipped silently
+- A warning will be logged: `Collection 'xyz' not found, skipping`
+- Other collections will continue to be queried normally
+- Empty additional collections list disables this feature
+
+#### Best Practices
+
+1. **Keep collections focused**: Each collection should serve a specific purpose
+2. **Use consistent embeddings**: All collections should use the same embedding model
+3. **Monitor context size**: Additional context consumes tokens, adjust Top K accordingly
+4. **Separate thresholds**: Use different similarity thresholds for different content types
+5. **Test queries**: Verify relevant information is being retrieved from additional collections
+
 ### Custom Embedding Models
 
 For Ollama, you can use any embedding model:
