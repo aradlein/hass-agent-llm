@@ -407,6 +407,10 @@
           "description": "The entity ID to index."
         }
       }
+    },
+    "clear_conversation": {
+      "name": "Clear conversation",
+      "description": "Clear conversation session and start fresh with no previous context. Allows users to reset voice conversations for a specific user or device, or all conversations at once."
     }
   }
 }

@@ -19,11 +19,14 @@ from .agent import HomeAgent
 from .const import (
     CONF_CONTEXT_MODE,
     CONF_MEMORY_ENABLED,
+    CONF_SESSION_TIMEOUT,
     CONF_TOOLS_CUSTOM,
     CONTEXT_MODE_VECTOR_DB,
     DEFAULT_MEMORY_ENABLED,
+    DEFAULT_SESSION_TIMEOUT,
     DOMAIN,
 )
+from .conversation_session import ConversationSessionManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -75,12 +78,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 len(yaml_config[CONF_TOOLS_CUSTOM]),
             )
 
-    # Create Home Agent instance
-    agent = HomeAgent(hass, config)
+    # Initialize conversation session manager for persistent voice conversations
+    session_timeout = config.get(CONF_SESSION_TIMEOUT, DEFAULT_SESSION_TIMEOUT)
+    session_manager = ConversationSessionManager(hass, session_timeout)
+    await session_manager.async_load()
+    _LOGGER.info("Conversation Session Manager initialized (timeout: %ds)", session_timeout)
 
-    # Store agent instance
+    # Create Home Agent instance with session manager
+    agent = HomeAgent(hass, config, session_manager)
+
+    # Store agent instance and session manager
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {"agent": agent}
+    hass.data[DOMAIN][entry.entry_id] = {
+        "agent": agent,
+        "session_manager": session_manager,
+    }
 
     # Set up vector DB manager if using vector DB mode
     context_mode = config.get(CONF_CONTEXT_MODE)
@@ -551,6 +563,47 @@ async def async_setup_services(
             _LOGGER.error("Failed to add memory: %s", err)
             raise
 
+    async def handle_clear_conversation(call: ServiceCall) -> None:
+        """Handle the clear_conversation service call.
+
+        Clears conversation session for a user or device, allowing them to
+        start a fresh conversation with no previous context.
+        """
+        user_id = call.data.get("user_id")
+        device_id = call.data.get("device_id")
+        target_entry_id = call.data.get("entry_id", entry_id)
+
+        # Get session manager
+        entry_data = _get_entry_data(target_entry_id)
+        session_manager = entry_data.get("session_manager")
+
+        if not session_manager:
+            _LOGGER.error("Session Manager not available for this entry")
+            return
+
+        if user_id or device_id:
+            # Clear specific session
+            success = await session_manager.clear_session(
+                user_id=user_id,
+                device_id=device_id,
+            )
+            if success:
+                _LOGGER.info(
+                    "Cleared conversation session for user_id=%s device_id=%s",
+                    user_id,
+                    device_id,
+                )
+            else:
+                _LOGGER.warning(
+                    "No active conversation found for user_id=%s device_id=%s",
+                    user_id,
+                    device_id,
+                )
+        else:
+            # Clear all sessions
+            count = await session_manager.clear_all_sessions()
+            _LOGGER.info("Cleared all %d conversation session(s)", count)
+
     # Register services (only once for all instances)
     if not hass.services.has_service(DOMAIN, "process"):
         hass.services.async_register(DOMAIN, "process", handle_process)
@@ -617,6 +670,10 @@ async def async_setup_services(
         )
         _LOGGER.debug("Registered service: add_memory")
 
+    if not hass.services.has_service(DOMAIN, "clear_conversation"):
+        hass.services.async_register(DOMAIN, "clear_conversation", handle_clear_conversation)
+        _LOGGER.debug("Registered service: clear_conversation")
+
 
 async def async_remove_services(hass: HomeAssistant) -> None:
     """Remove Home Agent services.
@@ -636,6 +693,7 @@ async def async_remove_services(hass: HomeAssistant) -> None:
         "clear_memories",
         "search_memories",
         "add_memory",
+        "clear_conversation",
     ]
 
     for service in services:

@@ -100,6 +100,9 @@ CONF_EMIT_EVENTS: Final = "emit_events"
 # Configuration keys - Streaming
 CONF_STREAMING_ENABLED: Final = "streaming_enabled"
 
+# Configuration keys - Conversation Session
+CONF_SESSION_TIMEOUT: Final = "session_timeout"
+
 # Context modes
 CONTEXT_MODE_DIRECT: Final = "direct"
 CONTEXT_MODE_VECTOR_DB: Final = "vector_db"
@@ -205,6 +208,9 @@ DEFAULT_EMIT_EVENTS: Final = True
 
 # Default values - Streaming
 DEFAULT_STREAMING_ENABLED: Final = False
+
+# Default values - Conversation Session
+DEFAULT_SESSION_TIMEOUT: Final = 3600  # 1 hour in seconds
 
 # Event names
 EVENT_CONVERSATION_STARTED: Final = f"{DOMAIN}.conversation.started"
