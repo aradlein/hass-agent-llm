@@ -214,10 +214,9 @@ In InfluxDB, you should see measurements like:
 observability/
 ├── README.md                                    # This file
 ├── grafana/
-│   ├── home_agent_influxdb_dashboard.json      # Main dashboard (InfluxDB/Flux)
-│   └── home_agent_influxql_dashboard.json      # Alternative (InfluxDB 1.x/InfluxQL)
+│   └── home_agent_influxdb_dashboard.json      # Grafana dashboard with Flux queries
 └── influxdb/
-    └── flux_queries.md                          # Example Flux queries for custom panels
+    └── flux_queries.md                          # 30+ example Flux queries
 ```
 
 ## 📊 Available Metrics
