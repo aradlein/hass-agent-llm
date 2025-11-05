@@ -10,8 +10,8 @@
 
 ## Development Progress & Roadmap
 
-**Last Updated:** 2025-11-02
-**Current Version:** v0.4.2-beta
+**Last Updated:** 2025-11-05
+**Current Version:** v0.4.7-beta
 **Current Phase:** Phase 7 (Documentation & Production Readiness)
 
 ### Completed Phases ✅
@@ -168,31 +168,33 @@
 
 ---
 
-#### Phase 6: Performance & Reliability 📅
-**Status:** Planned | **Priority:** Medium
+#### Phase 6: Reliability & Resource Management 📅
+**Status:** Planned | **Priority:** Medium | **Target:** v1.0.0
 
-- [ ] **Caching Layer**
-  - [ ] LLM response caching (TTL-based)
-  - [ ] Template rendering cache
-  - [ ] Entity state snapshot caching
-  - [ ] ChromaDB query result caching
-- [ ] **Rate Limiting & Quotas**
-  - [ ] Per-user conversation limits
-  - [ ] Function execution throttling
-  - [ ] API call rate limiting
-  - [ ] Token usage quotas
-- [ ] **Enhanced Error Handling**
-  - [ ] Automatic retry with exponential backoff
-  - [ ] Fallback to alternative providers
-  - [ ] Graceful degradation
-  - [ ] Error notification system
-- [ ] **Performance Benchmarking**
-  - [ ] Response time measurement
-  - [ ] Token usage tracking
-  - [ ] Performance metrics collection
-  - [ ] Automated performance testing
+**Estimated Effort:** 11-15 hours (revised from 28-36 hours)
 
-**Target:** Optimize for production workloads and reliability
+- [ ] **Resource Management** (3-4 hours)
+  - [ ] Conversation history cleanup
+  - [ ] Memory-efficient storage
+  - [ ] Connection pooling
+  - [ ] Proper async patterns
+- [ ] **Graceful Degradation** (4-5 hours)
+  - [ ] ChromaDB fallback to direct mode
+  - [ ] Memory system failure handling
+  - [ ] Ollama timeout handling
+  - [ ] Partial feature degradation
+- [ ] **Connection Reliability** (2-3 hours)
+  - [ ] Simple retry logic (2 attempts, 1s delay)
+  - [ ] Timeout handling
+  - [ ] Health checks
+- [ ] **User-Friendly Errors** (2-3 hours)
+  - [ ] Clear error messages
+  - [ ] Helpful suggestions
+  - [ ] Proper error propagation
+
+**Target:** Reliable, resource-efficient operation on Home Assistant hardware
+
+**Note:** Enterprise-scale features (caching, rate limiting quotas, performance metrics, circuit breakers) explicitly excluded as inappropriate for single-instance Home Assistant deployments.
 
 ---
 
@@ -206,20 +208,20 @@
   - Phase 3.5: 6+ memory test files
   - Phase 4: 26 streaming tests
 - **Functionality:** ✅ Phases 1-4 + 3.5 complete and tested
-- **Performance:** ⚠️ **Partial**
+- **Performance:** ✅ **Good**
   - Streaming: ~500ms first audio (✅ Phase 4)
-  - Target: < 2s simple queries (⏳ Phase 6)
-  - Target: < 5s complex queries (⏳ Phase 6)
+  - Typical queries: 1-2s with local LLM
+  - Performance adequate for household usage
 - **Documentation:** 🚧 **In Progress** (Phase 7)
   - 9 comprehensive docs created
   - README restructured
   - PROJECT_SPEC enhanced
   - Validation pending
-- **Reliability:** ⏳ **Partial**
+- **Reliability:** ⏳ **Needs Work**
   - Basic error handling ✅
-  - Rate limiting ❌ (Phase 6)
-  - Caching ❌ (Phase 6)
-  - Automatic retry ❌ (Phase 6)
+  - Graceful degradation ⏳ (Phase 6)
+  - Resource management ⏳ (Phase 6)
+  - Connection reliability ⏳ (Phase 6)
 - **Security:** ⏳ **In Progress**
   - Entity access control ✅
   - API key handling ✅
@@ -1233,81 +1235,66 @@ home_agent:
           token: "{{ secrets.mcp_token }}"
 ```
 
-### Phase 6: Performance & Reliability
-- [ ] **Caching Layer Implementation**
-  - LLM response caching with configurable TTL
-    - Cache identical prompts + context combinations
-    - Configurable cache size and eviction policy (LRU)
-    - Cache key generation based on prompt hash + model + temperature
-    - Bypass cache option for time-sensitive queries
-  - Template rendering results caching
-    - Cache Jinja2 template compilation
-    - Cache rendered system prompts for repeated context
-  - Entity state snapshot caching
-    - Short-lived cache (30-60s) for entity states
-    - Reduce Home Assistant state API calls
-    - Invalidate on state change events
-  - ChromaDB query result caching
-    - Cache vector search results for similar queries
-    - Configurable similarity threshold for cache hits
-- [ ] **Rate Limiting and Quota Management**
-  - Per-user conversation limits
-    - Max conversations per hour/day per user
-    - Configurable limits via UI
-    - Grace period for admin users
-  - Function execution throttling
-    - Max tool calls per conversation turn (already implemented)
-    - Max tool calls per minute per user
-    - Cooldown periods for expensive operations
-  - API call rate limiting
-    - LLM API rate limiting with respect to provider limits
-    - Exponential backoff on rate limit errors
-    - Queue system for pending requests
-  - Token usage quotas
-    - Per-user daily/monthly token limits
-    - Token usage tracking and reporting
-    - Warning notifications at 80% quota
-    - Configurable quota reset periods
-- [ ] **Enhanced Error Handling and Recovery**
-  - Automatic retry with exponential backoff
-    - Retry on transient errors (503, timeout, connection errors)
-    - Configurable max retry attempts (default: 3)
-    - Exponential backoff: 1s, 2s, 4s, etc.
-    - Circuit breaker pattern for repeated failures
-  - Fallback to alternative providers
-    - Secondary LLM endpoint configuration
-    - Automatic failover on primary failure
-    - Health check system for providers
-    - Manual provider selection override
-  - Graceful degradation
-    - Disable specific tools on repeated failures
-    - Reduce context size on token limit errors
-    - Fallback to simpler responses on tool failures
-    - User-friendly error messages
-  - Error notification system
-    - Persistent notification in Home Assistant UI
-    - Optional notification via notify service
-    - Detailed error logging with context
-- [ ] **Performance Benchmarking and Tuning**
-  - Benchmarking tools
-    - Response time measurement per phase (context, LLM, tools)
-    - Token usage tracking and reporting
-    - Tool execution latency monitoring
-    - Memory usage profiling
-  - Performance metrics collection
-    - Average response time by query type
-    - P50, P95, P99 latency percentiles
-    - Token efficiency metrics (tokens per response)
-    - Cache hit rate monitoring
-  - Automated performance testing
-    - Regression tests for performance
-    - Load testing scenarios
-    - Stress testing for concurrent conversations
-  - Optimization targets
-    - < 2s response time for simple queries (no tools)
-    - < 5s response time for complex queries (with tools)
-    - > 50% cache hit rate for repeated queries
-    - > 99% uptime for core functionality
+### Phase 6: Reliability & Resource Management
+**Status:** Planned | **Priority:** Medium | **Target:** v1.0.0 completion
+**Context:** Home Assistant single-instance deployment (not cloud-scale)
+
+#### Design Philosophy
+This phase focuses on making the integration reliable and resource-efficient for Home Assistant deployments running on modest hardware (Raspberry Pi, NUC, home servers). The integration serves 1-10 household users, not millions. Enterprise-scale features like extensive caching, rate limiting quotas, and load testing are **explicitly excluded** as inappropriate for this context.
+
+#### Core Features for v1.0.0
+
+- [ ] **Resource Management** (~3-4 hours)
+  - Conversation history cleanup (auto-delete conversations older than 7 days)
+  - Memory-efficient conversation storage (limit messages per conversation)
+  - Connection pooling for external services (ChromaDB, Ollama, external LLM)
+  - Proper async/await patterns (don't block Home Assistant event loop)
+  - Background task management for cleanup operations
+  - Prevent memory leaks in long-running sessions
+
+- [ ] **Graceful Degradation** (~4-5 hours)
+  - Fallback to direct mode if ChromaDB unavailable
+  - Continue without memories if memory system fails
+  - Handle Ollama/embedding service timeouts gracefully
+  - External LLM failure handling (return error to primary LLM)
+  - Partial feature degradation instead of complete failure
+  - User-friendly fallback messages
+
+- [ ] **Connection Reliability** (~2-3 hours)
+  - Simple retry logic for external services (2 attempts, 1s delay between)
+  - Timeout handling for long-running operations (ChromaDB, Ollama, external LLM)
+  - Connection health checks on integration startup
+  - Proper error handling for network failures
+
+- [ ] **User-Friendly Error Messages** (~2-3 hours)
+  - Replace stack traces with clear, actionable error messages
+  - Helpful suggestions for common errors (entity not found, service unavailable)
+  - Proper error propagation to voice assistant interface
+  - Logging with appropriate levels (debug, info, warning, error)
+  - Context-rich error messages for debugging
+
+**Total Estimated Effort:** 11-15 hours
+
+#### Explicitly Excluded (Not Applicable for Home Assistant Context)
+
+The following features were removed as they are designed for enterprise cloud-scale systems and add unnecessary complexity for a single-instance Home Assistant integration:
+
+- ❌ **LLM Response Caching** - Local LLM usage means no API costs; dynamic home automation context results in <5% cache hit rate
+- ❌ **Entity State Caching** - Vector DB mode already limits to ~10 entities; overhead exceeds benefit
+- ❌ **ChromaDB Query Caching** - Low hit rate due to varied queries; complex invalidation logic not justified
+- ❌ **Per-User Rate Limiting/Quotas** - Household usage (1-10 users) doesn't require per-user limits; tool call limits already implemented
+- ❌ **Token Usage Quotas** - No cost with local LLM (Ollama); external LLM usage is rare and optional
+- ❌ **Enterprise Performance Metrics** - P50/P95/P99 latency percentiles, load testing, stress testing not relevant for single-instance
+- ❌ **Circuit Breaker Patterns** - Overkill for home automation; simple retry logic sufficient
+- ❌ **Provider Failover** - Complex configuration for minimal benefit; users can manually switch providers
+- ❌ **Automated Performance Testing** - CI/CD complexity not justified; Home Assistant logs provide sufficient visibility
+
+#### Optional Enhancements (Post-v1.0.0)
+
+- Simple conversation-level throttling to prevent runaway automation loops
+- Template compilation caching (minor optimization, 10ms savings)
+- Enhanced debug logging and telemetry
+- Connection pool statistics and monitoring
 
 ### Phase 7: Polish & Production Ready
 - [ ] **Complete Documentation**
@@ -1466,22 +1453,25 @@ home_agent:
   - API key handling secure
   - Security audit pending (Phase 7)
 
-### Target Metrics (Phase 7)
-- **Functionality:** All function types working reliably across all phases
+### Target Metrics (v1.0.0 Release)
+- **Functionality:** All core features working reliably (Phases 1-4, 3.5)
 - **Performance:**
-  - < 2s response time for simple queries (no tools)
-  - < 5s response time for complex queries (with tools)
-  - > 50% cache hit rate for repeated queries
-- **Reliability:** > 99% uptime for core features
+  - < 2s response time for typical queries with local LLM
+  - Streaming responses provide perceived latency ~500ms (Phase 4)
+  - Graceful handling of slow external services
+- **Reliability:**
+  - Graceful degradation when dependencies fail
+  - Clear error messages for common issues
+  - Resource-efficient for Home Assistant hardware
 - **User Satisfaction:** Positive community feedback and testimonials
 - **Adoption:**
-  - HACS installation available
-  - 100+ active installations within 3 months
+  - HACS installation available (public repository)
+  - 50+ active installations within 3 months
   - Active community engagement (issues, PRs, discussions)
 - **Code Quality:**
   - Maintain > 80% test coverage
   - All critical paths covered
-  - No security vulnerabilities
+  - No critical security vulnerabilities
 
 ---
 
