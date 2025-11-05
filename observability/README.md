@@ -1,392 +1,471 @@
-# Home Agent Observability
+# Home Agent Observability with InfluxDB + Grafana
 
-Complete observability setup for monitoring Home Agent performance, usage, and health using Prometheus, InfluxDB, and Grafana.
+Complete monitoring setup for Home Agent using your existing InfluxDB integration and Grafana.
 
 ## 📊 Overview
 
-Home Agent emits detailed events to Home Assistant's event bus that can be captured and visualized using standard observability tools. This folder contains ready-to-use configurations for:
+Since you already have InfluxDB integrated with Home Assistant, this guide shows you how to:
+1. Configure Home Assistant to send Home Agent events to InfluxDB
+2. Connect Grafana directly to InfluxDB
+3. Import pre-built dashboards for instant visualization
 
-- **Prometheus** - Metrics collection and alerting
-- **InfluxDB** - Time-series data storage
-- **Grafana** - Visualization dashboards
-- **Home Assistant** - Event-to-metrics transformation
+**No Prometheus needed!** This is the simplest monitoring setup.
 
 ## 🎯 What You Can Monitor
 
-### Conversation Metrics
-- Total conversations processed
-- Average conversation duration
-- Conversation rate (per second/minute/hour)
-- User activity patterns
+- **Conversations**: Total count, rate, duration
+- **Token Usage**: Prompt, completion, and total tokens consumed
+- **Performance**: LLM latency, tool execution time, context retrieval speed
+- **Tool Execution**: Success rates, call frequency, execution duration
+- **External LLM Usage**: When and how often external LLM is used
+- **Errors**: Error rates, types, and patterns
 
-### Token Usage
-- Total tokens consumed (prompt + completion)
-- Prompt tokens vs completion tokens
-- Token consumption rate
-- Cost estimation (when using paid APIs)
+## 🚀 Quick Start (3 Steps)
 
-### Performance Metrics
-- LLM API latency
-- Tool execution latency
-- Context retrieval latency
-- End-to-end conversation duration
+### Step 1: Configure Home Assistant to Track Events
 
-### Tool Execution
-- Tool call frequency by tool name
-- Tool success rate
-- Tool execution duration
-- Tool failures and errors
+Add this to your `configuration.yaml`:
 
-### External LLM Usage
-- Number of external LLM calls
-- Percentage of conversations using external LLM
-- External LLM vs local LLM usage patterns
+```yaml
+# Template sensors to track Home Agent metrics
+template:
+  - trigger:
+      - platform: event
+        event_type: home_agent.conversation.finished
+      - platform: event
+        event_type: home_agent.tool.executed
+      - platform: event
+        event_type: home_agent.error
+    sensor:
+      # Conversation metrics
+      - name: "Home Agent Last Conversation Duration"
+        unique_id: home_agent_last_conversation_duration
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ trigger.event.data.duration_ms }}
+          {% else %}
+            {{ states('sensor.home_agent_last_conversation_duration') }}
+          {% endif %}
+        unit_of_measurement: "ms"
+        state_class: measurement
 
-### Error Tracking
-- Error rate over time
-- Error types and categories
-- Component-level error breakdown
+      - name: "Home Agent Last Conversation Tokens"
+        unique_id: home_agent_last_conversation_tokens
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ trigger.event.data.tokens.total }}
+          {% else %}
+            {{ states('sensor.home_agent_last_conversation_tokens') }}
+          {% endif %}
+        unit_of_measurement: "tokens"
+        state_class: measurement
+        attributes:
+          prompt_tokens: >
+            {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+              {{ trigger.event.data.tokens.prompt }}
+            {% endif %}
+          completion_tokens: >
+            {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+              {{ trigger.event.data.tokens.completion }}
+            {% endif %}
 
-## 🚀 Quick Start
+      - name: "Home Agent Last LLM Latency"
+        unique_id: home_agent_last_llm_latency
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ trigger.event.data.performance.llm_latency_ms }}
+          {% else %}
+            {{ states('sensor.home_agent_last_llm_latency') }}
+          {% endif %}
+        unit_of_measurement: "ms"
+        state_class: measurement
 
-### Option 1: Prometheus Only (Simplest)
+      - name: "Home Agent Last Tool Latency"
+        unique_id: home_agent_last_tool_latency
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ trigger.event.data.performance.tool_latency_ms }}
+          {% else %}
+            {{ states('sensor.home_agent_last_tool_latency') }}
+          {% endif %}
+        unit_of_measurement: "ms"
+        state_class: measurement
 
-1. **Add sensors to Home Assistant** (`configuration.yaml`):
-   ```bash
-   cat prometheus/home_agent_events.yaml >> /config/configuration.yaml
-   ```
+      - name: "Home Agent Last Context Latency"
+        unique_id: home_agent_last_context_latency
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ trigger.event.data.performance.context_latency_ms }}
+          {% else %}
+            {{ states('sensor.home_agent_last_context_latency') }}
+          {% endif %}
+        unit_of_measurement: "ms"
+        state_class: measurement
 
-2. **Enable Prometheus integration**:
-   ```yaml
-   prometheus:
-     namespace: home_agent
-   ```
+      - name: "Home Agent Last Tool Calls"
+        unique_id: home_agent_last_tool_calls
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ trigger.event.data.tool_calls }}
+          {% else %}
+            {{ states('sensor.home_agent_last_tool_calls') }}
+          {% endif %}
+        unit_of_measurement: "calls"
+        state_class: measurement
 
-3. **Configure Prometheus scraping**:
-   ```yaml
-   scrape_configs:
-     - job_name: 'homeassistant'
-       static_configs:
-         - targets: ['homeassistant:8123']
-   ```
+      - name: "Home Agent Used External LLM"
+        unique_id: home_agent_used_external_llm
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ 1 if trigger.event.data.used_external_llm else 0 }}
+          {% else %}
+            {{ states('sensor.home_agent_used_external_llm') }}
+          {% endif %}
+        unit_of_measurement: "boolean"
+        state_class: measurement
 
-4. **Import Grafana dashboard**:
-   - Open Grafana → Dashboards → Import
-   - Upload `grafana/home_agent_dashboard.json`
+# Counter sensors (persistent across restarts)
+counter:
+  home_agent_conversations_total:
+    name: "Home Agent Conversations Total"
+    icon: mdi:chat
+  home_agent_tool_successes:
+    name: "Home Agent Tool Successes"
+    icon: mdi:check-circle
+  home_agent_tool_failures:
+    name: "Home Agent Tool Failures"
+    icon: mdi:alert-circle
+  home_agent_errors_total:
+    name: "Home Agent Errors Total"
+    icon: mdi:alert
 
-### Option 2: InfluxDB + Prometheus (Recommended)
+# Automation to increment counters
+automation:
+  - id: home_agent_conversation_counter
+    alias: "Home Agent: Increment Conversation Counter"
+    trigger:
+      - platform: event
+        event_type: home_agent.conversation.finished
+    action:
+      - service: counter.increment
+        target:
+          entity_id: counter.home_agent_conversations_total
 
-For users who already have InfluxDB running:
+  - id: home_agent_tool_counter
+    alias: "Home Agent: Track Tool Success/Failure"
+    trigger:
+      - platform: event
+        event_type: home_agent.tool.executed
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ trigger.event.data.success }}"
+            sequence:
+              - service: counter.increment
+                target:
+                  entity_id: counter.home_agent_tool_successes
+        default:
+          - service: counter.increment
+            target:
+              entity_id: counter.home_agent_tool_failures
 
-1. **Configure InfluxDB integration**:
-   ```bash
-   cat influxdb/home_agent_influxdb.yaml >> /config/configuration.yaml
-   ```
+  - id: home_agent_error_counter
+    alias: "Home Agent: Increment Error Counter"
+    trigger:
+      - platform: event
+        event_type: home_agent.error
+    action:
+      - service: counter.increment
+        target:
+          entity_id: counter.home_agent_errors_total
+```
 
-2. **Set up InfluxDB credentials** in `secrets.yaml`:
-   ```yaml
-   influxdb_username: your_username
-   influxdb_password: your_password
-   influxdb_auth_header: "Token YOUR_INFLUXDB_TOKEN"
-   ```
+**Then restart Home Assistant.**
 
-3. **Bridge InfluxDB to Prometheus**:
-   - See `influxdb/influxdb_to_prometheus_bridge.md` for detailed instructions
-   - Choose from Telegraf, influxdb_exporter, or native InfluxDB 2.x methods
+### Step 2: Verify InfluxDB is Capturing Data
 
-4. **Import Grafana dashboard** as above
+Your existing InfluxDB integration should already be capturing these sensors. Verify by:
+
+1. Go to **Developer Tools** → **States**
+2. Search for `sensor.home_agent_`
+3. Trigger a conversation with Home Agent
+4. Confirm sensor values update
+
+In InfluxDB, you should see measurements like:
+- `home_agent_last_conversation_duration`
+- `home_agent_last_conversation_tokens`
+- `home_agent_last_llm_latency`
+- etc.
+
+### Step 3: Import Grafana Dashboard
+
+1. Open Grafana
+2. Go to **Dashboards** → **Import**
+3. Upload `grafana/home_agent_influxdb_dashboard.json`
+4. Select your InfluxDB data source
+5. Click **Import**
+
+**Done!** You now have full observability.
 
 ## 📁 Folder Structure
 
 ```
 observability/
-├── README.md                           # This file
-├── prometheus/
-│   ├── home_agent_events.yaml          # HA sensors + Prometheus export config
-│   └── alerting_rules.yaml             # Prometheus alerting rules
-├── influxdb/
-│   ├── home_agent_influxdb.yaml        # InfluxDB integration config
-│   └── influxdb_to_prometheus_bridge.md # Bridging guide
-└── grafana/
-    └── home_agent_dashboard.json       # Pre-built Grafana dashboard
+├── README.md                                    # This file
+├── grafana/
+│   ├── home_agent_influxdb_dashboard.json      # Main dashboard (InfluxDB/Flux)
+│   └── home_agent_influxql_dashboard.json      # Alternative (InfluxDB 1.x/InfluxQL)
+└── influxdb/
+    └── flux_queries.md                          # Example Flux queries for custom panels
 ```
 
 ## 📊 Available Metrics
 
-| Metric Name | Type | Description | Unit |
-|-------------|------|-------------|------|
-| `home_agent_conversations_total` | Counter | Total conversations processed | conversations |
-| `home_agent_avg_duration` | Gauge | Average conversation duration | ms |
-| `home_agent_total_tokens` | Counter | Total tokens consumed | tokens |
-| `home_agent_prompt_tokens` | Counter | Prompt tokens used | tokens |
-| `home_agent_completion_tokens` | Counter | Completion tokens generated | tokens |
-| `home_agent_tool_calls_total` | Counter | Total tool executions | calls |
-| `home_agent_tool_success_rate` | Gauge | Tool execution success rate | % |
-| `home_agent_llm_latency` | Gauge | LLM API response latency | ms |
-| `home_agent_tool_latency` | Gauge | Tool execution latency | ms |
-| `home_agent_context_latency` | Gauge | Context retrieval latency | ms |
-| `home_agent_external_llm_calls` | Counter | External LLM invocations | calls |
-| `home_agent_errors_total` | Counter | Total errors encountered | errors |
+| Metric | Measurement Name | Description |
+|--------|------------------|-------------|
+| Conversation Duration | `home_agent_last_conversation_duration` | Time to process conversation (ms) |
+| Token Usage | `home_agent_last_conversation_tokens` | Total tokens per conversation |
+| Prompt Tokens | `home_agent_last_conversation_tokens.prompt_tokens` | Tokens in prompt |
+| Completion Tokens | `home_agent_last_conversation_tokens.completion_tokens` | Tokens in completion |
+| LLM Latency | `home_agent_last_llm_latency` | LLM API response time (ms) |
+| Tool Latency | `home_agent_last_tool_latency` | Tool execution time (ms) |
+| Context Latency | `home_agent_last_context_latency` | Context retrieval time (ms) |
+| Tool Calls | `home_agent_last_tool_calls` | Number of tools called |
+| External LLM Used | `home_agent_used_external_llm` | 1 if external LLM was used, 0 otherwise |
+| Total Conversations | `counter.home_agent_conversations_total` | Cumulative conversation count |
+| Tool Successes | `counter.home_agent_tool_successes` | Successful tool executions |
+| Tool Failures | `counter.home_agent_tool_failures` | Failed tool executions |
+| Total Errors | `counter.home_agent_errors_total` | Cumulative error count |
 
-## 🔔 Alerting
+## 🎨 Dashboard Features
 
-Pre-configured Prometheus alerts are available in `prometheus/alerting_rules.yaml`:
-
-### Warning Alerts
-- High error rate (>0.1 errors/sec for 5m)
-- Low tool success rate (<80% for 10m)
-- High LLM latency (>2000ms for 5m)
-- High tool latency (>1000ms for 5m)
-- No activity for 30 minutes
-- High token consumption
-- High external LLM usage
-- High context latency (>500ms for 10m)
-
-### Critical Alerts
-- Critical error rate (>1 error/sec for 2m)
-- Critical tool success rate (<50% for 5m)
-- Critical LLM latency (>5000ms for 2m)
-
-### Add alerts to Prometheus config:
-
-```yaml
-# prometheus.yml
-rule_files:
-  - /path/to/observability/prometheus/alerting_rules.yaml
-
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets: ['alertmanager:9093']
-```
-
-## 🎨 Grafana Dashboard
-
-The pre-built dashboard (`grafana/home_agent_dashboard.json`) includes:
+The Grafana dashboard includes:
 
 ### Overview Row
-- Total conversations (stat)
-- Average duration (stat)
-- Total tokens used (stat)
-- Tool success rate (gauge)
-
-### Trends Row
-- Conversations over time (timeseries)
-- Token usage over time (timeseries - stacked)
+- **Total Conversations** (stat)
+- **Average Duration** (stat with sparkline)
+- **Total Tokens** (stat with trend)
+- **Error Rate** (gauge)
 
 ### Performance Row
-- LLM, tool, and context latency (timeseries - multi-line)
+- **Latency Breakdown** (timeseries) - LLM, tool, and context latency
+- **Conversation Duration Over Time** (timeseries)
 
-### Analysis Row
-- Tool usage distribution (pie chart)
-- External LLM usage (timeseries - stacked bars)
+### Token Usage Row
+- **Token Consumption Over Time** (timeseries) - prompt vs completion
+- **Tokens per Conversation** (stat)
+
+### Tool Analytics Row
+- **Tool Success Rate** (gauge)
+- **Tool Calls Over Time** (timeseries)
+- **Tool Execution Duration** (histogram)
+
+### External LLM Row
+- **External LLM Usage** (stat) - percentage of conversations
+- **External LLM Calls Over Time** (timeseries)
 
 ### Error Tracking Row
-- Error rate over time (timeseries)
+- **Errors Over Time** (timeseries)
+- **Error Rate** (stat)
 
-### Features
-- Auto-refresh every 10 seconds
-- Time range selector (default: last 6 hours)
-- Data source selector
-- Drill-down capabilities
+## 🔧 Customization
 
-## 🔧 Advanced Configuration
+### Add Custom Metrics
 
-### Custom Metrics
-
-Add custom metrics by creating template sensors in Home Assistant:
+Add new template sensors to track additional event data:
 
 ```yaml
 template:
-  - sensor:
+  - trigger:
+      - platform: event
+        event_type: home_agent.conversation.finished
+    sensor:
       - name: "Home Agent Custom Metric"
-        unique_id: home_agent_custom
-        state: >
-          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
-            {{ your_custom_logic_here }}
-          {% endif %}
+        state: "{{ trigger.event.data.your_custom_field }}"
 ```
 
-### Metric Aggregation
+### Modify Dashboard Queries
 
-Use Prometheus recording rules for pre-aggregated metrics:
+All dashboard panels use Flux queries. Example:
 
-```yaml
-# Example: Average tokens per conversation
-- record: home_agent:avg_tokens_per_conversation
-  expr: |
-    home_agent_total_tokens /
-    home_agent_conversations_total
+```flux
+from(bucket: "home_assistant")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "home_agent_last_conversation_duration")
+  |> filter(fn: (r) => r._field == "value")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
 ```
 
-### Cost Tracking
+Edit panels in Grafana to customize:
+- Time ranges
+- Aggregation functions
+- Visualization types
+- Thresholds and colors
 
-Calculate API costs based on token usage:
+### Calculate Cost
+
+Add a cost tracking sensor:
 
 ```yaml
 template:
-  - sensor:
-      - name: "Home Agent Estimated Cost"
+  - trigger:
+      - platform: event
+        event_type: home_agent.conversation.finished
+    sensor:
+      - name: "Home Agent Conversation Cost"
         state: >
-          {% set prompt_tokens = states('sensor.home_agent_prompt_tokens') | float(0) %}
-          {% set completion_tokens = states('sensor.home_agent_completion_tokens') | float(0) %}
-          {% set prompt_cost = (prompt_tokens / 1000000) * 0.15 %}  # $0.15 per 1M tokens
-          {% set completion_cost = (completion_tokens / 1000000) * 0.60 %}  # $0.60 per 1M tokens
-          {{ (prompt_cost + completion_cost) | round(2) }}
+          {% set prompt = trigger.event.data.tokens.prompt %}
+          {% set completion = trigger.event.data.tokens.completion %}
+          {% set prompt_cost = (prompt / 1000000) * 0.15 %}
+          {% set completion_cost = (completion / 1000000) * 0.60 %}
+          {{ (prompt_cost + completion_cost) | round(4) }}
         unit_of_measurement: "USD"
+        state_class: measurement
 ```
+
+Then create a cumulative cost counter using `utility_meter` integration.
 
 ## 🐛 Troubleshooting
 
-### Metrics Not Appearing in Prometheus
+### Sensors Not Updating
 
-1. **Verify sensors exist in Home Assistant**:
-   ```bash
-   # In Home Assistant Developer Tools → States
-   # Search for: sensor.home_agent_
-   ```
+1. **Check event is firing**:
+   - Developer Tools → Events
+   - Listen for: `home_agent.conversation.finished`
+   - Trigger a conversation
 
-2. **Check Prometheus integration is enabled**:
-   ```yaml
-   # configuration.yaml
-   prometheus:
-   ```
+2. **Verify template sensors exist**:
+   - Developer Tools → States
+   - Search for: `sensor.home_agent_`
 
-3. **Verify Prometheus is scraping Home Assistant**:
-   ```bash
-   # Open http://prometheus:9090/targets
-   # Look for homeassistant job
-   ```
-
-4. **Check Home Assistant logs**:
+3. **Check Home Assistant logs**:
    ```bash
    tail -f /config/home-assistant.log | grep home_agent
    ```
 
-### InfluxDB Not Receiving Data
+### Data Not Appearing in InfluxDB
 
-1. **Test InfluxDB connectivity**:
-   ```bash
-   curl -I http://localhost:8086/ping
+1. **Verify InfluxDB integration is running**:
+   - Settings → Integrations → InfluxDB
+   - Check status is "OK"
+
+2. **Check InfluxDB configuration**:
+   ```yaml
+   influxdb:
+     host: localhost
+     port: 8086
+     database: home_assistant
+     # ... other settings
    ```
 
-2. **Verify rest_command credentials**:
-   ```bash
-   # Check secrets.yaml has correct tokens
+3. **Verify sensors are included**:
+   ```yaml
+   influxdb:
+     include:
+       entities:
+         - sensor.home_agent_last_conversation_duration
+         # ... other sensors
    ```
 
-3. **Test manual write**:
-   ```bash
-   curl -XPOST "http://localhost:8086/write?db=home_agent_metrics" \
-     -H "Authorization: Token YOUR_TOKEN" \
-     --data-binary "test_metric value=1"
-   ```
-
-4. **Check automation triggers**:
-   ```bash
-   # Home Assistant → Developer Tools → Events
-   # Listen for: home_agent.conversation.finished
-   ```
+4. **Check InfluxDB logs** for write errors
 
 ### Grafana Dashboard Not Loading
 
-1. **Verify Prometheus data source**:
+1. **Verify InfluxDB data source**:
    - Grafana → Configuration → Data Sources
    - Test & Save
 
-2. **Check metric names match**:
-   ```bash
-   # In Prometheus, query:
-   {__name__=~"home_agent.*"}
-   ```
+2. **Check bucket/database name matches**:
+   - Update dashboard variables if needed
 
-3. **Import dashboard again**:
-   - Grafana → Dashboards → Import
-   - Upload JSON, select Prometheus data source
+3. **Verify Flux queries**:
+   - Open dashboard panel
+   - Edit query
+   - Run query manually
 
-### Events Not Firing
+### Missing Data Points
 
-1. **Verify Home Agent integration is running**:
-   ```bash
-   # Home Assistant → Settings → Devices & Services → Home Agent
-   ```
+1. **Check sensor state_class**:
+   - Must be `measurement` for time-series data
 
-2. **Check event emission is enabled**:
-   ```yaml
-   # In Home Agent config
-   emit_events: true  # Should be true (default)
-   ```
+2. **Verify InfluxDB retention policy**:
+   - Data may have been deleted if policy is too short
 
-3. **Listen for events manually**:
-   ```bash
-   # Home Assistant → Developer Tools → Events
-   # Listen for: home_agent.*
-   # Then trigger a conversation
-   ```
+3. **Check time range in Grafana**:
+   - Ensure time range includes when data was recorded
 
-## 📚 Additional Resources
+## 📚 Example Flux Queries
 
-### Documentation
-- [Prometheus Integration](https://www.home-assistant.io/integrations/prometheus/)
-- [InfluxDB Integration](https://www.home-assistant.io/integrations/influxdb/)
-- [Grafana Setup](https://grafana.com/docs/grafana/latest/)
-- [Home Assistant Template Sensors](https://www.home-assistant.io/integrations/template/)
+See `influxdb/flux_queries.md` for detailed examples including:
+- Average conversation duration
+- Token consumption trends
+- Tool success rate calculations
+- Error rate monitoring
+- Cost analysis
 
-### Example Queries
+## 🔄 Advanced: Real-Time Event Logging
 
-**Prometheus PromQL Examples**:
+For detailed event logging (not just aggregated metrics), add this automation:
 
-```promql
-# Conversations per hour
-rate(home_agent_conversations_total[1h]) * 3600
-
-# Average latency (all components)
-(home_agent_llm_latency + home_agent_tool_latency + home_agent_context_latency) / 3
-
-# Tool success rate over time
-100 - (home_agent_tool_success_rate)
-
-# External LLM usage percentage
-(home_agent_external_llm_calls / home_agent_conversations_total) * 100
-
-# Token cost estimate (OpenAI GPT-4o-mini pricing)
-(home_agent_prompt_tokens / 1000000 * 0.15) + (home_agent_completion_tokens / 1000000 * 0.60)
+```yaml
+automation:
+  - id: home_agent_event_logger
+    alias: "Home Agent: Log Detailed Events"
+    trigger:
+      - platform: event
+        event_type: home_agent.conversation.finished
+    action:
+      - service: influxdb.write
+        data:
+          bucket: home_agent_events
+          measurement: conversation
+          tags:
+            user_id: "{{ trigger.event.data.user_id }}"
+            conversation_id: "{{ trigger.event.data.conversation_id }}"
+            used_external_llm: "{{ trigger.event.data.used_external_llm }}"
+          fields:
+            duration_ms: "{{ trigger.event.data.duration_ms }}"
+            prompt_tokens: "{{ trigger.event.data.tokens.prompt }}"
+            completion_tokens: "{{ trigger.event.data.tokens.completion }}"
+            total_tokens: "{{ trigger.event.data.tokens.total }}"
+            llm_latency: "{{ trigger.event.data.performance.llm_latency_ms }}"
+            tool_latency: "{{ trigger.event.data.performance.tool_latency_ms }}"
+            context_latency: "{{ trigger.event.data.performance.context_latency_ms }}"
+            tool_calls: "{{ trigger.event.data.tool_calls }}"
 ```
 
-**InfluxDB Flux Examples**:
+This creates a separate `conversation` measurement with full event details for deep analysis.
 
-```flux
-// Average conversation duration per hour
-from(bucket: "home_agent_metrics")
-  |> range(start: -24h)
-  |> filter(fn: (r) => r._measurement == "home_agent_conversation")
-  |> filter(fn: (r) => r._field == "duration_ms")
-  |> aggregateWindow(every: 1h, fn: mean)
+## 📈 Dashboard Maintenance
 
-// Tool success rate
-from(bucket: "home_agent_metrics")
-  |> range(start: -24h)
-  |> filter(fn: (r) => r._measurement == "home_agent_tool")
-  |> filter(fn: (r) => r._field == "success")
-  |> group()
-  |> reduce(
-      fn: (r, accumulator) => ({
-        total: accumulator.total + 1,
-        successes: accumulator.successes + (if r._value == "true" then 1 else 0)
-      }),
-      identity: {total: 0, successes: 0}
-    )
-  |> map(fn: (r) => ({ _value: float(v: r.successes) / float(v: r.total) * 100.0 }))
+### Update Dashboard
+
+When new metrics are added:
+1. Export your customized dashboard
+2. Import updated dashboard
+3. Merge customizations
+
+### Backup Dashboard
+
+```bash
+# Export from Grafana UI or via API
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+  http://localhost:3000/api/dashboards/uid/home-agent-influxdb \
+  > backup_$(date +%Y%m%d).json
 ```
+
+## 💡 Best Practices
+
+1. **Set appropriate retention policies** in InfluxDB to manage disk space
+2. **Use downsampling** for long-term trends (aggregate hourly/daily)
+3. **Create alerts** in Grafana for critical metrics (high error rate, latency spikes)
+4. **Monitor InfluxDB performance** if you have high conversation volume
+5. **Regular backups** of Grafana dashboards and InfluxDB data
 
 ## 🤝 Contributing
 
-Have improvements or additional dashboards? Contributions are welcome!
-
-1. Test your configuration thoroughly
-2. Document any new metrics or alerts
-3. Update this README with usage instructions
-4. Submit a pull request
+Found a better query or dashboard layout? Contributions welcome!
 
 ## 📄 License
 
@@ -396,4 +475,3 @@ Same license as Home Agent project.
 
 - **Issues**: [GitHub Issues](https://github.com/aradlein/home-agent/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/aradlein/home-agent/discussions)
-- **Documentation**: See main [docs/](../docs/) directory
