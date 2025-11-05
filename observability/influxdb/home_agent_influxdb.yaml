@@ -1,0 +1,123 @@
+# InfluxDB Configuration for Home Agent Events
+# This configuration sends Home Agent events directly to InfluxDB for time-series storage
+
+influxdb:
+  # InfluxDB connection details
+  host: localhost  # Change to your InfluxDB host
+  port: 8086
+  database: home_agent_metrics
+  username: !secret influxdb_username
+  password: !secret influxdb_password
+  max_retries: 3
+  default_measurement: state
+
+  # Tags to add to all measurements
+  tags:
+    source: home_assistant
+    integration: home_agent
+
+  # Include Home Agent sensors
+  include:
+    entities:
+      - sensor.home_agent_conversations_total
+      - sensor.home_agent_average_duration
+      - sensor.home_agent_total_tokens
+      - sensor.home_agent_prompt_tokens
+      - sensor.home_agent_completion_tokens
+      - sensor.home_agent_tool_calls_total
+      - sensor.home_agent_tool_success_rate
+      - sensor.home_agent_llm_latency
+      - sensor.home_agent_tool_latency
+      - sensor.home_agent_context_latency
+      - sensor.home_agent_external_llm_calls
+      - sensor.home_agent_errors_total
+
+# Automation to send detailed event data to InfluxDB
+# This captures the raw event data with all fields
+automation:
+  - id: home_agent_influxdb_conversation_finished
+    alias: "Home Agent: Log Conversation to InfluxDB"
+    description: "Logs detailed conversation metrics to InfluxDB"
+    trigger:
+      - platform: event
+        event_type: home_agent.conversation.finished
+    action:
+      - service: rest_command.influxdb_home_agent_conversation
+        data:
+          conversation_id: "{{ trigger.event.data.conversation_id }}"
+          user_id: "{{ trigger.event.data.user_id }}"
+          duration_ms: "{{ trigger.event.data.duration_ms }}"
+          prompt_tokens: "{{ trigger.event.data.tokens.prompt }}"
+          completion_tokens: "{{ trigger.event.data.tokens.completion }}"
+          total_tokens: "{{ trigger.event.data.tokens.total }}"
+          llm_latency: "{{ trigger.event.data.performance.llm_latency_ms }}"
+          tool_latency: "{{ trigger.event.data.performance.tool_latency_ms }}"
+          context_latency: "{{ trigger.event.data.performance.context_latency_ms }}"
+          tool_calls: "{{ trigger.event.data.tool_calls }}"
+          used_external_llm: "{{ trigger.event.data.used_external_llm }}"
+
+  - id: home_agent_influxdb_tool_executed
+    alias: "Home Agent: Log Tool Execution to InfluxDB"
+    description: "Logs tool execution details to InfluxDB"
+    trigger:
+      - platform: event
+        event_type: home_agent.tool.executed
+    action:
+      - service: rest_command.influxdb_home_agent_tool
+        data:
+          tool_name: "{{ trigger.event.data.tool_name }}"
+          conversation_id: "{{ trigger.event.data.conversation_id | default('unknown') }}"
+          success: "{{ trigger.event.data.success }}"
+          duration_ms: "{{ trigger.event.data.duration_ms }}"
+          error: "{{ trigger.event.data.error | default('') }}"
+
+  - id: home_agent_influxdb_error
+    alias: "Home Agent: Log Errors to InfluxDB"
+    description: "Logs errors to InfluxDB for tracking"
+    trigger:
+      - platform: event
+        event_type: home_agent.error
+    action:
+      - service: rest_command.influxdb_home_agent_error
+        data:
+          error_type: "{{ trigger.event.data.error_type }}"
+          error_message: "{{ trigger.event.data.error_message }}"
+          conversation_id: "{{ trigger.event.data.conversation_id | default('unknown') }}"
+          component: "{{ trigger.event.data.component }}"
+
+# REST commands for writing to InfluxDB (InfluxDB Line Protocol)
+rest_command:
+  influxdb_home_agent_conversation:
+    url: "http://localhost:8086/write?db=home_agent_metrics"  # Change to your InfluxDB host
+    method: POST
+    headers:
+      Authorization: !secret influxdb_auth_header  # "Token YOUR_INFLUXDB_TOKEN" for InfluxDB 2.x
+      Content-Type: "text/plain"
+    payload: >
+      home_agent_conversation,conversation_id={{ conversation_id }},user_id={{ user_id }},used_external_llm={{ used_external_llm }}
+      duration_ms={{ duration_ms }},prompt_tokens={{ prompt_tokens }},completion_tokens={{ completion_tokens }},total_tokens={{ total_tokens }},llm_latency={{ llm_latency }},tool_latency={{ tool_latency }},context_latency={{ context_latency }},tool_calls={{ tool_calls }}
+
+  influxdb_home_agent_tool:
+    url: "http://localhost:8086/write?db=home_agent_metrics"
+    method: POST
+    headers:
+      Authorization: !secret influxdb_auth_header
+      Content-Type: "text/plain"
+    payload: >
+      home_agent_tool,tool_name={{ tool_name }},conversation_id={{ conversation_id }},success={{ success }}
+      duration_ms={{ duration_ms }}
+
+  influxdb_home_agent_error:
+    url: "http://localhost:8086/write?db=home_agent_metrics"
+    method: POST
+    headers:
+      Authorization: !secret influxdb_auth_header
+      Content-Type: "text/plain"
+    payload: >
+      home_agent_error,error_type={{ error_type }},component={{ component }},conversation_id={{ conversation_id }}
+      error_message="{{ error_message }}"
+
+# Add to secrets.yaml:
+# influxdb_username: your_username
+# influxdb_password: your_password
+# influxdb_auth_header: "Token YOUR_INFLUXDB_TOKEN"  # For InfluxDB 2.x

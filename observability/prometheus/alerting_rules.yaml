@@ -1,0 +1,170 @@
+# Prometheus Alerting Rules for Home Agent
+# Add this to your Prometheus configuration
+
+groups:
+  - name: home_agent_alerts
+    interval: 30s
+    rules:
+      # High error rate alert
+      - alert: HomeAgentHighErrorRate
+        expr: rate(home_agent_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: home_agent
+        annotations:
+          summary: "Home Agent experiencing high error rate"
+          description: "Home Agent has {{ $value | humanize }} errors per second over the last 5 minutes"
+
+      # Critical error rate alert
+      - alert: HomeAgentCriticalErrorRate
+        expr: rate(home_agent_errors_total[5m]) > 1
+        for: 2m
+        labels:
+          severity: critical
+          component: home_agent
+        annotations:
+          summary: "Home Agent experiencing critical error rate"
+          description: "Home Agent has {{ $value | humanize }} errors per second over the last 5 minutes. Immediate attention required!"
+
+      # Tool success rate degradation
+      - alert: HomeAgentLowToolSuccessRate
+        expr: home_agent_tool_success_rate < 80
+        for: 10m
+        labels:
+          severity: warning
+          component: home_agent
+        annotations:
+          summary: "Home Agent tool success rate degraded"
+          description: "Tool success rate is {{ $value | humanizePercentage }} (threshold: 80%)"
+
+      # Critical tool success rate
+      - alert: HomeAgentCriticalToolSuccessRate
+        expr: home_agent_tool_success_rate < 50
+        for: 5m
+        labels:
+          severity: critical
+          component: home_agent
+        annotations:
+          summary: "Home Agent tool success rate critically low"
+          description: "Tool success rate is {{ $value | humanizePercentage }} (threshold: 50%). Multiple tools may be failing!"
+
+      # High LLM latency
+      - alert: HomeAgentHighLLMLatency
+        expr: home_agent_llm_latency > 2000
+        for: 5m
+        labels:
+          severity: warning
+          component: home_agent
+        annotations:
+          summary: "Home Agent LLM latency is high"
+          description: "LLM response latency is {{ $value }}ms (threshold: 2000ms)"
+
+      # Critical LLM latency
+      - alert: HomeAgentCriticalLLMLatency
+        expr: home_agent_llm_latency > 5000
+        for: 2m
+        labels:
+          severity: critical
+          component: home_agent
+        annotations:
+          summary: "Home Agent LLM latency critically high"
+          description: "LLM response latency is {{ $value }}ms (threshold: 5000ms). Check LLM service health!"
+
+      # High tool latency
+      - alert: HomeAgentHighToolLatency
+        expr: home_agent_tool_latency > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: home_agent
+        annotations:
+          summary: "Home Agent tool execution latency is high"
+          description: "Tool execution latency is {{ $value }}ms (threshold: 1000ms)"
+
+      # No conversations for extended period (service down?)
+      - alert: HomeAgentNoActivity
+        expr: rate(home_agent_conversations_total[30m]) == 0
+        for: 30m
+        labels:
+          severity: warning
+          component: home_agent
+        annotations:
+          summary: "Home Agent has no activity"
+          description: "No conversations have been processed in the last 30 minutes. Service may be down or not receiving requests."
+
+      # High token consumption
+      - alert: HomeAgentHighTokenConsumption
+        expr: rate(home_agent_total_tokens[1h]) > 10000
+        for: 15m
+        labels:
+          severity: info
+          component: home_agent
+        annotations:
+          summary: "Home Agent high token consumption"
+          description: "Token consumption rate is {{ $value | humanize }} tokens/second over the last hour. This may result in high API costs."
+
+      # Excessive external LLM usage
+      - alert: HomeAgentHighExternalLLMUsage
+        expr: (rate(home_agent_external_llm_calls[1h]) / rate(home_agent_conversations_total[1h])) > 0.5
+        for: 30m
+        labels:
+          severity: info
+          component: home_agent
+        annotations:
+          summary: "Home Agent high external LLM usage"
+          description: "{{ $value | humanizePercentage }} of conversations are using external LLM. This may increase costs."
+
+      # Context retrieval latency high
+      - alert: HomeAgentHighContextLatency
+        expr: home_agent_context_latency > 500
+        for: 10m
+        labels:
+          severity: warning
+          component: home_agent
+        annotations:
+          summary: "Home Agent context retrieval is slow"
+          description: "Context retrieval latency is {{ $value }}ms (threshold: 500ms). Check vector DB or direct context performance."
+
+      # Conversation duration anomaly
+      - alert: HomeAgentAnomalousConversationDuration
+        expr: home_agent_avg_duration > 10000
+        for: 5m
+        labels:
+          severity: warning
+          component: home_agent
+        annotations:
+          summary: "Home Agent conversation duration anomaly detected"
+          description: "Average conversation duration is {{ $value }}ms (threshold: 10000ms). Investigate potential issues."
+
+  - name: home_agent_recording_rules
+    interval: 30s
+    rules:
+      # Calculate error rate for easier alerting
+      - record: home_agent:error_rate:5m
+        expr: rate(home_agent_errors_total[5m])
+
+      # Calculate conversation rate
+      - record: home_agent:conversation_rate:5m
+        expr: rate(home_agent_conversations_total[5m])
+
+      # Calculate token consumption rate
+      - record: home_agent:token_rate:1h
+        expr: rate(home_agent_total_tokens[1h])
+
+      # Calculate external LLM usage percentage
+      - record: home_agent:external_llm_percentage:1h
+        expr: |
+          (rate(home_agent_external_llm_calls[1h]) /
+           rate(home_agent_conversations_total[1h])) * 100
+
+      # Calculate average latency (total)
+      - record: home_agent:total_latency:avg
+        expr: |
+          home_agent_llm_latency +
+          home_agent_tool_latency +
+          home_agent_context_latency
+
+      # Tool call rate
+      - record: home_agent:tool_call_rate:5m
+        expr: rate(home_agent_tool_calls_total[5m])

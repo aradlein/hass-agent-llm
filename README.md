@@ -145,6 +145,7 @@ Access Settings > Devices & Services > Home Agent > Configure to:
 
 ### Reference
 - [API Reference](docs/API_REFERENCE.md) - Services, events, and tools
+- [Observability](observability/README.md) - Monitoring with Prometheus, InfluxDB, and Grafana
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Quick fixes for common issues
 - [Examples](docs/EXAMPLES.md) - 10 ready-to-use examples
 - [Migration Guide](docs/MIGRATION.md) - Moving from extended_openai_conversation

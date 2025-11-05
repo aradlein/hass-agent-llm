@@ -1,0 +1,185 @@
+# Home Assistant Configuration for Home Agent Event Tracking
+# Add this to your configuration.yaml to create sensors from Home Agent events
+
+# Template sensors for tracking Home Agent metrics
+template:
+  - sensor:
+      # Conversation metrics
+      - name: "Home Agent Conversations Total"
+        unique_id: home_agent_conversations_total
+        state: >
+          {{ states('sensor.home_agent_conversations_total') | int(0) + 1
+             if trigger.event.event_type == 'home_agent.conversation.finished'
+             else states('sensor.home_agent_conversations_total') | int(0) }}
+        attributes:
+          unit_of_measurement: "conversations"
+          state_class: total_increasing
+          device_class: ""
+
+      - name: "Home Agent Average Duration"
+        unique_id: home_agent_avg_duration
+        state: >
+          {% set durations = state_attr('sensor.home_agent_conversation_durations', 'durations') | default([]) %}
+          {% if durations | length > 0 %}
+            {{ (durations | sum / durations | length) | round(2) }}
+          {% else %}
+            0
+          {% endif %}
+        unit_of_measurement: "ms"
+        state_class: measurement
+
+      - name: "Home Agent Total Tokens"
+        unique_id: home_agent_total_tokens
+        state: >
+          {{ states('sensor.home_agent_total_tokens') | int(0) +
+             (trigger.event.data.tokens.total if trigger.event.event_type == 'home_agent.conversation.finished' else 0) }}
+        attributes:
+          unit_of_measurement: "tokens"
+          state_class: total_increasing
+
+      - name: "Home Agent Prompt Tokens"
+        unique_id: home_agent_prompt_tokens
+        state: >
+          {{ states('sensor.home_agent_prompt_tokens') | int(0) +
+             (trigger.event.data.tokens.prompt if trigger.event.event_type == 'home_agent.conversation.finished' else 0) }}
+        attributes:
+          unit_of_measurement: "tokens"
+          state_class: total_increasing
+
+      - name: "Home Agent Completion Tokens"
+        unique_id: home_agent_completion_tokens
+        state: >
+          {{ states('sensor.home_agent_completion_tokens') | int(0) +
+             (trigger.event.data.tokens.completion if trigger.event.event_type == 'home_agent.conversation.finished' else 0) }}
+        attributes:
+          unit_of_measurement: "tokens"
+          state_class: total_increasing
+
+      # Tool execution metrics
+      - name: "Home Agent Tool Calls Total"
+        unique_id: home_agent_tool_calls_total
+        state: >
+          {{ states('sensor.home_agent_tool_calls_total') | int(0) +
+             (trigger.event.data.tool_calls if trigger.event.event_type == 'home_agent.conversation.finished' else 0) }}
+        attributes:
+          unit_of_measurement: "calls"
+          state_class: total_increasing
+
+      - name: "Home Agent Tool Success Rate"
+        unique_id: home_agent_tool_success_rate
+        state: >
+          {% set successes = states('sensor.home_agent_tool_successes') | int(0) %}
+          {% set total = states('sensor.home_agent_tool_calls_total') | int(0) %}
+          {% if total > 0 %}
+            {{ ((successes / total) * 100) | round(2) }}
+          {% else %}
+            100
+          {% endif %}
+        unit_of_measurement: "%"
+        state_class: measurement
+
+      # Performance metrics
+      - name: "Home Agent LLM Latency"
+        unique_id: home_agent_llm_latency
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ trigger.event.data.performance.llm_latency_ms }}
+          {% else %}
+            {{ states('sensor.home_agent_llm_latency') }}
+          {% endif %}
+        unit_of_measurement: "ms"
+        state_class: measurement
+
+      - name: "Home Agent Tool Latency"
+        unique_id: home_agent_tool_latency
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ trigger.event.data.performance.tool_latency_ms }}
+          {% else %}
+            {{ states('sensor.home_agent_tool_latency') }}
+          {% endif %}
+        unit_of_measurement: "ms"
+        state_class: measurement
+
+      - name: "Home Agent Context Latency"
+        unique_id: home_agent_context_latency
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ trigger.event.data.performance.context_latency_ms }}
+          {% else %}
+            {{ states('sensor.home_agent_context_latency') }}
+          {% endif %}
+        unit_of_measurement: "ms"
+        state_class: measurement
+
+      # External LLM usage
+      - name: "Home Agent External LLM Calls"
+        unique_id: home_agent_external_llm_calls
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' and trigger.event.data.used_external_llm %}
+            {{ states('sensor.home_agent_external_llm_calls') | int(0) + 1 }}
+          {% else %}
+            {{ states('sensor.home_agent_external_llm_calls') | int(0) }}
+          {% endif %}
+        attributes:
+          unit_of_measurement: "calls"
+          state_class: total_increasing
+
+      # Error tracking
+      - name: "Home Agent Errors Total"
+        unique_id: home_agent_errors_total
+        state: >
+          {% if trigger.event.event_type == 'home_agent.error' %}
+            {{ states('sensor.home_agent_errors_total') | int(0) + 1 }}
+          {% else %}
+            {{ states('sensor.home_agent_errors_total') | int(0) }}
+          {% endif %}
+        attributes:
+          unit_of_measurement: "errors"
+          state_class: total_increasing
+
+# Event triggers for updating sensors
+automation:
+  - id: home_agent_metrics_updater
+    alias: "Home Agent: Update Metrics"
+    description: "Updates Home Agent metrics when events are fired"
+    trigger:
+      - platform: event
+        event_type: home_agent.conversation.finished
+      - platform: event
+        event_type: home_agent.tool.executed
+      - platform: event
+        event_type: home_agent.error
+    action:
+      - service: homeassistant.update_entity
+        target:
+          entity_id:
+            - sensor.home_agent_conversations_total
+            - sensor.home_agent_total_tokens
+            - sensor.home_agent_prompt_tokens
+            - sensor.home_agent_completion_tokens
+            - sensor.home_agent_tool_calls_total
+            - sensor.home_agent_llm_latency
+            - sensor.home_agent_tool_latency
+            - sensor.home_agent_context_latency
+            - sensor.home_agent_external_llm_calls
+            - sensor.home_agent_errors_total
+
+# Prometheus integration configuration
+# Add this to configuration.yaml to expose these sensors to Prometheus
+prometheus:
+  namespace: home_agent
+  filter:
+    include_entities:
+      - sensor.home_agent_conversations_total
+      - sensor.home_agent_average_duration
+      - sensor.home_agent_total_tokens
+      - sensor.home_agent_prompt_tokens
+      - sensor.home_agent_completion_tokens
+      - sensor.home_agent_tool_calls_total
+      - sensor.home_agent_tool_success_rate
+      - sensor.home_agent_llm_latency
+      - sensor.home_agent_tool_latency
+      - sensor.home_agent_context_latency
+      - sensor.home_agent_external_llm_calls
+      - sensor.home_agent_errors_total
