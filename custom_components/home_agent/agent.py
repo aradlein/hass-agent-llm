@@ -60,6 +60,7 @@ from .const import (
     EVENT_MEMORY_EXTRACTED,
     EVENT_STREAMING_ERROR,
     HTTP_TIMEOUT,
+    TOOL_QUERY_EXTERNAL_LLM,
 )
 from .context_manager import ContextManager
 from .conversation import ConversationHistoryManager
@@ -693,6 +694,9 @@ class HomeAgent(AbstractConversationAgent):
                 if count > 0:
                     tool_breakdown[tool_name] = count
 
+            # Check if external LLM was used
+            used_external_llm = TOOL_QUERY_EXTERNAL_LLM in tool_breakdown and tool_breakdown[TOOL_QUERY_EXTERNAL_LLM] > 0
+
             # Fire conversation finished event with enhanced metrics
             if self.config.get(CONF_EMIT_EVENTS, True):
                 try:
@@ -705,6 +709,7 @@ class HomeAgent(AbstractConversationAgent):
                         "context": metrics.get("context", {}),
                         "tool_calls": metrics["tool_calls"],
                         "tool_breakdown": tool_breakdown,
+                        "used_external_llm": used_external_llm,
                     }
                     self.hass.bus.async_fire(EVENT_CONVERSATION_FINISHED, event_data)
                 except Exception as event_err:
