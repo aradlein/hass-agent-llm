@@ -139,7 +139,15 @@ counter:
     name: "Home Agent Errors Total"
     icon: mdi:alert
 
-# Automation to increment counters
+# Automations to increment counters
+# IMPORTANT: If you have automations in a separate automations.yaml file,
+# add these to that file instead. Do NOT add "automation:" to configuration.yaml
+# if you're already using automations.yaml, as it will override your existing automations.
+
+# Option 1: If you use automations.yaml (most common), add these to that file:
+# Just copy the automation entries below into your automations.yaml
+
+# Option 2: If you configure automations in configuration.yaml, use this format:
 automation:
   - id: home_agent_conversation_counter
     alias: "Home Agent: Increment Conversation Counter"
@@ -182,6 +190,15 @@ automation:
 ```
 
 **Then restart Home Assistant.**
+
+> **⚠️ Important Note on Automations:**
+>
+> Most Home Assistant installations use a separate `automations.yaml` file. If you do:
+> - **DO NOT** add the `automation:` section to `configuration.yaml`
+> - **Instead**, copy just the three automation entries (without the `automation:` line) and paste them into your `automations.yaml` file
+> - Or, use the Home Assistant UI: **Settings** → **Automations & Scenes** → **Create Automation** → **Skip** → **Edit in YAML** and paste each automation
+>
+> If you add `automation:` to `configuration.yaml` when you're already using `automations.yaml`, it will override and remove all your existing automations!
 
 ### Step 2: Verify InfluxDB is Capturing Data
 
