@@ -24,7 +24,9 @@ Since you already have InfluxDB integrated with Home Assistant, this guide shows
 
 ### Step 1: Configure Home Assistant to Track Events
 
-Add this to your `configuration.yaml`:
+Add the template sensors, counters, and automations to your `configuration.yaml`, then configure InfluxDB to include them.
+
+**Add to `configuration.yaml`:**
 
 ```yaml
 # Template sensors to track Home Agent metrics
@@ -194,6 +196,41 @@ automation:
       - service: counter.increment
         target:
           entity_id: counter.home_agent_errors_total
+```
+
+### Configure InfluxDB to Include Home Agent Sensors
+
+**IMPORTANT:** You must tell InfluxDB to capture these sensors. Add this to your InfluxDB configuration:
+
+```yaml
+influxdb:
+  # ... your existing InfluxDB settings (host, port, token, organization, bucket, etc.)
+
+  # Add these entities to be included
+  include:
+    entities:
+      - sensor.home_agent_last_conversation_duration
+      - sensor.home_agent_last_conversation_tokens
+      - sensor.home_agent_last_llm_latency
+      - sensor.home_agent_last_tool_latency
+      - sensor.home_agent_last_context_latency
+      - sensor.home_agent_last_tool_calls
+      - sensor.home_agent_used_external_llm
+      - counter.home_agent_conversations_total
+      - counter.home_agent_tool_successes
+      - counter.home_agent_tool_failures
+      - counter.home_agent_errors_total
+```
+
+**Alternative (if you want to include all Home Agent entities):**
+
+```yaml
+influxdb:
+  # ... your existing settings
+  include:
+    entity_globs:
+      - sensor.home_agent_*
+      - counter.home_agent_*
 ```
 
 **Then restart Home Assistant.**
