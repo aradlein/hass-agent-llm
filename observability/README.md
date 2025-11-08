@@ -24,6 +24,16 @@ Since you already have InfluxDB integrated with Home Assistant, this guide shows
 
 ### Step 1: Configure Home Assistant to Track Events
 
+**📁 EASIEST METHOD: Use the example files**
+1. Copy from [`configuration.yaml.example`](configuration.yaml.example) → your `configuration.yaml`
+2. Copy from [`automations.yaml.example`](automations.yaml.example) → your `automations.yaml`
+3. Restart Home Assistant
+4. Skip to Step 2
+
+---
+
+**Or configure manually:**
+
 Add the template sensors, counters, and automations to your `configuration.yaml`, then configure InfluxDB to include them.
 
 **Add to `configuration.yaml`:**
@@ -278,6 +288,8 @@ In InfluxDB, you should see measurements like:
 ```
 observability/
 ├── README.md                                    # This file
+├── configuration.yaml.example                   # ⭐ Copy to your configuration.yaml
+├── automations.yaml.example                     # ⭐ Copy to your automations.yaml
 ├── grafana/
 │   └── home_agent_influxdb_dashboard.json      # Grafana dashboard with Flux queries
 └── influxdb/

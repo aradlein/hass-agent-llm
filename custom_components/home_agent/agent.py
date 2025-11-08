@@ -597,6 +597,9 @@ class HomeAgent(AbstractConversationAgent):
             payload["tools"] = tool_definitions
             payload["tool_choice"] = "auto"
 
+        # Request usage statistics in stream
+        payload["stream_options"] = {"include_usage": True}
+
         if self.config.get(CONF_DEBUG_LOGGING):
             _LOGGER.debug(
                 "Calling LLM (streaming) at %s with %d messages and %d tools",
@@ -833,6 +836,7 @@ class HomeAgent(AbstractConversationAgent):
 
         for iteration in range(max_iterations):
             # Call LLM with streaming
+            llm_start = time.time()
             stream = self._call_llm_streaming(messages)
 
             # Transform and send to chat log
@@ -850,6 +854,17 @@ class HomeAgent(AbstractConversationAgent):
             ):
                 new_content.append(content)
 
+            # Track LLM latency
+            llm_latency = int((time.time() - llm_start) * 1000)
+            metrics["performance"]["llm_latency_ms"] += llm_latency
+
+            # Track token usage from stream
+            usage = handler.get_usage()
+            if usage:
+                metrics["tokens"]["prompt"] += usage.get("prompt_tokens", 0)
+                metrics["tokens"]["completion"] += usage.get("completion_tokens", 0)
+                metrics["tokens"]["total"] += usage.get("total_tokens", 0)
+
             # Convert new content back to messages for next iteration
             for content_item in new_content:
                 if isinstance(content_item, conversation.AssistantContent):
@@ -861,6 +876,9 @@ class HomeAgent(AbstractConversationAgent):
                             }
                         )
                     if content_item.tool_calls:
+                        # Track tool calls
+                        metrics["tool_calls"] += len(content_item.tool_calls)
+
                         # Add tool calls to messages
                         tool_calls_msg = {
                             "role": "assistant",

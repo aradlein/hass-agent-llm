@@ -26,6 +26,8 @@ class OpenAIStreamingHandler:
         """Initialize the streaming handler."""
         self._current_tool_calls: dict[int, dict[str, Any]] = {}
         # OpenAI uses indexed tool calls that can be streamed incrementally
+        self._usage: dict[str, int] | None = None
+        # Track token usage from the stream
 
     def _parse_sse_line(self, line: str) -> dict[str, Any] | None:
         """Parse an SSE line.
@@ -97,6 +99,11 @@ class OpenAIStreamingHandler:
 
                 delta = choices[0].get("delta", {})
                 finish_reason = choices[0].get("finish_reason")
+
+                # Capture usage data if present (OpenAI sends this at the end with stream_options)
+                if "usage" in chunk:
+                    self._usage = chunk["usage"]
+                    _LOGGER.debug("Token usage received: %s", self._usage)
 
                 # Handle role (first chunk)
                 if "role" in delta:
@@ -263,3 +270,11 @@ class OpenAIStreamingHandler:
                 exc_info=True,
             )
             raise
+
+    def get_usage(self) -> dict[str, int] | None:
+        """Get token usage statistics from the stream.
+
+        Returns:
+            Dict with prompt_tokens, completion_tokens, total_tokens or None
+        """
+        return self._usage
