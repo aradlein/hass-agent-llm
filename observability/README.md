@@ -200,14 +200,18 @@ automation:
 >
 > If you add `automation:` to `configuration.yaml` when you're already using `automations.yaml`, it will override and remove all your existing automations!
 
-### Step 2: Verify InfluxDB is Capturing Data
+### Step 2: Verify Sensors Are Working
 
-Your existing InfluxDB integration should already be capturing these sensors. Verify by:
+After restarting Home Assistant, the sensors will show "unknown" state initially. **This is normal!**
+
+To verify everything is working:
 
 1. Go to **Developer Tools** → **States**
-2. Search for `sensor.home_agent_`
-3. Trigger a conversation with Home Agent
-4. Confirm sensor values update
+2. Search for `sensor.home_agent_` - you should see 7 sensors (all showing "unknown" initially)
+3. **Have a conversation with Home Agent** (via voice or text)
+4. Refresh the States page - sensors should now show real values
+
+Your existing InfluxDB integration will automatically capture these sensor values once they start updating.
 
 In InfluxDB, you should see measurements like:
 - `home_agent_last_conversation_duration`
@@ -343,6 +347,42 @@ template:
 Then create a cumulative cost counter using `utility_meter` integration.
 
 ## 🐛 Troubleshooting
+
+### Sensors Showing "Unknown" State
+
+**This is normal!** Trigger-based template sensors start with an "unknown" state and only update when their trigger event fires.
+
+**To populate the sensors:**
+1. Have a conversation with Home Agent (talk to it via the conversation integration)
+2. After the conversation completes, the sensors will immediately update with values
+3. The sensors will then show real data instead of "unknown"
+
+**If sensors remain "unknown" after a conversation:**
+
+1. **Verify events are enabled in Home Agent**:
+   - Check your Home Agent configuration
+   - Ensure event emission is not disabled (it's enabled by default)
+
+2. **Check event is actually firing**:
+   - Go to **Developer Tools** → **Events** → **Listen to events**
+   - Type: `home_agent.conversation.finished`
+   - Click **Start Listening**
+   - Have a conversation with Home Agent
+   - You should see the event with all the data fields
+
+3. **Verify template sensors exist**:
+   - Go to **Developer Tools** → **States**
+   - Search for: `sensor.home_agent_`
+   - You should see all 7 sensors listed (even if "unknown")
+
+4. **Check Home Assistant logs for template errors**:
+   ```bash
+   tail -f /config/home-assistant.log | grep -i "template\|home_agent"
+   ```
+
+5. **Verify configuration.yaml syntax**:
+   - Go to **Developer Tools** → **YAML** → **Check Configuration**
+   - Fix any errors before restarting
 
 ### Sensors Not Updating
 
