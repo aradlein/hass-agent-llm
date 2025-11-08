@@ -695,7 +695,10 @@ class HomeAgent(AbstractConversationAgent):
                     tool_breakdown[tool_name] = count
 
             # Check if external LLM was used
-            used_external_llm = TOOL_QUERY_EXTERNAL_LLM in tool_breakdown and tool_breakdown[TOOL_QUERY_EXTERNAL_LLM] > 0
+            used_external_llm = (
+                TOOL_QUERY_EXTERNAL_LLM in tool_breakdown
+                and tool_breakdown[TOOL_QUERY_EXTERNAL_LLM] > 0
+            )
 
             # Fire conversation finished event with enhanced metrics
             if self.config.get(CONF_EMIT_EVENTS, True):
@@ -763,6 +766,10 @@ class HomeAgent(AbstractConversationAgent):
         conversation_id = user_input.conversation_id or "default"
         user_message = user_input.text
         device_id = user_input.device_id
+        user_id = user_input.context.user_id if user_input.context else None
+
+        # Track start time for metrics
+        start_time = time.time()
 
         # Get context from context manager
         metrics: dict[str, Any] = {
@@ -916,6 +923,41 @@ class HomeAgent(AbstractConversationAgent):
                         full_messages=messages,
                     )
                 )
+
+        # Calculate total duration
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Get tool metrics
+        tool_metrics = self.tool_handler.get_metrics()
+        tool_breakdown = {}
+        for tool_name in self.tool_handler.get_registered_tools():
+            count = tool_metrics.get(f"{tool_name}_executions", 0)
+            if count > 0:
+                tool_breakdown[tool_name] = count
+
+        # Check if external LLM was used
+        used_external_llm = (
+            TOOL_QUERY_EXTERNAL_LLM in tool_breakdown
+            and tool_breakdown[TOOL_QUERY_EXTERNAL_LLM] > 0
+        )
+
+        # Fire conversation finished event with enhanced metrics
+        if self.config.get(CONF_EMIT_EVENTS, True):
+            try:
+                event_data = {
+                    "conversation_id": conversation_id,
+                    "user_id": user_id,
+                    "duration_ms": duration_ms,
+                    "tokens": metrics["tokens"],
+                    "performance": metrics["performance"],
+                    "context": metrics.get("context", {}),
+                    "tool_calls": metrics["tool_calls"],
+                    "tool_breakdown": tool_breakdown,
+                    "used_external_llm": used_external_llm,
+                }
+                self.hass.bus.async_fire(EVENT_CONVERSATION_FINISHED, event_data)
+            except Exception as event_err:
+                _LOGGER.warning("Failed to fire conversation finished event: %s", event_err)
 
         # Extract result from chat log
         return conversation.async_get_result_from_chat_log(user_input, chat_log)

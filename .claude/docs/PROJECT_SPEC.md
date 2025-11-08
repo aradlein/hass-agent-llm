@@ -344,6 +344,12 @@ This component integrates with Home Assistant's native LLM conversation platform
   - Max tokens per response
   - Top P (0.0 - 1.0)
   - Tool calling support (enabled by default)
+  - Keep Alive: Duration to keep model loaded in memory (sent with all API requests)
+    - Default: `5m` (5 minutes)
+    - Options: Duration string (e.g., `10m`, `1h`) or `-1` for indefinite
+    - Primarily used by Ollama to control model unloading
+    - Other providers (OpenAI, etc.) will ignore this parameter
+    - Not used for embedding models (see Vector DB configuration)
 
 #### External LLM Tool (Optional)
 - **Purpose:** Exposed as a tool that primary LLM can call when it needs help
@@ -354,6 +360,9 @@ This component integrates with Home Assistant's native LLM conversation platform
   - Model name
   - Temperature and generation parameters
   - Tool description for primary LLM
+  - Keep Alive: Duration to keep external model loaded in memory
+    - Default: `5m` (5 minutes)
+    - Same behavior as primary LLM keep_alive setting
 
 **Example Workflow:**
 1. User asks: "What's the temperature and should I adjust the thermostat?"
@@ -570,6 +579,12 @@ The component provides flexible context injection to give the LLM relevant infor
   - Embedding model for query vectorization
   - Top K results to retrieve
   - Similarity threshold
+  - Embedding Keep Alive: Duration to keep embedding model loaded in memory
+    - Default: `5m` (5 minutes)
+    - Options: Duration string (e.g., `10m`, `1h`) or `-1` for indefinite
+    - Separate from main LLM keep_alive setting
+    - Only applies when using Ollama for embeddings
+    - Ignored by OpenAI and other providers
 - **Workflow:**
   1. User query embedded using configured model
   2. Vector DB queried for semantically similar entity contexts
@@ -736,6 +751,7 @@ Now respond to the user's request:
 - **Model:** Model name (e.g., "gpt-4o", "claude-3-opus")
 - **Temperature:** Generation temperature
 - **Max Tokens:** Response limit
+- **Keep Alive:** Duration to keep external model loaded (default: `5m`, range: duration string or `-1`)
 - **Tool Description:** Customize when primary LLM should use this tool
 - **Context Handling:** Only explicit `prompt` and `context` parameters are passed (conversation history is NOT automatically included)
 - **Error Behavior:** Errors returned transparently to primary LLM
@@ -1506,6 +1522,7 @@ llm:
   model: "gpt-4o-mini"
   temperature: 0.7
   max_tokens: 500
+  keep_alive: "5m"  # Keep model loaded for 5 minutes (Ollama-specific, ignored by others)
 
 # Context Injection Strategy
 context:
@@ -1531,6 +1548,7 @@ context:
     top_k: 5
     similarity_threshold: 0.7
     embedding_model: "text-embedding-3-small"
+    embedding_keep_alive: "5m"  # Keep embedding model loaded (separate from main LLM)
 
 # Conversation History
 history:
@@ -1578,6 +1596,7 @@ external_llm:
   model: "gpt-4o"
   temperature: 0.8
   max_tokens: 1000
+  keep_alive: "5m"  # Keep external model loaded (if using Ollama)
   tool_description: |
     Use this when you need help with complex analysis, detailed explanations,
     or comprehensive recommendations beyond simple home control.
