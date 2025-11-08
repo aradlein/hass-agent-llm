@@ -864,6 +864,9 @@ class HomeAgent(AbstractConversationAgent):
                 metrics["tokens"]["prompt"] += usage.get("prompt_tokens", 0)
                 metrics["tokens"]["completion"] += usage.get("completion_tokens", 0)
                 metrics["tokens"]["total"] += usage.get("total_tokens", 0)
+                _LOGGER.info("Received token usage from LLM stream: %s", usage)
+            else:
+                _LOGGER.info("No token usage data received from LLM stream")
 
             # Convert new content back to messages for next iteration
             for content_item in new_content:
@@ -1253,7 +1256,10 @@ class HomeAgent(AbstractConversationAgent):
 
         # Max iterations reached
         _LOGGER.warning("Max tool calling iterations reached")
-        return "I apologize, but I couldn't complete your request after multiple attempts. Please try rephrasing your request."
+        return (
+            "I apologize, but I couldn't complete your request after "
+            "multiple attempts. Please try rephrasing your request."
+        )
 
     async def clear_history(self, conversation_id: str | None = None) -> None:
         """Clear conversation history.
@@ -1367,7 +1373,8 @@ class HomeAgent(AbstractConversationAgent):
         if previous_turns:
             conversation_text = self._format_conversation_for_extraction(previous_turns)
 
-        prompt = f"""You are a memory extraction assistant. Analyze this conversation and extract important information that should be remembered for future conversations.
+        prompt = f"""You are a memory extraction assistant. Analyze this conversation \
+and extract important information that should be remembered for future conversations.
 
 Extract the following types of information:
 1. **Facts**: Concrete information about the home, devices, or user
@@ -1430,7 +1437,10 @@ Return ONLY valid JSON, no other text:
             messages = [
                 {
                     "role": "system",
-                    "content": "You are a memory extraction assistant. Extract important information from conversations and return it as JSON.",
+                    "content": (
+                        "You are a memory extraction assistant. Extract important "
+                        "information from conversations and return it as JSON."
+                    ),
                 },
                 {
                     "role": "user",

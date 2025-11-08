@@ -92,6 +92,42 @@ class OpenAIStreamingHandler:
 
                 _LOGGER.debug("Processing streaming chunk: %s", chunk)
 
+                # Log if we see any usage-related fields (for debugging Ollama compatibility)
+                if any(key in chunk for key in ["usage", "prompt_eval_count", "eval_count"]):
+                    _LOGGER.info(
+                        "Found usage/token data in chunk: %s",
+                        {
+                            k: v
+                            for k, v in chunk.items()
+                            if k
+                            in [
+                                "usage",
+                                "prompt_eval_count",
+                                "eval_count",
+                                "prompt_eval_duration",
+                                "eval_duration",
+                            ]
+                        },
+                    )
+
+                # Capture usage data if present
+                # (check BEFORE choices, as usage chunks may have empty choices)
+                # OpenAI format: chunk["usage"] = {prompt_tokens, completion_tokens, total_tokens}
+                if "usage" in chunk:
+                    self._usage = chunk["usage"]
+                    _LOGGER.info("Token usage received (OpenAI format): %s", self._usage)
+
+                # Ollama format: chunk has prompt_eval_count, eval_count at root level
+                elif "prompt_eval_count" in chunk or "eval_count" in chunk:
+                    prompt_tokens = chunk.get("prompt_eval_count", 0)
+                    completion_tokens = chunk.get("eval_count", 0)
+                    self._usage = {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": prompt_tokens + completion_tokens,
+                    }
+                    _LOGGER.info("Token usage received (Ollama format): %s", self._usage)
+
                 # Extract delta from choices array
                 choices = chunk.get("choices", [])
                 if not choices:
@@ -99,11 +135,6 @@ class OpenAIStreamingHandler:
 
                 delta = choices[0].get("delta", {})
                 finish_reason = choices[0].get("finish_reason")
-
-                # Capture usage data if present (OpenAI sends this at the end with stream_options)
-                if "usage" in chunk:
-                    self._usage = chunk["usage"]
-                    _LOGGER.debug("Token usage received: %s", self._usage)
 
                 # Handle role (first chunk)
                 if "role" in delta:
@@ -278,3 +309,20 @@ class OpenAIStreamingHandler:
             Dict with prompt_tokens, completion_tokens, total_tokens or None
         """
         return self._usage
+
+    def estimate_tokens(self, text: str) -> int:
+        """Estimate token count from text.
+
+        Uses a simple heuristic: ~4 characters per token (based on GPT tokenization).
+        This is approximate but works reasonably well for most languages.
+
+        Args:
+            text: Text to estimate tokens for
+
+        Returns:
+            Estimated token count
+        """
+        if not text:
+            return 0
+        # Simple estimation: 4 chars per token on average
+        return max(1, len(text) // 4)
