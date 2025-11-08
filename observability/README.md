@@ -44,7 +44,8 @@ template:
           {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
             {{ trigger.event.data.duration_ms }}
           {% else %}
-            {{ states('sensor.home_agent_last_conversation_duration') }}
+            {% set current = states('sensor.home_agent_last_conversation_duration') %}
+            {{ current if current not in ['unknown', 'unavailable'] else 0 }}
           {% endif %}
         unit_of_measurement: "ms"
         state_class: measurement
@@ -55,7 +56,8 @@ template:
           {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
             {{ trigger.event.data.tokens.total }}
           {% else %}
-            {{ states('sensor.home_agent_last_conversation_tokens') }}
+            {% set current = states('sensor.home_agent_last_conversation_tokens') %}
+            {{ current if current not in ['unknown', 'unavailable'] else 0 }}
           {% endif %}
         unit_of_measurement: "tokens"
         state_class: measurement
@@ -75,7 +77,8 @@ template:
           {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
             {{ trigger.event.data.performance.llm_latency_ms }}
           {% else %}
-            {{ states('sensor.home_agent_last_llm_latency') }}
+            {% set current = states('sensor.home_agent_last_llm_latency') %}
+            {{ current if current not in ['unknown', 'unavailable'] else 0 }}
           {% endif %}
         unit_of_measurement: "ms"
         state_class: measurement
@@ -86,7 +89,8 @@ template:
           {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
             {{ trigger.event.data.performance.tool_latency_ms }}
           {% else %}
-            {{ states('sensor.home_agent_last_tool_latency') }}
+            {% set current = states('sensor.home_agent_last_tool_latency') %}
+            {{ current if current not in ['unknown', 'unavailable'] else 0 }}
           {% endif %}
         unit_of_measurement: "ms"
         state_class: measurement
@@ -97,7 +101,8 @@ template:
           {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
             {{ trigger.event.data.performance.context_latency_ms }}
           {% else %}
-            {{ states('sensor.home_agent_last_context_latency') }}
+            {% set current = states('sensor.home_agent_last_context_latency') %}
+            {{ current if current not in ['unknown', 'unavailable'] else 0 }}
           {% endif %}
         unit_of_measurement: "ms"
         state_class: measurement
@@ -108,7 +113,8 @@ template:
           {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
             {{ trigger.event.data.tool_calls }}
           {% else %}
-            {{ states('sensor.home_agent_last_tool_calls') }}
+            {% set current = states('sensor.home_agent_last_tool_calls') %}
+            {{ current if current not in ['unknown', 'unavailable'] else 0 }}
           {% endif %}
         unit_of_measurement: "calls"
         state_class: measurement
@@ -119,7 +125,8 @@ template:
           {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
             {{ 1 if trigger.event.data.used_external_llm else 0 }}
           {% else %}
-            {{ states('sensor.home_agent_used_external_llm') }}
+            {% set current = states('sensor.home_agent_used_external_llm') %}
+            {{ current if current not in ['unknown', 'unavailable'] else 0 }}
           {% endif %}
         unit_of_measurement: "boolean"
         state_class: measurement
@@ -202,14 +209,14 @@ automation:
 
 ### Step 2: Verify Sensors Are Working
 
-After restarting Home Assistant, the sensors will show "unknown" state initially. **This is normal!**
+After restarting Home Assistant, the sensors will show `0` initially (this prevents errors).
 
 To verify everything is working:
 
 1. Go to **Developer Tools** → **States**
-2. Search for `sensor.home_agent_` - you should see 7 sensors (all showing "unknown" initially)
+2. Search for `sensor.home_agent_` - you should see 7 sensors (all showing `0` initially)
 3. **Have a conversation with Home Agent** (via voice or text)
-4. Refresh the States page - sensors should now show real values
+4. Refresh the States page - sensors should now show real values from that conversation
 
 Your existing InfluxDB integration will automatically capture these sensor values once they start updating.
 
@@ -348,14 +355,19 @@ Then create a cumulative cost counter using `utility_meter` integration.
 
 ## 🐛 Troubleshooting
 
-### Sensors Showing "Unknown" State
+### Sensors Showing "Unknown" State or Errors
 
-**This is normal!** Trigger-based template sensors start with an "unknown" state and only update when their trigger event fires.
+**Initial State:** Trigger-based template sensors will show `0` initially (instead of "unknown") and update to real values after the first Home Agent conversation.
 
-**To populate the sensors:**
+**If you see errors like "ValueError: invalid literal for int() with base 10: 'unknown'":**
+- This means you're using an older version of the template configuration
+- Update your `configuration.yaml` with the corrected templates from this README (they now handle unknown states properly)
+- Restart Home Assistant after updating
+
+**To populate the sensors with real data:**
 1. Have a conversation with Home Agent (talk to it via the conversation integration)
-2. After the conversation completes, the sensors will immediately update with values
-3. The sensors will then show real data instead of "unknown"
+2. After the conversation completes, the sensors will immediately update with actual values
+3. The sensors will then show real metrics from your conversations
 
 **If sensors remain "unknown" after a conversation:**
 
