@@ -14,6 +14,7 @@ CONF_LLM_MODEL: Final = "llm_model"
 CONF_LLM_TEMPERATURE: Final = "llm_temperature"
 CONF_LLM_MAX_TOKENS: Final = "llm_max_tokens"
 CONF_LLM_TOP_P: Final = "llm_top_p"
+CONF_LLM_KEEP_ALIVE: Final = "llm_keep_alive"
 
 # Configuration keys - Context Injection
 CONF_CONTEXT_MODE: Final = "context_mode"
@@ -35,6 +36,7 @@ CONF_VECTOR_DB_EMBEDDING_MODEL: Final = "vector_db_embedding_model"
 CONF_VECTOR_DB_EMBEDDING_PROVIDER: Final = "vector_db_embedding_provider"
 CONF_VECTOR_DB_EMBEDDING_BASE_URL: Final = "vector_db_embedding_base_url"
 CONF_OPENAI_API_KEY: Final = "openai_api_key"
+CONF_EMBEDDING_KEEP_ALIVE: Final = "embedding_keep_alive"
 
 # Configuration keys - Conversation History
 CONF_HISTORY_ENABLED: Final = "history_enabled"
@@ -68,6 +70,7 @@ CONF_EXTERNAL_LLM_TEMPERATURE: Final = "external_llm_temperature"
 CONF_EXTERNAL_LLM_MAX_TOKENS: Final = "external_llm_max_tokens"
 CONF_EXTERNAL_LLM_TOOL_DESCRIPTION: Final = "external_llm_tool_description"
 CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT: Final = "external_llm_auto_include_context"
+CONF_EXTERNAL_LLM_KEEP_ALIVE: Final = "external_llm_keep_alive"
 
 # Configuration keys - Memory Configuration
 CONF_MEMORY_ENABLED: Final = "memory_enabled"
@@ -115,6 +118,7 @@ DEFAULT_LLM_MODEL: Final = "gpt-4o-mini"
 DEFAULT_TEMPERATURE: Final = 0.7
 DEFAULT_MAX_TOKENS: Final = 500
 DEFAULT_TOP_P: Final = 1.0
+DEFAULT_LLM_KEEP_ALIVE: Final = "5m"
 
 # Default values - Context Injection
 DEFAULT_CONTEXT_MODE: Final = CONTEXT_MODE_DIRECT
@@ -129,6 +133,7 @@ DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD: Final = 250.0  # L2 distance threshold
 DEFAULT_VECTOR_DB_EMBEDDING_MODEL: Final = "text-embedding-3-small"
 DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER: Final = EMBEDDING_PROVIDER_OLLAMA
 DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL: Final = "http://localhost:11434"
+DEFAULT_EMBEDDING_KEEP_ALIVE: Final = "5m"
 
 # Default values - Conversation History
 DEFAULT_HISTORY_ENABLED: Final = True
@@ -155,6 +160,7 @@ DEFAULT_EXTERNAL_LLM_MODEL: Final = "gpt-4o"
 DEFAULT_EXTERNAL_LLM_TEMPERATURE: Final = 0.8
 DEFAULT_EXTERNAL_LLM_MAX_TOKENS: Final = 1000
 DEFAULT_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT: Final = True
+DEFAULT_EXTERNAL_LLM_KEEP_ALIVE: Final = "5m"
 DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION: Final = (
     "Use this when you need help with complex analysis, detailed explanations, "
     "or comprehensive recommendations beyond simple home control."

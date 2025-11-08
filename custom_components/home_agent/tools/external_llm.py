@@ -19,11 +19,13 @@ from homeassistant.core import HomeAssistant
 from ..const import (
     CONF_EXTERNAL_LLM_API_KEY,
     CONF_EXTERNAL_LLM_BASE_URL,
+    CONF_EXTERNAL_LLM_KEEP_ALIVE,
     CONF_EXTERNAL_LLM_MAX_TOKENS,
     CONF_EXTERNAL_LLM_MODEL,
     CONF_EXTERNAL_LLM_TEMPERATURE,
     CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
     CONF_TOOLS_TIMEOUT,
+    DEFAULT_EXTERNAL_LLM_KEEP_ALIVE,
     DEFAULT_EXTERNAL_LLM_MAX_TOKENS,
     DEFAULT_EXTERNAL_LLM_MODEL,
     DEFAULT_EXTERNAL_LLM_TEMPERATURE,
@@ -324,6 +326,7 @@ class ExternalLLMTool(BaseTool):
             ],
             "temperature": temperature,
             "max_tokens": max_tokens,
+            "keep_alive": self._config.get(CONF_EXTERNAL_LLM_KEEP_ALIVE, DEFAULT_EXTERNAL_LLM_KEEP_ALIVE),
         }
 
         _LOGGER.debug(

@@ -22,10 +22,12 @@ from .const import (
     CONF_CONTEXT_MODE,
     CONF_DEBUG_LOGGING,
     CONF_DIRECT_ENTITIES,
+    CONF_EMBEDDING_KEEP_ALIVE,
     CONF_EXTERNAL_LLM_API_KEY,
     CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
     CONF_EXTERNAL_LLM_BASE_URL,
     CONF_EXTERNAL_LLM_ENABLED,
+    CONF_EXTERNAL_LLM_KEEP_ALIVE,
     CONF_EXTERNAL_LLM_MAX_TOKENS,
     CONF_EXTERNAL_LLM_MODEL,
     CONF_EXTERNAL_LLM_TEMPERATURE,
@@ -35,6 +37,7 @@ from .const import (
     CONF_HISTORY_MAX_TOKENS,
     CONF_LLM_API_KEY,
     CONF_LLM_BASE_URL,
+    CONF_LLM_KEEP_ALIVE,
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
     CONF_LLM_TEMPERATURE,
@@ -67,8 +70,10 @@ from .const import (
     DEFAULT_CONTEXT_FORMAT,
     DEFAULT_CONTEXT_MODE,
     DEFAULT_DEBUG_LOGGING,
+    DEFAULT_EMBEDDING_KEEP_ALIVE,
     DEFAULT_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
     DEFAULT_EXTERNAL_LLM_ENABLED,
+    DEFAULT_EXTERNAL_LLM_KEEP_ALIVE,
     DEFAULT_EXTERNAL_LLM_MAX_TOKENS,
     DEFAULT_EXTERNAL_LLM_MODEL,
     DEFAULT_EXTERNAL_LLM_TEMPERATURE,
@@ -76,6 +81,7 @@ from .const import (
     DEFAULT_HISTORY_ENABLED,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
+    DEFAULT_LLM_KEEP_ALIVE,
     DEFAULT_LLM_MODEL,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MEMORY_COLLECTION_NAME,
@@ -109,6 +115,33 @@ _LOGGER = logging.getLogger(__name__)
 
 # OpenAI default base URL
 OPENAI_BASE_URL = "https://api.openai.com/v1"
+
+
+def validate_keep_alive(value: str) -> str:
+    """Validate keep_alive parameter format.
+
+    Args:
+        value: Keep alive value (e.g., "5m", "1h", "-1")
+
+    Returns:
+        The validated value
+
+    Raises:
+        vol.Invalid: If format is invalid
+    """
+    import re
+
+    if value == "-1":
+        return value
+
+    # Check format: number + unit (s, m, h)
+    if not re.match(r'^\d+[smh]$', value):
+        raise vol.Invalid(
+            f"Invalid keep_alive format: '{value}'. "
+            "Use format like '5m', '1h', '30s', or '-1' for indefinite."
+        )
+
+    return value
 
 
 class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -192,6 +225,10 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_LLM_MAX_TOKENS,
                         default=DEFAULT_MAX_TOKENS,
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100000)),
+                    vol.Optional(
+                        CONF_LLM_KEEP_ALIVE,
+                        default=DEFAULT_LLM_KEEP_ALIVE,
+                    ): validate_keep_alive,
                 }
             ),
             errors=errors,
@@ -448,6 +485,10 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         CONF_LLM_MAX_TOKENS,
                         default=current_data.get(CONF_LLM_MAX_TOKENS, DEFAULT_MAX_TOKENS),
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100000)),
+                    vol.Optional(
+                        CONF_LLM_KEEP_ALIVE,
+                        default=current_data.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
+                    ): validate_keep_alive,
                 }
             ),
             errors=errors,
@@ -570,6 +611,13 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                             DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
                         ),
                     ): str,
+                    vol.Optional(
+                        CONF_EMBEDDING_KEEP_ALIVE,
+                        default=current_options.get(
+                            CONF_EMBEDDING_KEEP_ALIVE,
+                            DEFAULT_EMBEDDING_KEEP_ALIVE,
+                        ),
+                    ): validate_keep_alive,
                     vol.Optional(
                         CONF_OPENAI_API_KEY,
                         default=current_options.get(CONF_OPENAI_API_KEY, ""),
@@ -803,6 +851,13 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         DEFAULT_EXTERNAL_LLM_MAX_TOKENS,
                     ),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100000)),
+                vol.Optional(
+                    CONF_EXTERNAL_LLM_KEEP_ALIVE,
+                    default=current_options.get(
+                        CONF_EXTERNAL_LLM_KEEP_ALIVE,
+                        DEFAULT_EXTERNAL_LLM_KEEP_ALIVE,
+                    ),
+                ): validate_keep_alive,
                 vol.Optional(
                     CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
                     description={
