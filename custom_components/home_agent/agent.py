@@ -1132,13 +1132,16 @@ class HomeAgent(AbstractConversationAgent):
 
                 # Log if we got an empty response
                 if not final_content:
-                    _LOGGER.warning(
+                    _LOGGER.error(
                         "LLM returned empty content after iteration %d. Response message: %s",
                         iteration,
                         response_message,
                     )
-                    # Provide a fallback message
-                    final_content = "I've completed your request."
+                    # Provide an error message instead of misleading success message
+                    final_content = (
+                        "There was an error completing your request. "
+                        "The assistant did not provide a response."
+                    )
 
                 # Update final performance metrics
                 if "performance" in metrics:
