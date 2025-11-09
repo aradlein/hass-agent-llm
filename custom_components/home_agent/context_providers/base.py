@@ -5,8 +5,8 @@ Context providers are responsible for gathering and formatting relevant
 entity and state information to be injected into LLM prompts.
 """
 
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -67,7 +67,7 @@ class ContextProvider(ABC):
         Returns:
             Dictionary containing formatted entity information
         """
-        formatted = {
+        formatted: dict[str, Any] = {
             "entity_id": entity_id,
             "state": str(state),
         }
@@ -106,9 +106,7 @@ class ContextProvider(ABC):
         # Include filtered attributes or all attributes
         if attribute_filter is not None:
             result["attributes"] = {
-                key: value
-                for key, value in state_obj.attributes.items()
-                if key in attribute_filter
+                key: value for key, value in state_obj.attributes.items() if key in attribute_filter
             }
         else:
             result["attributes"] = dict(state_obj.attributes)
@@ -135,9 +133,7 @@ class ContextProvider(ABC):
 
         all_entity_ids = self.hass.states.async_entity_ids()
         matching = [
-            entity_id
-            for entity_id in all_entity_ids
-            if fnmatch.fnmatch(entity_id, pattern)
+            entity_id for entity_id in all_entity_ids if fnmatch.fnmatch(entity_id, pattern)
         ]
 
         self._logger.debug("Pattern '%s' matched %d entities", pattern, len(matching))
@@ -162,9 +158,7 @@ class ContextProvider(ABC):
         service_list = list(services.keys())
 
         # Add homeassistant domain services that work on all entities
-        homeassistant_services = self.hass.services.async_services().get(
-            "homeassistant", {}
-        )
+        homeassistant_services = self.hass.services.async_services().get("homeassistant", {})
         common_services = [
             "turn_on",
             "turn_off",

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -68,9 +67,7 @@ class ContextOptimizer:
             preserve_recent_messages,
         )
 
-    def remove_redundant_attributes(
-        self, entities: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def remove_redundant_attributes(self, entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Remove redundant attributes from entities.
 
         Args:
@@ -284,7 +281,7 @@ class ContextOptimizer:
             # Find last sentence boundary
             last_period = truncated.rfind(". ")
             if last_period > target_length * 0.7:  # At least 70% of target
-                truncated = truncated[:last_period + 1]
+                truncated = truncated[: last_period + 1]
             return truncated + "..."
 
         # Try to preserve important terms
@@ -304,16 +301,14 @@ class ContextOptimizer:
         # Try to end at sentence boundary
         last_period = truncated.rfind(". ")
         if last_period > len(truncated) * 0.7:
-            truncated = truncated[:last_period + 1]
+            truncated = truncated[: last_period + 1]
 
         if not truncated.endswith("."):
             truncated += "..."
 
         return truncated
 
-    def optimize_for_model(
-        self, context: dict[str, Any], model_name: str
-    ) -> dict[str, Any]:
+    def optimize_for_model(self, context: dict[str, Any], model_name: str) -> dict[str, Any]:
         """Optimize context for specific model characteristics.
 
         Args:
@@ -355,7 +350,9 @@ class ContextOptimizer:
                         target = int(max_tokens * 0.4)
                         optimized[key] = self.compress_entity_context(value, target)
                 elif key == "conversation_history":
-                    tokens = sum(estimate_tokens(m.get("content", "")) for m in value if isinstance(m, dict))
+                    tokens = sum(
+                        estimate_tokens(m.get("content", "")) for m in value if isinstance(m, dict)
+                    )
                     if tokens > max_tokens * 0.3:  # Use max 30% for history
                         target = int(max_tokens * 0.3)
                         optimized[key] = self.compress_conversation_history(value, target)
@@ -428,9 +425,7 @@ class ContextOptimizer:
                 score = 1.0
                 reasons.append("available")
 
-            priorities.append(
-                EntityPriority(entity_id=entity_id, score=score, reasons=reasons)
-            )
+            priorities.append(EntityPriority(entity_id=entity_id, score=score, reasons=reasons))
 
         # Sort by score (descending)
         priorities.sort(key=lambda x: x.score, reverse=True)

@@ -13,7 +13,6 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
-
 from homeassistant.core import HomeAssistant
 
 from ..const import (
@@ -98,9 +97,11 @@ class ExternalLLMTool(BaseTool):
     @property
     def description(self) -> str:
         """Return the tool description."""
-        return self._config.get(
-            CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
-            DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION,
+        return str(
+            self._config.get(
+                CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
+                DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION,
+            )
         )
 
     @property
@@ -292,9 +293,7 @@ class ExternalLLMTool(BaseTool):
         temperature = self._config.get(
             CONF_EXTERNAL_LLM_TEMPERATURE, DEFAULT_EXTERNAL_LLM_TEMPERATURE
         )
-        max_tokens = self._config.get(
-            CONF_EXTERNAL_LLM_MAX_TOKENS, DEFAULT_EXTERNAL_LLM_MAX_TOKENS
-        )
+        max_tokens = self._config.get(CONF_EXTERNAL_LLM_MAX_TOKENS, DEFAULT_EXTERNAL_LLM_MAX_TOKENS)
 
         # Validate required configuration
         if not base_url:
@@ -326,7 +325,9 @@ class ExternalLLMTool(BaseTool):
             ],
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "keep_alive": self._config.get(CONF_EXTERNAL_LLM_KEEP_ALIVE, DEFAULT_EXTERNAL_LLM_KEEP_ALIVE),
+            "keep_alive": self._config.get(
+                CONF_EXTERNAL_LLM_KEEP_ALIVE, DEFAULT_EXTERNAL_LLM_KEEP_ALIVE
+            ),
         }
 
         _LOGGER.debug(
@@ -343,19 +344,15 @@ class ExternalLLMTool(BaseTool):
             # Extract response text from OpenAI-compatible format
             choices = result.get("choices", [])
             if not choices:
-                raise ToolExecutionError(
-                    "External LLM returned empty response (no choices)"
-                )
+                raise ToolExecutionError("External LLM returned empty response (no choices)")
 
             message_obj = choices[0].get("message", {})
             content = message_obj.get("content", "")
 
             if not content:
-                raise ToolExecutionError(
-                    "External LLM returned empty content in response"
-                )
+                raise ToolExecutionError("External LLM returned empty content in response")
 
-            return content
+            return str(content)
 
     async def close(self) -> None:
         """Clean up resources."""

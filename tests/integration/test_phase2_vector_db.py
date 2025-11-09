@@ -7,24 +7,24 @@ This test suite validates the complete vector DB integration flow:
 - Entity state and service information
 """
 
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
-from homeassistant.core import HomeAssistant, State
+import pytest
+from homeassistant.core import State
 
 from custom_components.home_agent.const import (
-    CONF_VECTOR_DB_HOST,
-    CONF_VECTOR_DB_PORT,
     CONF_VECTOR_DB_COLLECTION,
     CONF_VECTOR_DB_EMBEDDING_MODEL,
     CONF_VECTOR_DB_EMBEDDING_PROVIDER,
-    CONF_VECTOR_DB_TOP_K,
+    CONF_VECTOR_DB_HOST,
+    CONF_VECTOR_DB_PORT,
     CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
+    CONF_VECTOR_DB_TOP_K,
     EMBEDDING_PROVIDER_OLLAMA,
 )
 from custom_components.home_agent.context_providers.vector_db import (
-    VectorDBContextProvider,
     CHROMADB_AVAILABLE,
+    VectorDBContextProvider,
 )
 
 
@@ -117,9 +117,7 @@ class TestPhase2VectorDBIntegration:
     """Integration tests for Phase 2 vector DB functionality."""
 
     @pytest.mark.asyncio
-    async def test_vector_db_provider_initialization(
-        self, mock_hass, vector_db_config
-    ):
+    async def test_vector_db_provider_initialization(self, mock_hass, vector_db_config):
         """Test that vector DB provider initializes with correct configuration."""
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
@@ -169,6 +167,7 @@ class TestPhase2VectorDBIntegration:
 
         # Parse and validate
         import json
+
         parsed = json.loads(context)
 
         assert parsed["count"] == 3
@@ -187,9 +186,7 @@ class TestPhase2VectorDBIntegration:
         assert "set_percentage" in entity["available_services"]
 
     @pytest.mark.asyncio
-    async def test_l2_distance_filtering(
-        self, mock_entity_states, vector_db_config
-    ):
+    async def test_l2_distance_filtering(self, mock_entity_states, vector_db_config):
         """Test that L2 distance threshold filtering works correctly (Bug #1 fix)."""
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
@@ -212,6 +209,7 @@ class TestPhase2VectorDBIntegration:
         sensor_state.attributes = {"unit_of_measurement": "°F"}
 
         original_get = mock_entity_states.states.get.side_effect
+
         def enhanced_get(entity_id):
             if entity_id == "sensor.temperature":
                 return sensor_state
@@ -229,6 +227,7 @@ class TestPhase2VectorDBIntegration:
                 context = await provider.get_context("test query")
 
         import json
+
         parsed = json.loads(context)
 
         # Should only include entities with distance <= 80.0
@@ -239,9 +238,7 @@ class TestPhase2VectorDBIntegration:
         assert "light.bedroom" not in entity_ids
 
     @pytest.mark.asyncio
-    async def test_no_results_below_threshold(
-        self, mock_entity_states, vector_db_config
-    ):
+    async def test_no_results_below_threshold(self, mock_entity_states, vector_db_config):
         """Test graceful handling when no results meet similarity threshold."""
         if not CHROMADB_AVAILABLE:
             pytest.skip("ChromaDB not available")
@@ -287,6 +284,7 @@ class TestPhase2VectorDBIntegration:
                 context = await provider.get_context("test")
 
         import json
+
         parsed = json.loads(context)
 
         # Verify all entities have services

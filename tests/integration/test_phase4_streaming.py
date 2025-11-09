@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 from typing import Any, AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.components import conversation
@@ -31,7 +31,6 @@ from custom_components.home_agent.const import (
     CONF_STREAMING_ENABLED,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     EVENT_STREAMING_ERROR,
-    EVENT_TOOL_PROGRESS,
 )
 
 # Test constants
@@ -187,8 +186,8 @@ def create_tool_call_stream(tool_name: str, tool_args: dict[str, Any]) -> list[s
     args_json = json.dumps(tool_args).replace('"', '\\"')
     return [
         'data: {"choices":[{"delta":{"role":"assistant"}}]}\n',
-        f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":0,"id":"call_1","type":"function","function":{{"name":"{tool_name}","arguments":""}}}}]}}}}]}}\n',
-        f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":0,"function":{{"arguments":"{args_json}"}}}}]}}}}]}}\n',
+        f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":0,"id":"call_1","type":"function","function":{{"name":"{tool_name}","arguments":""}}}}]}}}}]}}\n',  # noqa: E501
+        f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":0,"function":{{"arguments":"{args_json}"}}}}]}}}}]}}\n',  # noqa: E501
         'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n',
         "data: [DONE]\n",
     ]
@@ -209,8 +208,8 @@ def create_text_then_tool_stream(text: str, tool_name: str, tool_args: dict[str,
     return [
         'data: {"choices":[{"delta":{"role":"assistant"}}]}\n',
         f'data: {{"choices":[{{"delta":{{"content":"{text}"}}}}]}}\n',
-        f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":0,"id":"call_1","type":"function","function":{{"name":"{tool_name}","arguments":""}}}}]}}}}]}}\n',
-        f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":0,"function":{{"arguments":"{args_json}"}}}}]}}}}]}}\n',
+        f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":0,"id":"call_1","type":"function","function":{{"name":"{tool_name}","arguments":""}}}}]}}}}]}}\n',  # noqa: E501
+        f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":0,"function":{{"arguments":"{args_json}"}}}}]}}}}]}}\n',  # noqa: E501
         'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n',
         "data: [DONE]\n",
     ]
@@ -231,11 +230,11 @@ def create_multiple_tool_calls_stream(tool_calls: list[tuple[str, dict[str, Any]
         args_json = json.dumps(tool_args).replace('"', '\\"')
         # Initialize tool call
         lines.append(
-            f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":{index},"id":"call_{index}","type":"function","function":{{"name":"{tool_name}","arguments":""}}}}]}}}}]}}\n'
+            f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":{index},"id":"call_{index}","type":"function","function":{{"name":"{tool_name}","arguments":""}}}}]}}}}]}}\n'  # noqa: E501
         )
         # Add arguments
         lines.append(
-            f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":{index},"function":{{"arguments":"{args_json}"}}}}]}}}}]}}\n'
+            f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":{index},"function":{{"arguments":"{args_json}"}}}}]}}}}]}}\n'  # noqa: E501
         )
 
     lines.append('data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n')
@@ -836,7 +835,7 @@ async def test_streaming_conversation_history_integration(
 
                     # Verify new messages were added to history
                     history = agent.conversation_manager.get_history("test_123")
-                    # Should have: previous user, previous assistant, current user, current assistant
+                    # Should have: prev user, prev assistant, curr user, curr assistant
                     assert len(history) == 4
 
 
@@ -946,6 +945,8 @@ async def test_streaming_tool_iteration_loop(
                     # Verify multiple iterations occurred
                     assert iterations[0] == 2
                     assert call_count[0] == 2
+                    # Verify result was returned
+                    assert result is not None  # noqa: F841
 
 
 # ============================================================================

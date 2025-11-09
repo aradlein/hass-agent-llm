@@ -14,7 +14,6 @@ import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
 from .const import (
@@ -117,7 +116,7 @@ _LOGGER = logging.getLogger(__name__)
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 
 
-class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Home Agent.
 
     This config flow implements multi-step configuration for the Home Agent
@@ -131,7 +130,9 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._data: dict[str, Any] = {}
         self._test_connection_passed = False
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Handle the initial step - LLM configuration.
 
         This step collects basic LLM configuration including:
@@ -359,7 +360,9 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
         """
         self._config_entry = config_entry
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Manage the options - main menu.
 
         Presents a menu of configuration categories:
@@ -391,7 +394,9 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             ],
         )
 
-    async def async_step_llm_settings(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_llm_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Configure LLM settings.
 
         Args:
@@ -473,7 +478,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_context_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Configure context injection settings.
 
         Args:
@@ -531,7 +536,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_vector_db_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Configure Vector DB (ChromaDB) settings.
 
         Args:
@@ -655,7 +660,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_history_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Configure conversation history settings.
 
         Args:
@@ -704,7 +709,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_prompt_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Configure system prompt settings.
 
         Args:
@@ -753,7 +758,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_tool_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Configure tool execution settings.
 
         Args:
@@ -795,7 +800,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_external_llm_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Configure external LLM tool settings.
 
         The external LLM tool allows the primary LLM to delegate complex
@@ -817,7 +822,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     return self.async_show_form(
                         step_id="external_llm_settings",
                         data_schema=self._get_external_llm_schema(
-                            self._config_entry.options, self._config_entry.data
+                            dict(self._config_entry.options), dict(self._config_entry.data)
                         ),
                         errors={"base": "invalid_external_llm"},
                     )
@@ -830,7 +835,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="external_llm_settings",
-            data_schema=self._get_external_llm_schema(current_options, current_data),
+            data_schema=self._get_external_llm_schema(dict(current_options), dict(current_data)),
             description_placeholders={
                 "use_case": (
                     "Enable this to allow the primary LLM to delegate "
@@ -962,7 +967,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_memory_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Configure long-term memory system settings.
 
         Args:
@@ -1079,7 +1084,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_debug_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Configure debug and logging settings.
 
         Args:

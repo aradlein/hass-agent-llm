@@ -19,7 +19,6 @@ from custom_components.home_agent.const import (
     DEFAULT_MEMORY_COLLECTION_NAME,
 )
 from custom_components.home_agent.memory_manager import (
-    IMPORTANCE_ACCESS_BOOST,
     MEMORY_TYPE_CONTEXT,
     MEMORY_TYPE_EVENT,
     MEMORY_TYPE_FACT,
@@ -57,12 +56,14 @@ def mock_vector_db_manager():
 
     # Mock collection
     collection = MagicMock()
-    collection.query = MagicMock(return_value={
-        "ids": [[]],
-        "distances": [[]],
-        "documents": [[]],
-        "metadatas": [[]],
-    })
+    collection.query = MagicMock(
+        return_value={
+            "ids": [[]],
+            "distances": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+        }
+    )
     collection.upsert = MagicMock()
     collection.delete = MagicMock()
 
@@ -379,19 +380,21 @@ class TestSearchMemories:
             memory_type=MEMORY_TYPE_PREFERENCE,
             importance=0.8,
         )
-        mem2_id = await memory_manager.add_memory(
+        _mem2_id = await memory_manager.add_memory(  # noqa: F841
             content="Living room temperature is 72F",
             memory_type=MEMORY_TYPE_FACT,
             importance=0.6,
         )
 
         # Mock ChromaDB query to return mem1
-        memory_manager._collection.query = MagicMock(return_value={
-            "ids": [[mem1_id]],
-            "distances": [[0.1]],
-            "documents": [["User likes blue lights"]],
-            "metadatas": [[{"memory_id": mem1_id}]],
-        })
+        memory_manager._collection.query = MagicMock(
+            return_value={
+                "ids": [[mem1_id]],
+                "distances": [[0.1]],
+                "documents": [["User likes blue lights"]],
+                "metadatas": [[{"memory_id": mem1_id}]],
+            }
+        )
 
         results = await memory_manager.search_memories(
             query="What colors does the user prefer?",
@@ -416,10 +419,12 @@ class TestSearchMemories:
         )
 
         # Mock ChromaDB to return both
-        memory_manager._collection.query = MagicMock(return_value={
-            "ids": [[high_id]],
-            "distances": [[0.1]],
-        })
+        memory_manager._collection.query = MagicMock(
+            return_value={
+                "ids": [[high_id]],
+                "distances": [[0.1]],
+            }
+        )
 
         # Search with min importance
         results = await memory_manager.search_memories(
@@ -447,10 +452,12 @@ class TestSearchMemories:
         )
 
         # Mock ChromaDB to return both
-        memory_manager._collection.query = MagicMock(return_value={
-            "ids": [[fact_id, pref_id]],
-            "distances": [[0.1, 0.2]],
-        })
+        memory_manager._collection.query = MagicMock(
+            return_value={
+                "ids": [[fact_id, pref_id]],
+                "distances": [[0.1, 0.2]],
+            }
+        )
 
         # Search for only facts
         results = await memory_manager.search_memories(
@@ -489,10 +496,12 @@ class TestSearchMemories:
     async def test_search_memories_no_results(self, memory_manager):
         """Test search with no matching results."""
         # Mock ChromaDB to return empty results
-        memory_manager._collection.query = MagicMock(return_value={
-            "ids": [[]],
-            "distances": [[]],
-        })
+        memory_manager._collection.query = MagicMock(
+            return_value={
+                "ids": [[]],
+                "distances": [[]],
+            }
+        )
 
         results = await memory_manager.search_memories(
             query="nonexistent query",
@@ -579,9 +588,7 @@ class TestListAllMemories:
             memory_type=MEMORY_TYPE_PREFERENCE,
         )
 
-        memories = await memory_manager.list_all_memories(
-            memory_type=MEMORY_TYPE_FACT
-        )
+        memories = await memory_manager.list_all_memories(memory_type=MEMORY_TYPE_FACT)
 
         assert len(memories) == 1
         assert memories[0]["type"] == MEMORY_TYPE_FACT
@@ -704,7 +711,7 @@ class TestStoragePersistence:
                     "last_accessed": time.time(),
                     "metadata": {},
                 }
-            }
+            },
         }
 
         with patch("custom_components.home_agent.memory_manager.Store") as mock_store_cls:

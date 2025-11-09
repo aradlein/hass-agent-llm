@@ -357,7 +357,7 @@ class ToolHandler:
             self._total_duration_ms += duration_ms
 
             # Prepare execution result
-            execution_result = {
+            execution_result: dict[str, Any] = {
                 "success": success,
                 "duration_ms": round(duration_ms, 2),
             }
@@ -434,7 +434,7 @@ class ToolHandler:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Convert any exceptions to error results
-        formatted_results = []
+        formatted_results: list[dict[str, Any]] = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 formatted_results.append(
@@ -445,7 +445,7 @@ class ToolHandler:
                     }
                 )
                 _LOGGER.error("Tool call %d failed with exception: %s", i, result, exc_info=result)
-            else:
+            elif isinstance(result, dict):
                 formatted_results.append(result)
 
         return formatted_results

@@ -253,9 +253,7 @@ class HomeAssistantQueryTool(BaseTool):
                 "entity_id": entity_id_pattern,
                 "entities": entity_data,
                 "count": len(entity_data),
-                "message": self._build_success_message(
-                    entity_id_pattern, len(entity_data)
-                ),
+                "message": self._build_success_message(entity_id_pattern, len(entity_data)),
             }
 
             _LOGGER.info(
@@ -374,7 +372,7 @@ class HomeAssistantQueryTool(BaseTool):
         Returns:
             Dict containing entity information
         """
-        entity_data = {
+        entity_data: dict[str, Any] = {
             "entity_id": state.entity_id,
             "state": state.state,
             "last_changed": state.last_changed.isoformat(),
@@ -550,7 +548,7 @@ class HomeAssistantQueryTool(BaseTool):
             entity_id,
         )
 
-        return entity_history.get(entity_id, [])
+        return list(entity_history.get(entity_id, []))
 
     def _aggregate_history(
         self,

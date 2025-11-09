@@ -8,12 +8,13 @@ This test suite validates the complete custom tool integration flow:
 - Integration with Home Agent's tool system
 """
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-import aiohttp
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
+import pytest
 from homeassistant.core import HomeAssistant
 
+from custom_components.home_agent.agent import HomeAgent
 from custom_components.home_agent.const import (
     CONF_LLM_API_KEY,
     CONF_LLM_BASE_URL,
@@ -22,7 +23,6 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
 )
-from custom_components.home_agent.agent import HomeAgent
 from custom_components.home_agent.tools.custom import RestCustomTool, ServiceCustomTool
 
 
@@ -45,51 +45,35 @@ def custom_tools_config():
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "City name or location"
-                        }
+                        "location": {"type": "string", "description": "City name or location"}
                     },
-                    "required": ["location"]
+                    "required": ["location"],
                 },
                 "handler": {
                     "type": "rest",
                     "url": "https://api.weather.com/v1/forecast",
                     "method": "GET",
-                    "headers": {
-                        "Authorization": "Bearer test-token"
-                    },
-                    "query_params": {
-                        "location": "{{ location }}",
-                        "format": "json"
-                    }
-                }
+                    "headers": {"Authorization": "Bearer test-token"},
+                    "query_params": {"location": "{{ location }}", "format": "json"},
+                },
             },
             {
                 "name": "create_task",
                 "description": "Create a new task",
                 "parameters": {
                     "type": "object",
-                    "properties": {
-                        "title": {"type": "string"},
-                        "description": {"type": "string"}
-                    },
-                    "required": ["title"]
+                    "properties": {"title": {"type": "string"}, "description": {"type": "string"}},
+                    "required": ["title"],
                 },
                 "handler": {
                     "type": "rest",
                     "url": "https://api.tasks.com/v1/tasks",
                     "method": "POST",
-                    "headers": {
-                        "Content-Type": "application/json"
-                    },
-                    "body": {
-                        "title": "{{ title }}",
-                        "description": "{{ description }}"
-                    }
-                }
-            }
-        ]
+                    "headers": {"Content-Type": "application/json"},
+                    "body": {"title": "{{ title }}", "description": "{{ description }}"},
+                },
+            },
+        ],
     }
 
 
@@ -158,7 +142,9 @@ async def test_custom_tool_has_correct_properties(mock_hass_for_custom_tools, cu
 
 
 @pytest.mark.asyncio
-async def test_custom_tool_appears_in_llm_tools_list(mock_hass_for_custom_tools, custom_tools_config):
+async def test_custom_tool_appears_in_llm_tools_list(
+    mock_hass_for_custom_tools, custom_tools_config
+):
     """Test that custom tools appear in the tools list for LLM."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -189,17 +175,12 @@ async def test_custom_rest_tool_execution_success(mock_hass_for_custom_tools, cu
         weather_tool = agent.tool_handler.tools["check_weather"]
 
         async def mock_make_request(*args, **kwargs):
-            return {
-                "location": "San Francisco",
-                "temperature": 72,
-                "condition": "sunny"
-            }
+            return {"location": "San Francisco", "temperature": 72, "condition": "sunny"}
 
         with patch.object(weather_tool, "_make_request", side_effect=mock_make_request):
             # Execute the custom tool
             result = await agent.tool_handler.execute_tool(
-                "check_weather",
-                {"location": "San Francisco"}
+                "check_weather", {"location": "San Francisco"}
             )
 
         # Tool handler wraps the result, so check the outer success first
@@ -212,7 +193,9 @@ async def test_custom_rest_tool_execution_success(mock_hass_for_custom_tools, cu
 
 
 @pytest.mark.asyncio
-async def test_custom_rest_tool_execution_with_post(mock_hass_for_custom_tools, custom_tools_config):
+async def test_custom_rest_tool_execution_with_post(
+    mock_hass_for_custom_tools, custom_tools_config
+):
     """Test POST request execution of a custom REST tool."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -224,17 +207,12 @@ async def test_custom_rest_tool_execution_with_post(mock_hass_for_custom_tools, 
         task_tool = agent.tool_handler.tools["create_task"]
 
         async def mock_make_request(*args, **kwargs):
-            return {
-                "id": "task-123",
-                "title": "Test Task",
-                "created": True
-            }
+            return {"id": "task-123", "title": "Test Task", "created": True}
 
         with patch.object(task_tool, "_make_request", side_effect=mock_make_request):
             # Execute the custom tool
             result = await agent.tool_handler.execute_tool(
-                "create_task",
-                {"title": "Test Task", "description": "Test description"}
+                "create_task", {"title": "Test Task", "description": "Test description"}
             )
 
         # Tool handler wraps the result
@@ -256,13 +234,9 @@ async def test_custom_tool_registration_with_validation_error(mock_hass_for_cust
                 # Missing required 'description' field
                 "name": "invalid_tool",
                 "parameters": {},
-                "handler": {
-                    "type": "rest",
-                    "url": "https://api.example.com",
-                    "method": "GET"
-                }
+                "handler": {"type": "rest", "url": "https://api.example.com", "method": "GET"},
             }
-        ]
+        ],
     }
 
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
@@ -317,17 +291,11 @@ async def test_custom_tool_error_propagation(mock_hass_for_custom_tools, custom_
             weather_tool,
             "_make_request",
             side_effect=aiohttp.ClientResponseError(
-                request_info=MagicMock(),
-                history=(),
-                status=404,
-                message="Not Found"
-            )
+                request_info=MagicMock(), history=(), status=404, message="Not Found"
+            ),
         ):
             # Execute the custom tool - should return error, not raise
-            result = await agent.tool_handler.execute_tool(
-                "check_weather",
-                {"location": "Unknown"}
-            )
+            result = await agent.tool_handler.execute_tool("check_weather", {"location": "Unknown"})
 
         # Tool handler wraps the result
         assert result["success"] is True  # Tool handler success (tool executed)
@@ -354,54 +322,38 @@ def service_tools_config():
             {
                 "name": "trigger_morning_routine",
                 "description": "Trigger the morning routine automation",
-                "parameters": {
-                    "type": "object",
-                    "properties": {}
-                },
+                "parameters": {"type": "object", "properties": {}},
                 "handler": {
                     "type": "service",
                     "service": "automation.trigger",
-                    "data": {
-                        "entity_id": "automation.morning_routine"
-                    }
-                }
+                    "data": {"entity_id": "automation.morning_routine"},
+                },
             },
             {
                 "name": "notify_arrival",
                 "description": "Send arrival notification",
                 "parameters": {
                     "type": "object",
-                    "properties": {
-                        "person": {"type": "string"},
-                        "location": {"type": "string"}
-                    },
-                    "required": ["person"]
+                    "properties": {"person": {"type": "string"}, "location": {"type": "string"}},
+                    "required": ["person"],
                 },
                 "handler": {
                     "type": "service",
                     "service": "script.arrival_notification",
-                    "data": {
-                        "person": "{{ person }}",
-                        "location": "{{ location }}"
-                    }
-                }
+                    "data": {"person": "{{ person }}", "location": "{{ location }}"},
+                },
             },
             {
                 "name": "set_movie_scene",
                 "description": "Activate movie watching scene",
-                "parameters": {
-                    "type": "object",
-                    "properties": {}
-                },
+                "parameters": {"type": "object", "properties": {}},
                 "handler": {
                     "type": "service",
                     "service": "scene.turn_on",
-                    "target": {
-                        "entity_id": "scene.movie_time"
-                    }
-                }
-            }
-        ]
+                    "target": {"entity_id": "scene.movie_time"},
+                },
+            },
+        ],
     }
 
 
@@ -428,7 +380,9 @@ async def test_service_tools_registration(mock_hass_for_custom_tools, service_to
 
 
 @pytest.mark.asyncio
-async def test_service_tool_has_correct_properties(mock_hass_for_custom_tools, service_tools_config):
+async def test_service_tool_has_correct_properties(
+    mock_hass_for_custom_tools, service_tools_config
+):
     """Test that registered service tools have correct properties."""
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
 
@@ -449,7 +403,9 @@ async def test_service_tool_has_correct_properties(mock_hass_for_custom_tools, s
 
 
 @pytest.mark.asyncio
-async def test_service_tool_appears_in_llm_tools_list(mock_hass_for_custom_tools, service_tools_config):
+async def test_service_tool_appears_in_llm_tools_list(
+    mock_hass_for_custom_tools, service_tools_config
+):
     """Test that service tools appear in the tools list for LLM."""
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
 
@@ -483,10 +439,7 @@ async def test_service_tool_execution_success(mock_hass_for_custom_tools, servic
         agent._ensure_tools_registered()
 
         # Execute the service tool
-        result = await agent.tool_handler.execute_tool(
-            "trigger_morning_routine",
-            {}
-        )
+        result = await agent.tool_handler.execute_tool("trigger_morning_routine", {})
 
         # Verify service was called
         mock_hass_for_custom_tools.services.async_call.assert_called_once_with(
@@ -494,7 +447,7 @@ async def test_service_tool_execution_success(mock_hass_for_custom_tools, servic
             service="trigger",
             service_data={"entity_id": "automation.morning_routine"},
             target=None,
-            blocking=True
+            blocking=True,
         )
 
         # Tool handler wraps the result
@@ -506,7 +459,9 @@ async def test_service_tool_execution_success(mock_hass_for_custom_tools, servic
 
 
 @pytest.mark.asyncio
-async def test_service_tool_execution_with_parameters(mock_hass_for_custom_tools, service_tools_config):
+async def test_service_tool_execution_with_parameters(
+    mock_hass_for_custom_tools, service_tools_config
+):
     """Test service tool execution with templated parameters."""
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
     mock_hass_for_custom_tools.services.async_call = AsyncMock()
@@ -521,13 +476,14 @@ async def test_service_tool_execution_with_parameters(mock_hass_for_custom_tools
         with patch("custom_components.home_agent.tools.custom.Template") as mock_template_class:
             mock_template = MagicMock()
             mock_template.async_render = MagicMock(
-                side_effect=lambda x: x.get("person", "John") if "person" in x else x.get("location", "Home")
+                side_effect=lambda x: x.get("person", "John")
+                if "person" in x
+                else x.get("location", "Home")
             )
             mock_template_class.return_value = mock_template
 
             result = await agent.tool_handler.execute_tool(
-                "notify_arrival",
-                {"person": "John", "location": "Home"}
+                "notify_arrival", {"person": "John", "location": "Home"}
             )
 
         # Verify service was called
@@ -555,10 +511,7 @@ async def test_service_tool_execution_with_target(mock_hass_for_custom_tools, se
         agent._ensure_tools_registered()
 
         # Execute the service tool
-        result = await agent.tool_handler.execute_tool(
-            "set_movie_scene",
-            {}
-        )
+        result = await agent.tool_handler.execute_tool("set_movie_scene", {})
 
         # Verify service was called with target
         mock_hass_for_custom_tools.services.async_call.assert_called_once()
@@ -588,10 +541,7 @@ async def test_service_tool_error_propagation(mock_hass_for_custom_tools, servic
         agent._ensure_tools_registered()
 
         # Execute the service tool - should return error, not raise
-        result = await agent.tool_handler.execute_tool(
-            "trigger_morning_routine",
-            {}
-        )
+        result = await agent.tool_handler.execute_tool("trigger_morning_routine", {})
 
         # Tool handler wraps the result
         assert result["success"] is True  # Tool handler success (tool executed)
@@ -599,7 +549,9 @@ async def test_service_tool_error_propagation(mock_hass_for_custom_tools, servic
         # But the tool itself reports failure
         assert tool_result["success"] is False
         assert tool_result["result"] is None
-        assert "not found" in tool_result["error"].lower() or "service" in tool_result["error"].lower()
+        assert (
+            "not found" in tool_result["error"].lower() or "service" in tool_result["error"].lower()
+        )
 
 
 @pytest.mark.asyncio
@@ -617,8 +569,8 @@ async def test_mixed_rest_and_service_tools(mock_hass_for_custom_tools):
                 "handler": {
                     "type": "rest",
                     "url": "https://api.weather.com/v1/forecast",
-                    "method": "GET"
-                }
+                    "method": "GET",
+                },
             },
             {
                 "name": "trigger_automation",
@@ -627,10 +579,10 @@ async def test_mixed_rest_and_service_tools(mock_hass_for_custom_tools):
                 "handler": {
                     "type": "service",
                     "service": "automation.trigger",
-                    "data": {"entity_id": "automation.test"}
-                }
-            }
-        ]
+                    "data": {"entity_id": "automation.test"},
+                },
+            },
+        ],
     }
 
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)

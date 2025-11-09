@@ -4,23 +4,23 @@ This module tests all utility functions in the helpers module including
 formatting, validation, security, and token estimation functions.
 """
 
-import pytest
-from unittest.mock import MagicMock, Mock
+from unittest.mock import Mock
 
-from homeassistant.const import ATTR_FRIENDLY_NAME, STATE_UNAVAILABLE, STATE_UNKNOWN
+import pytest
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import State
 
-from custom_components.home_agent.helpers import (
-    format_entity_state,
-    validate_entity_id,
-    redact_sensitive_data,
-    estimate_tokens,
-    truncate_text,
-    safe_get_state,
-    format_duration,
-    merge_dicts,
-)
 from custom_components.home_agent.exceptions import ValidationError
+from custom_components.home_agent.helpers import (
+    estimate_tokens,
+    format_duration,
+    format_entity_state,
+    merge_dicts,
+    redact_sensitive_data,
+    safe_get_state,
+    truncate_text,
+    validate_entity_id,
+)
 
 
 class TestFormatEntityState:
@@ -59,9 +59,7 @@ class TestFormatEntityState:
             "color_mode": "xy",
         }
 
-        result = format_entity_state(
-            state, attributes=["brightness"], format_type="json"
-        )
+        result = format_entity_state(state, attributes=["brightness"], format_type="json")
 
         assert result["entity_id"] == "light.living_room"
         assert result["state"] == "on"
@@ -598,18 +596,10 @@ class TestMergeDicts:
     def test_merge_dicts_complex_structure(self):
         """Test merging complex nested structures."""
         base = {
-            "config": {
-                "llm": {"model": "gpt-4", "temp": 0.7},
-                "context": {"mode": "direct"}
-            },
-            "enabled": True
+            "config": {"llm": {"model": "gpt-4", "temp": 0.7}, "context": {"mode": "direct"}},
+            "enabled": True,
         }
-        override = {
-            "config": {
-                "llm": {"model": "gpt-3.5"},
-                "tools": {"enabled": True}
-            }
-        }
+        override = {"config": {"llm": {"model": "gpt-3.5"}, "tools": {"enabled": True}}}
 
         result = merge_dicts(base, override)
 
@@ -617,8 +607,8 @@ class TestMergeDicts:
             "config": {
                 "llm": {"model": "gpt-3.5", "temp": 0.7},
                 "context": {"mode": "direct"},
-                "tools": {"enabled": True}
+                "tools": {"enabled": True},
             },
-            "enabled": True
+            "enabled": True,
         }
         assert result == expected

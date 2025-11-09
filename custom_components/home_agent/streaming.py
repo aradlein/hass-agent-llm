@@ -48,7 +48,8 @@ class OpenAIStreamingHandler:
             return None
 
         try:
-            return json.loads(data)
+            result: dict[str, Any] = json.loads(data)
+            return result
         except json.JSONDecodeError:
             _LOGGER.error("Failed to parse SSE data: %s", data)
             return None

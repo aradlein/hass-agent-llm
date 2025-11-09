@@ -94,9 +94,11 @@ class ContextManager:
         """
         cfg = config if config is not None else self.config
         if CONF_CONTEXT_MODE in cfg:
-            return cfg[CONF_CONTEXT_MODE]
+            mode = cfg[CONF_CONTEXT_MODE]
+            return str(mode) if mode is not None else DEFAULT_CONTEXT_MODE
         elif "mode" in cfg:
-            return cfg["mode"]
+            mode = cfg["mode"]
+            return str(mode) if mode is not None else DEFAULT_CONTEXT_MODE
         else:
             return DEFAULT_CONTEXT_MODE
 
@@ -119,13 +121,9 @@ class ContextManager:
                 _LOGGER.error("Invalid context mode: %s, using direct mode", mode)
                 self._provider = self._create_direct_provider()
 
-            _LOGGER.info(
-                "Initialized context provider: %s", self._provider.__class__.__name__
-            )
+            _LOGGER.info("Initialized context provider: %s", self._provider.__class__.__name__)
         except Exception as error:
-            _LOGGER.error(
-                "Failed to initialize context provider: %s", error, exc_info=True
-            )
+            _LOGGER.error("Failed to initialize context provider: %s", error, exc_info=True)
             raise ContextInjectionError(
                 f"Failed to initialize context provider: {error}"
             ) from error
@@ -232,9 +230,7 @@ class ContextManager:
             # Get memory context if memory provider is available
             if self._memory_provider is not None:
                 try:
-                    memory_context = await self._memory_provider.get_context(
-                        user_input, conversation_id
-                    )
+                    memory_context = await self._memory_provider.get_context(user_input)
                     if memory_context:
                         # Combine entity and memory context
                         context = f"{context}\n{memory_context}"
@@ -253,9 +249,7 @@ class ContextManager:
 
         except Exception as error:
             _LOGGER.error("Failed to get context: %s", error, exc_info=True)
-            raise ContextInjectionError(
-                f"Failed to retrieve context: {error}"
-            ) from error
+            raise ContextInjectionError(f"Failed to retrieve context: {error}") from error
 
     async def get_formatted_context(
         self,
@@ -366,16 +360,12 @@ class ContextManager:
         max_chars = self._max_context_tokens * 4  # Rough char-to-token ratio
         was_truncated = False
         if len(optimized) > max_chars:
-            _LOGGER.warning(
-                "Context truncated from %d to %d characters", len(optimized), max_chars
-            )
+            _LOGGER.warning("Context truncated from %d to %d characters", len(optimized), max_chars)
             optimized = optimized[:max_chars] + "... [truncated]"
             was_truncated = True
 
         optimized_tokens = len(optimized) // 4
-        compression_ratio = (
-            len(optimized) / original_length if original_length > 0 else 1.0
-        )
+        compression_ratio = len(optimized) / original_length if original_length > 0 else 1.0
 
         # Fire optimization event if context was changed
         if was_truncated or len(optimized) < original_length:
@@ -428,7 +418,8 @@ class ContextManager:
             return None
 
         _LOGGER.debug("Cache hit (age: %.1fs)", age)
-        return self._cache[cache_key]
+        cached = self._cache[cache_key]
+        return str(cached) if cached is not None else None
 
     def _cache_context(self, user_input: str, context: str) -> None:
         """Cache context with current timestamp.
@@ -550,9 +541,7 @@ class ContextManager:
         self._cache_enabled = config.get("cache_enabled", self._cache_enabled)
         self._cache_ttl = config.get("cache_ttl", self._cache_ttl)
         self._emit_events = config.get("emit_events", self._emit_events)
-        self._max_context_tokens = config.get(
-            "max_context_tokens", self._max_context_tokens
-        )
+        self._max_context_tokens = config.get("max_context_tokens", self._max_context_tokens)
 
         # Reinitialize provider if mode changed
         if old_mode != new_mode:
@@ -591,9 +580,7 @@ class ContextManager:
             }
         """
         info = {
-            "provider_class": (
-                self._provider.__class__.__name__ if self._provider else None
-            ),
+            "provider_class": (self._provider.__class__.__name__ if self._provider else None),
             "mode": self.get_current_mode(),
             "cache_enabled": self._cache_enabled,
             "cache_ttl": self._cache_ttl,

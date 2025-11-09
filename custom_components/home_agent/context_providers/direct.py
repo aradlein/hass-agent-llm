@@ -48,9 +48,7 @@ class DirectContextProvider(ContextProvider):
         """
         super().__init__(hass, config)
         self.entities_config = config.get("entities", [])
-        self.format_type: Literal["json", "natural_language"] = config.get(
-            "format", "json"
-        )
+        self.format_type: Literal["json", "natural_language"] = config.get("format", "json")
 
     async def get_context(self, user_input: str) -> str:
         """Get formatted context for configured entities.
@@ -115,9 +113,7 @@ class DirectContextProvider(ContextProvider):
             matching_entities = self._get_entities_matching_pattern(entity_id)
 
             for matched_entity_id in matching_entities:
-                state_data = self._get_entity_state(
-                    matched_entity_id, attributes_filter
-                )
+                state_data = self._get_entity_state(matched_entity_id, attributes_filter)
 
                 if state_data:
                     entity_states.append(state_data)
@@ -133,9 +129,7 @@ class DirectContextProvider(ContextProvider):
             List of entity state dictionaries for all exposed entities
         """
         from homeassistant.components import conversation as ha_conversation
-        from homeassistant.components.homeassistant.exposed_entities import (
-            async_should_expose,
-        )
+        from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 
         entity_states = []
 
@@ -145,9 +139,7 @@ class DirectContextProvider(ContextProvider):
                 state_data = self._get_entity_state(state.entity_id)
                 if state_data:
                     # Add available services for consistency with vector DB mode
-                    state_data["available_services"] = self._get_entity_services(
-                        state.entity_id
-                    )
+                    state_data["available_services"] = self._get_entity_services(state.entity_id)
                     entity_states.append(state_data)
 
         return entity_states
@@ -191,9 +183,7 @@ class DirectContextProvider(ContextProvider):
             )
 
             # Format based on domain for better readability
-            line = self._format_entity_natural_language(
-                domain, friendly_name, state, attributes
-            )
+            line = self._format_entity_natural_language(domain, friendly_name, state, attributes)
 
             lines.append(f"- {line}")
 
@@ -259,9 +249,7 @@ class DirectContextProvider(ContextProvider):
         else:
             return f"{name} is {state}"
 
-    def _format_binary_sensor(
-        self, name: str, state: str, attributes: dict[str, Any]
-    ) -> str:
+    def _format_binary_sensor(self, name: str, state: str, attributes: dict[str, Any]) -> str:
         """Format binary sensor entity in natural language."""
         device_class = attributes.get("device_class", "")
 

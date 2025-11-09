@@ -2,7 +2,7 @@
 
 import pytest
 
-from custom_components.home_agent.conversation import CHARS_PER_TOKEN, ConversationHistoryManager
+from custom_components.home_agent.conversation import ConversationHistoryManager
 
 
 class TestConversationHistoryManager:

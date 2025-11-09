@@ -129,7 +129,7 @@ class HomeAgent(AbstractConversationAgent):
         return ["en"]
 
     @property
-    def memory_manager(self):
+    def memory_manager(self) -> Any:
         """Get memory manager from hass.data if available."""
         if self._memory_manager is None:
             # Try to get memory manager from hass.data
@@ -491,7 +491,9 @@ class HomeAgent(AbstractConversationAgent):
 
         try:
             tpl = template.Template(template_str, self.hass)
-            return tpl.async_render(variables or {})
+            result = tpl.async_render(variables or {})
+            # Template.async_render can return Any, so we need to ensure it's a string
+            return str(result) if result is not None else ""
         except TemplateError as err:
             _LOGGER.warning("Template rendering failed: %s. Using raw template.", err)
             return template_str
@@ -560,7 +562,7 @@ class HomeAgent(AbstractConversationAgent):
                     error_text = await response.text()
                     raise HomeAgentError(f"LLM API returned status {response.status}: {error_text}")
 
-                result = await response.json()
+                result: dict[str, Any] = await response.json()
                 return result
 
         except aiohttp.ClientError as err:

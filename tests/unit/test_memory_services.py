@@ -1,10 +1,8 @@
 """Unit tests for memory management services."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from homeassistant.core import ServiceCall
 
 
 @pytest.fixture
@@ -27,44 +25,25 @@ def mock_memory_manager(mock_hass):
     return mock_hass.data["home_agent"]["test_entry"]["memory_manager"]
 
 
-@pytest.fixture
-def service_handlers(mock_hass):
-    """Create service handlers with mocked dependencies."""
-    # Import the module and create handlers
-    with patch("custom_components.home_agent.DOMAIN", "home_agent"):
-        from custom_components.home_agent import async_setup_services
-
-        # We'll manually create the handlers for testing
-        handlers = {}
-
-        # We need to import and setup the handlers
-        return handlers
-
-
 class TestListMemoriesService:
     """Tests for list_memories service."""
 
     @pytest.mark.asyncio
     async def test_list_memories_success(self, mock_hass, mock_memory_manager):
         """Test successful memory listing."""
-        mock_memory_manager.list_all_memories = AsyncMock(return_value=[
-            {
-                "id": "mem1",
-                "type": "fact",
-                "content": "Test memory",
-                "importance": 0.7,
-                "extracted_at": "2024-01-01T00:00:00",
-                "last_accessed": "2024-01-02T00:00:00",
-                "source_conversation_id": "conv1",
-            }
-        ])
-
-        # Simulate the service call handler
-        from custom_components.home_agent import async_setup_services
-
-        # Create a mock service call
-        call = MagicMock(spec=ServiceCall)
-        call.data = {"entry_id": "test_entry"}
+        mock_memory_manager.list_all_memories = AsyncMock(
+            return_value=[
+                {
+                    "id": "mem1",
+                    "type": "fact",
+                    "content": "Test memory",
+                    "importance": 0.7,
+                    "extracted_at": "2024-01-01T00:00:00",
+                    "last_accessed": "2024-01-02T00:00:00",
+                    "source_conversation_id": "conv1",
+                }
+            ]
+        )
 
         # Get entry data helper
         def _get_entry_data(target_entry_id):
@@ -196,22 +175,24 @@ class TestSearchMemoriesService:
     @pytest.mark.asyncio
     async def test_search_memories_success(self, mock_hass, mock_memory_manager):
         """Test successful memory search."""
-        mock_memory_manager.search_memories = AsyncMock(return_value=[
-            {
-                "id": "mem1",
-                "type": "preference",
-                "content": "User likes warm temperature",
-                "importance": 0.8,
-                "relevance_score": 0.95,
-            },
-            {
-                "id": "mem2",
-                "type": "fact",
-                "content": "Living room has temperature sensor",
-                "importance": 0.6,
-                "relevance_score": 0.75,
-            },
-        ])
+        mock_memory_manager.search_memories = AsyncMock(
+            return_value=[
+                {
+                    "id": "mem1",
+                    "type": "preference",
+                    "content": "User likes warm temperature",
+                    "importance": 0.8,
+                    "relevance_score": 0.95,
+                },
+                {
+                    "id": "mem2",
+                    "type": "fact",
+                    "content": "Living room has temperature sensor",
+                    "importance": 0.6,
+                    "relevance_score": 0.75,
+                },
+            ]
+        )
 
         memories = await mock_memory_manager.search_memories(
             query="temperature preferences",
@@ -317,15 +298,17 @@ class TestServiceIntegration:
         assert memory_id == "mem_workflow"
 
         # Search for it
-        mock_memory_manager.search_memories = AsyncMock(return_value=[
-            {
-                "id": "mem_workflow",
-                "type": "fact",
-                "content": "Test workflow memory",
-                "importance": 0.7,
-                "relevance_score": 1.0,
-            }
-        ])
+        mock_memory_manager.search_memories = AsyncMock(
+            return_value=[
+                {
+                    "id": "mem_workflow",
+                    "type": "fact",
+                    "content": "Test workflow memory",
+                    "importance": 0.7,
+                    "relevance_score": 1.0,
+                }
+            ]
+        )
         memories = await mock_memory_manager.search_memories(
             query="workflow",
             top_k=10,
@@ -334,16 +317,18 @@ class TestServiceIntegration:
         assert len(memories) == 1
 
         # List all memories
-        mock_memory_manager.list_all_memories = AsyncMock(return_value=[
-            {
-                "id": "mem_workflow",
-                "type": "fact",
-                "content": "Test workflow memory",
-                "importance": 0.7,
-                "extracted_at": "2024-01-01T00:00:00",
-                "last_accessed": "2024-01-01T00:00:00",
-            }
-        ])
+        mock_memory_manager.list_all_memories = AsyncMock(
+            return_value=[
+                {
+                    "id": "mem_workflow",
+                    "type": "fact",
+                    "content": "Test workflow memory",
+                    "importance": 0.7,
+                    "extracted_at": "2024-01-01T00:00:00",
+                    "last_accessed": "2024-01-01T00:00:00",
+                }
+            ]
+        )
         all_memories = await mock_memory_manager.list_all_memories()
         assert len(all_memories) == 1
 

@@ -121,15 +121,12 @@ def validate_entity_id(entity_id: str) -> str:
         ValidationError: Invalid entity_id format: invalid_entity
     """
     if not entity_id or not isinstance(entity_id, str):
-        raise ValidationError(
-            f"Invalid entity_id: {entity_id}. Must be a non-empty string."
-        )
+        raise ValidationError(f"Invalid entity_id: {entity_id}. Must be a non-empty string.")
 
     # Check for basic format: domain.entity_name
     if "." not in entity_id:
         raise ValidationError(
-            f"Invalid entity_id format: {entity_id}. "
-            f"Expected format: domain.entity_name"
+            f"Invalid entity_id format: {entity_id}. " f"Expected format: domain.entity_name"
         )
 
     domain, entity_name = entity_id.split(".", 1)
@@ -282,7 +279,7 @@ def safe_get_state(
     if state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
         return default
 
-    return state.state
+    return str(state.state)
 
 
 def format_duration(seconds: float) -> str:

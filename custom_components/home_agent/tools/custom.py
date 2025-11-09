@@ -86,11 +86,7 @@ class CustomToolHandler:
 
         # If parameters not provided, use empty object schema
         if "parameters" not in config:
-            config["parameters"] = {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+            config["parameters"] = {"type": "object", "properties": {}, "required": []}
 
         handler_config = config["handler"]
         if "type" not in handler_config:
@@ -171,9 +167,7 @@ class RestCustomTool(BaseTool):
             ValidationError: If REST configuration is invalid
         """
         required_rest_keys = ["url", "method"]
-        missing_keys = [
-            key for key in required_rest_keys if key not in self._handler_config
-        ]
+        missing_keys = [key for key in required_rest_keys if key not in self._handler_config]
         if missing_keys:
             raise ValidationError(
                 f"REST handler configuration missing required keys: {', '.join(missing_keys)}"
@@ -184,24 +178,23 @@ class RestCustomTool(BaseTool):
         method = self._handler_config["method"]
         if method not in valid_methods:
             raise ValidationError(
-                f"Invalid HTTP method '{method}'. "
-                f"Supported methods: {', '.join(valid_methods)}"
+                f"Invalid HTTP method '{method}'. " f"Supported methods: {', '.join(valid_methods)}"
             )
 
     @property
     def name(self) -> str:
         """Return the tool name."""
-        return self._config["name"]
+        return str(self._config["name"])
 
     @property
     def description(self) -> str:
         """Return the tool description."""
-        return self._config["description"]
+        return str(self._config["description"])
 
     @property
     def parameters(self) -> dict[str, Any]:
         """Return the tool parameter schema."""
-        return self._config["parameters"]
+        return dict(self._config["parameters"])
 
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         """Execute the REST API call with the given parameters.
@@ -376,9 +369,7 @@ class RestCustomTool(BaseTool):
             return str(rendered)
 
         except Exception as err:
-            raise ValidationError(
-                f"Failed to render template '{template_str}': {err}"
-            ) from err
+            raise ValidationError(f"Failed to render template '{template_str}': {err}") from err
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
         """Ensure HTTP session exists.
@@ -508,9 +499,7 @@ class ServiceCustomTool(BaseTool):
             ValidationError: If service configuration is invalid
         """
         if "service" not in self._handler_config:
-            raise ValidationError(
-                "Service handler configuration missing required key: service"
-            )
+            raise ValidationError("Service handler configuration missing required key: service")
 
         # Validate service format (should be domain.service_name)
         service = self._handler_config["service"]
@@ -539,17 +528,17 @@ class ServiceCustomTool(BaseTool):
     @property
     def name(self) -> str:
         """Return the tool name."""
-        return self._config["name"]
+        return str(self._config["name"])
 
     @property
     def description(self) -> str:
         """Return the tool description."""
-        return self._config["description"]
+        return str(self._config["description"])
 
     @property
     def parameters(self) -> dict[str, Any]:
         """Return the tool parameter schema."""
-        return self._config["parameters"]
+        return dict(self._config["parameters"])
 
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         """Execute the Home Assistant service call with the given parameters.
@@ -580,7 +569,7 @@ class ServiceCustomTool(BaseTool):
                         service_data[key] = value
 
             # Handle target field if present
-            target = None
+            target: dict[str, Any] | None = None
             if "target" in self._handler_config:
                 target = {}
                 target_config = self._handler_config["target"]
@@ -589,19 +578,15 @@ class ServiceCustomTool(BaseTool):
                 if "entity_id" in target_config:
                     entity_ids = target_config["entity_id"]
                     if isinstance(entity_ids, str):
-                        target["entity_id"] = await self._render_template(
-                            entity_ids, kwargs
-                        )
+                        target["entity_id"] = await self._render_template(entity_ids, kwargs)
                     elif isinstance(entity_ids, list):
                         # Render each entity_id in the list
-                        rendered_ids = []
+                        rendered_ids: list[str] = []
                         for entity_id in entity_ids:
                             if isinstance(entity_id, str):
-                                rendered_ids.append(
-                                    await self._render_template(entity_id, kwargs)
-                                )
+                                rendered_ids.append(await self._render_template(entity_id, kwargs))
                             else:
-                                rendered_ids.append(entity_id)
+                                rendered_ids.append(str(entity_id))
                         target["entity_id"] = rendered_ids
                     else:
                         target["entity_id"] = entity_ids
@@ -610,9 +595,7 @@ class ServiceCustomTool(BaseTool):
                 if "device_id" in target_config:
                     device_id = target_config["device_id"]
                     if isinstance(device_id, str):
-                        target["device_id"] = await self._render_template(
-                            device_id, kwargs
-                        )
+                        target["device_id"] = await self._render_template(device_id, kwargs)
                     else:
                         target["device_id"] = device_id
 
@@ -620,9 +603,7 @@ class ServiceCustomTool(BaseTool):
                 if "area_id" in target_config:
                     area_id = target_config["area_id"]
                     if isinstance(area_id, str):
-                        target["area_id"] = await self._render_template(
-                            area_id, kwargs
-                        )
+                        target["area_id"] = await self._render_template(area_id, kwargs)
                     else:
                         target["area_id"] = area_id
 
@@ -718,9 +699,7 @@ class ServiceCustomTool(BaseTool):
             return str(rendered)
 
         except Exception as err:
-            raise ValidationError(
-                f"Failed to render template '{template_str}': {err}"
-            ) from err
+            raise ValidationError(f"Failed to render template '{template_str}': {err}") from err
 
     async def close(self) -> None:
         """Clean up resources.

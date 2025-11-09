@@ -7,8 +7,6 @@ prioritization, and smart truncation features.
 
 from __future__ import annotations
 
-from unittest.mock import Mock, patch
-
 import pytest
 
 from custom_components.home_agent.context_optimizer import (
@@ -146,9 +144,7 @@ class TestRemoveRedundantAttributes:
         cleaned = optimizer.remove_redundant_attributes(sample_entities)
 
         # Find the temperature sensor
-        temp_sensor = next(
-            e for e in cleaned if e["entity_id"] == "sensor.temperature"
-        )
+        temp_sensor = next(e for e in cleaned if e["entity_id"] == "sensor.temperature")
 
         assert "friendly_name" in temp_sensor.get("attributes", {})
         assert "unit_of_measurement" in temp_sensor.get("attributes", {})
@@ -183,9 +179,7 @@ class TestCompressEntityContext:
     def test_returns_unchanged_if_under_target(self, optimizer, sample_entities):
         """Test that entities are unchanged if already under target."""
         # Set a very high target
-        result = optimizer.compress_entity_context(
-            sample_entities, target_tokens=10000
-        )
+        result = optimizer.compress_entity_context(sample_entities, target_tokens=10000)
 
         assert len(result) == len(sample_entities)
         # Metrics should show no reduction
@@ -196,11 +190,10 @@ class TestCompressEntityContext:
     def test_reduces_entities_when_over_target(self, optimizer, sample_entities):
         """Test that entities are reduced when over target."""
         # Set a low target to force compression
-        result = optimizer.compress_entity_context(
-            sample_entities, target_tokens=50
-        )
+        result = optimizer.compress_entity_context(sample_entities, target_tokens=50)
 
         # Should have fewer entities or fewer attributes
+        assert result is not None
         metrics = optimizer.get_metrics()
         assert metrics is not None
         assert metrics.compressed_tokens <= metrics.original_tokens
@@ -242,9 +235,7 @@ class TestCompressConversationHistory:
 
     def test_returns_unchanged_if_under_target(self, optimizer, sample_messages):
         """Test that messages are unchanged if already under target."""
-        result = optimizer.compress_conversation_history(
-            sample_messages, target_tokens=10000
-        )
+        result = optimizer.compress_conversation_history(sample_messages, target_tokens=10000)
 
         assert len(result) == len(sample_messages)
         assert result == sample_messages
@@ -253,9 +244,7 @@ class TestCompressConversationHistory:
         """Test that recent messages are preserved."""
         # Set preserve_recent_messages to 2 (2 pairs = 4 messages)
         optimizer.preserve_recent_messages = 2
-        result = optimizer.compress_conversation_history(
-            sample_messages, target_tokens=100
-        )
+        result = optimizer.compress_conversation_history(sample_messages, target_tokens=100)
 
         # Should keep at least the last 4 messages
         assert len(result) >= min(4, len(sample_messages))
@@ -267,9 +256,7 @@ class TestCompressConversationHistory:
     def test_truncates_older_messages(self, optimizer, sample_messages):
         """Test that older messages are truncated when needed."""
         # Set low target to force truncation
-        result = optimizer.compress_conversation_history(
-            sample_messages, target_tokens=50
-        )
+        result = optimizer.compress_conversation_history(sample_messages, target_tokens=50)
 
         # Should have fewer messages
         assert len(result) < len(sample_messages)
@@ -282,9 +269,7 @@ class TestCompressConversationHistory:
     def test_handles_very_low_target(self, optimizer, sample_messages):
         """Test handling of very low target tokens."""
         # Target so low it can only keep the most recent pair
-        result = optimizer.compress_conversation_history(
-            sample_messages, target_tokens=10
-        )
+        result = optimizer.compress_conversation_history(sample_messages, target_tokens=10)
 
         # Should keep at least the most recent message(s)
         assert len(result) >= 1
@@ -302,23 +287,24 @@ class TestPrioritizeEntities:
 
         # Living room light should have highest score
         assert priorities[0].entity_id == "light.living_room"
-        assert "mentioned_in_query" in priorities[0].reasons or "name_mentioned" in priorities[0].reasons
+        assert (
+            "mentioned_in_query" in priorities[0].reasons
+            or "name_mentioned" in priorities[0].reasons
+        )
 
     def test_prioritizes_by_domain(self, optimizer, sample_entities):
         """Test that domain-relevant entities are prioritized."""
-        priorities = optimizer.prioritize_entities(
-            sample_entities, "adjust the temperature"
-        )
+        priorities = optimizer.prioritize_entities(sample_entities, "adjust the temperature")
 
         # Climate and temperature sensor should be prioritized
         high_priority_ids = [p.entity_id for p in priorities[:2]]
-        assert "sensor.temperature" in high_priority_ids or "climate.thermostat" in high_priority_ids
+        assert (
+            "sensor.temperature" in high_priority_ids or "climate.thermostat" in high_priority_ids
+        )
 
     def test_returns_entity_priority_objects(self, optimizer, sample_entities):
         """Test that proper EntityPriority objects are returned."""
-        priorities = optimizer.prioritize_entities(
-            sample_entities, "living room"
-        )
+        priorities = optimizer.prioritize_entities(sample_entities, "living room")
 
         assert len(priorities) == len(sample_entities)
         for priority in priorities:
@@ -341,9 +327,7 @@ class TestPrioritizeEntities:
 
     def test_sorts_by_score_descending(self, optimizer, sample_entities):
         """Test that priorities are sorted by score in descending order."""
-        priorities = optimizer.prioritize_entities(
-            sample_entities, "living room"
-        )
+        priorities = optimizer.prioritize_entities(sample_entities, "living room")
 
         # Scores should be in descending order
         scores = [p.score for p in priorities]
@@ -374,9 +358,7 @@ class TestSmartTruncate:
             "The bedroom light is off. "
             "The kitchen light is dimmed."
         )
-        result = optimizer.smart_truncate(
-            text, max_tokens=30, preserve=["living room"]
-        )
+        result = optimizer.smart_truncate(text, max_tokens=30, preserve=["living room"])
 
         assert "living room" in result
 
@@ -476,10 +458,7 @@ class TestOptimizeForModel:
         """Test that context is compressed when over model limit."""
         # Create a large context
         large_entities = sample_entities * 100  # Duplicate many times
-        large_history = [
-            {"role": "user", "content": "Message " + str(i)}
-            for i in range(100)
-        ]
+        large_history = [{"role": "user", "content": "Message " + str(i)} for i in range(100)]
 
         context = {
             "system_prompt": "Test prompt " * 100,
@@ -554,9 +533,7 @@ class TestCompressionLevels:
     def test_none_compression_preserves_all(self, sample_entities):
         """Test that NONE compression preserves all attributes."""
         optimizer = ContextOptimizer(compression_level="none")
-        result = optimizer._apply_compression_level(
-            sample_entities, "none"
-        )
+        result = optimizer._apply_compression_level(sample_entities, "none")
 
         # Should preserve entity structure (though attributes might vary)
         assert len(result) == len(sample_entities)
@@ -564,9 +541,7 @@ class TestCompressionLevels:
     def test_low_compression_keeps_most(self, sample_entities):
         """Test that LOW compression keeps most useful attributes."""
         optimizer = ContextOptimizer(compression_level="low")
-        result = optimizer._apply_compression_level(
-            sample_entities, "low"
-        )
+        result = optimizer._apply_compression_level(sample_entities, "low")
 
         # Find temperature sensor
         temp = next(e for e in result if e["entity_id"] == "sensor.temperature")
@@ -578,9 +553,7 @@ class TestCompressionLevels:
     def test_medium_compression_keeps_essential(self, sample_entities):
         """Test that MEDIUM compression keeps only essential attributes."""
         optimizer = ContextOptimizer(compression_level="medium")
-        result = optimizer._apply_compression_level(
-            sample_entities, "medium"
-        )
+        result = optimizer._apply_compression_level(sample_entities, "medium")
 
         for entity in result:
             attrs = entity.get("attributes", {})
@@ -592,9 +565,7 @@ class TestCompressionLevels:
     def test_high_compression_minimal_attributes(self, sample_entities):
         """Test that HIGH compression keeps minimal attributes."""
         optimizer = ContextOptimizer(compression_level="high")
-        result = optimizer._apply_compression_level(
-            sample_entities, "high"
-        )
+        result = optimizer._apply_compression_level(sample_entities, "high")
 
         for entity in result:
             attrs = entity.get("attributes", {})
@@ -651,16 +622,12 @@ class TestEdgeCases:
 
     def test_zero_target_tokens(self, optimizer, sample_entities):
         """Test handling of zero target tokens."""
-        result = optimizer.compress_entity_context(
-            sample_entities, target_tokens=0
-        )
+        result = optimizer.compress_entity_context(sample_entities, target_tokens=0)
         # Should return empty or minimal result
         assert len(result) == 0 or len(result) < len(sample_entities)
 
     def test_negative_target_tokens(self, optimizer, sample_entities):
         """Test handling of negative target tokens."""
-        result = optimizer.compress_entity_context(
-            sample_entities, target_tokens=-100
-        )
+        result = optimizer.compress_entity_context(sample_entities, target_tokens=-100)
         # Should handle gracefully
         assert isinstance(result, list)

@@ -7,13 +7,13 @@ properly raised, caught, and inherit from the correct base classes.
 import pytest
 
 from custom_components.home_agent.exceptions import (
-    HomeAgentError,
-    ContextInjectionError,
-    ToolExecutionError,
     AuthenticationError,
-    TokenLimitExceeded,
-    RateLimitExceeded,
+    ContextInjectionError,
+    HomeAgentError,
     PermissionDenied,
+    RateLimitExceeded,
+    TokenLimitExceeded,
+    ToolExecutionError,
     ValidationError,
 )
 
@@ -259,10 +259,7 @@ class TestRateLimitExceeded:
         """Test RateLimitExceeded with retry information."""
         provider = "OpenAI"
         retry_after = 60
-        message = (
-            f"Rate limit exceeded for {provider}. "
-            f"Retry after {retry_after} seconds."
-        )
+        message = f"Rate limit exceeded for {provider}. " f"Retry after {retry_after} seconds."
 
         with pytest.raises(RateLimitExceeded) as exc_info:
             raise RateLimitExceeded(message)
@@ -346,10 +343,7 @@ class TestValidationError:
     def test_validation_error_with_format_details(self):
         """Test ValidationError with format details."""
         entity_id = "invalid_entity"
-        message = (
-            f"Invalid entity_id format: {entity_id}. "
-            "Expected format: domain.entity_name"
-        )
+        message = f"Invalid entity_id format: {entity_id}. " "Expected format: domain.entity_name"
 
         with pytest.raises(ValidationError) as exc_info:
             raise ValidationError(message)

@@ -1,17 +1,15 @@
 """Unit tests for CustomToolHandler."""
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
+import pytest
+
+from custom_components.home_agent.const import CUSTOM_TOOL_HANDLER_SERVICE
+from custom_components.home_agent.exceptions import ValidationError
 from custom_components.home_agent.tools.custom import (
     CustomToolHandler,
     RestCustomTool,
     ServiceCustomTool,
 )
-from custom_components.home_agent.const import (
-    CUSTOM_TOOL_HANDLER_REST,
-    CUSTOM_TOOL_HANDLER_SERVICE,
-)
-from custom_components.home_agent.exceptions import ValidationError
 
 
 class TestCustomToolHandler:
@@ -24,19 +22,14 @@ class TestCustomToolHandler:
             "description": "Get weather forecast",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "City name"
-                    }
-                },
-                "required": ["location"]
+                "properties": {"location": {"type": "string", "description": "City name"}},
+                "required": ["location"],
             },
             "handler": {
                 "type": "rest",
                 "url": "https://api.weather.com/v1/forecast",
-                "method": "GET"
-            }
+                "method": "GET",
+            },
         }
 
         tool = CustomToolHandler.create_tool_from_config(mock_hass, config)
@@ -48,11 +41,7 @@ class TestCustomToolHandler:
     def test_create_tool_missing_required_keys(self, mock_hass):
         """Test that creation fails when required keys are missing."""
         # Missing 'description'
-        config = {
-            "name": "test_tool",
-            "parameters": {},
-            "handler": {"type": "rest"}
-        }
+        config = {"name": "test_tool", "parameters": {}, "handler": {"type": "rest"}}
 
         with pytest.raises(ValidationError) as exc_info:
             CustomToolHandler.create_tool_from_config(mock_hass, config)
@@ -66,7 +55,7 @@ class TestCustomToolHandler:
             "name": "test_tool",
             "description": "Test tool",
             "parameters": {},
-            "handler": {}  # Missing 'type'
+            "handler": {},  # Missing 'type'
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -80,9 +69,7 @@ class TestCustomToolHandler:
             "name": "test_tool",
             "description": "Test tool",
             "parameters": {},
-            "handler": {
-                "type": "unknown_handler"
-            }
+            "handler": {"type": "unknown_handler"},
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -120,17 +107,8 @@ class TestRestCustomToolInitialization:
         config = {
             "name": "weather_api",
             "description": "Get weather data",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "city": {"type": "string"}
-                }
-            },
-            "handler": {
-                "type": "rest",
-                "url": "https://api.example.com/weather",
-                "method": "GET"
-            }
+            "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+            "handler": {"type": "rest", "url": "https://api.example.com/weather", "method": "GET"},
         }
 
         tool = RestCustomTool(mock_hass, config)
@@ -149,7 +127,7 @@ class TestRestCustomToolInitialization:
                 "type": "rest",
                 "method": "GET"
                 # Missing 'url'
-            }
+            },
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -168,7 +146,7 @@ class TestRestCustomToolInitialization:
                 "type": "rest",
                 "url": "https://api.example.com"
                 # Missing 'method'
-            }
+            },
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -183,11 +161,7 @@ class TestRestCustomToolInitialization:
             "name": "test_tool",
             "description": "Test",
             "parameters": {},
-            "handler": {
-                "type": "rest",
-                "url": "https://api.example.com",
-                "method": "INVALID"
-            }
+            "handler": {"type": "rest", "url": "https://api.example.com", "method": "INVALID"},
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -207,16 +181,14 @@ class TestRestCustomToolProperties:
             "description": "Get weather forecast for a location",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "location": {"type": "string", "description": "City name"}
-                },
-                "required": ["location"]
+                "properties": {"location": {"type": "string", "description": "City name"}},
+                "required": ["location"],
             },
             "handler": {
                 "type": "rest",
                 "url": "https://api.weather.com/v1/forecast",
-                "method": "GET"
-            }
+                "method": "GET",
+            },
         }
         return RestCustomTool(mock_hass, config)
 

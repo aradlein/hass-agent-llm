@@ -1,11 +1,12 @@
 """Unit tests for RestCustomTool execution."""
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-import aiohttp
 import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.home_agent.tools.custom import RestCustomTool
+import aiohttp
+import pytest
+
 from custom_components.home_agent.exceptions import ValidationError
+from custom_components.home_agent.tools.custom import RestCustomTool
 
 
 class TestRestCustomToolExecution:
@@ -17,17 +18,8 @@ class TestRestCustomToolExecution:
         config = {
             "name": "weather_api",
             "description": "Get weather",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "location": {"type": "string"}
-                }
-            },
-            "handler": {
-                "type": "rest",
-                "url": "https://api.weather.com/forecast",
-                "method": "GET"
-            }
+            "parameters": {"type": "object", "properties": {"location": {"type": "string"}}},
+            "handler": {"type": "rest", "url": "https://api.weather.com/forecast", "method": "GET"},
         }
         return RestCustomTool(mock_hass, config)
 
@@ -37,21 +29,13 @@ class TestRestCustomToolExecution:
         config = {
             "name": "search_api",
             "description": "Search for items",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string"}
-                }
-            },
+            "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
             "handler": {
                 "type": "rest",
                 "url": "https://api.example.com/search",
                 "method": "GET",
-                "query_params": {
-                    "q": "{{ query }}",
-                    "format": "json"
-                }
-            }
+                "query_params": {"q": "{{ query }}", "format": "json"},
+            },
         }
         return RestCustomTool(mock_hass, config)
 
@@ -61,21 +45,16 @@ class TestRestCustomToolExecution:
         config = {
             "name": "api_with_auth",
             "description": "API with authentication",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "data": {"type": "string"}
-                }
-            },
+            "parameters": {"type": "object", "properties": {"data": {"type": "string"}}},
             "handler": {
                 "type": "rest",
                 "url": "https://api.example.com/data",
                 "method": "GET",
                 "headers": {
                     "Authorization": "Bearer test-token",
-                    "Content-Type": "application/json"
-                }
-            }
+                    "Content-Type": "application/json",
+                },
+            },
         }
         return RestCustomTool(mock_hass, config)
 
@@ -87,23 +66,15 @@ class TestRestCustomToolExecution:
             "description": "Create an item",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "value": {"type": "string"}
-                }
+                "properties": {"name": {"type": "string"}, "value": {"type": "string"}},
             },
             "handler": {
                 "type": "rest",
                 "url": "https://api.example.com/items",
                 "method": "POST",
-                "headers": {
-                    "Content-Type": "application/json"
-                },
-                "body": {
-                    "name": "{{ name }}",
-                    "value": "{{ value }}"
-                }
-            }
+                "headers": {"Content-Type": "application/json"},
+                "body": {"name": "{{ name }}", "value": "{{ value }}"},
+            },
         }
         return RestCustomTool(mock_hass, config)
 
@@ -220,7 +191,11 @@ class TestRestCustomToolExecution:
         # Mock template rendering
         with patch("custom_components.home_agent.tools.custom.Template") as mock_template_class:
             mock_template = MagicMock()
-            mock_template.async_render = MagicMock(side_effect=lambda x: x.get("name", "test") if "name" in x else x.get("value", "123"))
+            mock_template.async_render = MagicMock(
+                side_effect=lambda x: x.get("name", "test")
+                if "name" in x
+                else x.get("value", "123")
+            )
             mock_template_class.return_value = mock_template
 
             with patch.object(post_tool_with_body, "_ensure_session", return_value=mock_session):
@@ -240,11 +215,8 @@ class TestRestCustomToolExecution:
             simple_get_tool,
             "_make_request",
             side_effect=aiohttp.ClientResponseError(
-                request_info=MagicMock(),
-                history=(),
-                status=404,
-                message="Not Found"
-            )
+                request_info=MagicMock(), history=(), status=404, message="Not Found"
+            ),
         ):
             result = await simple_get_tool.execute(location="Unknown")
 
@@ -260,11 +232,8 @@ class TestRestCustomToolExecution:
             simple_get_tool,
             "_make_request",
             side_effect=aiohttp.ClientResponseError(
-                request_info=MagicMock(),
-                history=(),
-                status=500,
-                message="Internal Server Error"
-            )
+                request_info=MagicMock(), history=(), status=500, message="Internal Server Error"
+            ),
         ):
             result = await simple_get_tool.execute(location="Test")
 
@@ -275,9 +244,7 @@ class TestRestCustomToolExecution:
     async def test_network_error(self, simple_get_tool):
         """Test handling of network errors."""
         mock_session = MagicMock()
-        mock_session.request = MagicMock(
-            side_effect=aiohttp.ClientError("Connection failed")
-        )
+        mock_session.request = MagicMock(side_effect=aiohttp.ClientError("Connection failed"))
 
         with patch.object(simple_get_tool, "_ensure_session", return_value=mock_session):
             result = await simple_get_tool.execute(location="Test")
@@ -289,6 +256,7 @@ class TestRestCustomToolExecution:
     @pytest.mark.asyncio
     async def test_timeout_error(self, simple_get_tool):
         """Test handling of timeout errors."""
+
         # Mock _make_request to take longer than timeout
         async def slow_request(*args, **kwargs):
             await asyncio.sleep(10)
@@ -327,23 +295,15 @@ class TestRestCustomToolTemplateRendering:
             "description": "API with templates",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "location": {"type": "string"},
-                    "units": {"type": "string"}
-                }
+                "properties": {"location": {"type": "string"}, "units": {"type": "string"}},
             },
             "handler": {
                 "type": "rest",
                 "url": "https://api.example.com/{{ location }}/weather",
                 "method": "GET",
-                "headers": {
-                    "X-Units": "{{ units }}"
-                },
-                "query_params": {
-                    "location": "{{ location }}",
-                    "format": "json"
-                }
-            }
+                "headers": {"X-Units": "{{ units }}"},
+                "query_params": {"location": "{{ location }}", "format": "json"},
+            },
         }
         return RestCustomTool(mock_hass, config)
 
@@ -357,20 +317,14 @@ class TestRestCustomToolTemplateRendering:
             mock_template.async_render = MagicMock(return_value="San Francisco")
             mock_template_class.return_value = mock_template
 
-            result = await tool_with_templates._render_template(
-                "{{ location }}",
-                variables
-            )
+            result = await tool_with_templates._render_template("{{ location }}", variables)
 
         assert result == "San Francisco"
 
     @pytest.mark.asyncio
     async def test_render_template_no_template(self, tool_with_templates):
         """Test rendering string without template."""
-        result = await tool_with_templates._render_template(
-            "static_string",
-            {}
-        )
+        result = await tool_with_templates._render_template("static_string", {})
 
         assert result == "static_string"
 

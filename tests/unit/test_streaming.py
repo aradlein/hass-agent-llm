@@ -29,7 +29,10 @@ class TestSSEParsing:
 
     def test_parse_valid_sse_line(self, handler):
         """Test parsing valid SSE line."""
-        line = 'data: {"id":"test","object":"chat.completion.chunk","choices":[{"delta":{"content":"Hello"}}]}'
+        line = (
+            'data: {"id":"test","object":"chat.completion.chunk",'
+            '"choices":[{"delta":{"content":"Hello"}}]}'
+        )
         result = handler._parse_sse_line(line)
         assert result is not None
         assert result["id"] == "test"
@@ -68,11 +71,35 @@ class TestTextStreaming:
         """Test streaming text content from OpenAI format."""
         # Create mock SSE stream with text deltas
         sse_lines = [
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":" world"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"role":"assistant","content":""},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"content":"Hello"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"content":" world"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"content":"!"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}'
+            ),
             "data: [DONE]",
         ]
 
@@ -94,8 +121,17 @@ class TestTextStreaming:
     async def test_empty_stream(self, handler):
         """Test handling of empty stream."""
         sse_lines = [
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}'
+            ),
             "data: [DONE]",
         ]
 
@@ -119,14 +155,59 @@ class TestToolCallStreaming:
         """Test streaming with a single tool call."""
         # Create mock stream with tool call
         sse_lines = [
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_abc123","type":"function","function":{"name":"ha_control","arguments":""}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"entity"}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"_id\\": \\"li"}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"ght.living_room"}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\", \\"action\\":"}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":" \\"turn_on\\"}"}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"id":"call_abc123","type":"function",'
+                '"function":{"name":"ha_control","arguments":""}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"function":{"arguments":"{\\"entity"}}]},"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"function":{"arguments":"_id\\": \\"li"}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"function":{"arguments":"ght.living_room"}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"function":{"arguments":"\\", \\"action\\":"}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"function":{"arguments":" \\"turn_on\\"}"}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}'
+            ),
             "data: [DONE]",
         ]
 
@@ -158,14 +239,49 @@ class TestToolCallStreaming:
         """Test streaming with multiple indexed tool calls."""
         # Create mock stream with multiple tools
         sse_lines = [
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
             # First tool call
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"ha_query","arguments":""}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"entity_id\\": \\"sensor.temperature\\"}"}}]},"finish_reason":null}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"id":"call_1","type":"function",'
+                '"function":{"name":"ha_query","arguments":""}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"function":{"arguments":"{\\"entity_id\\": '
+                '\\"sensor.temperature\\"}"}}]},"finish_reason":null}]}'
+            ),
             # Second tool call
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"call_2","type":"function","function":{"name":"ha_control","arguments":""}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\\"entity_id\\": \\"light.bedroom\\", \\"action\\": \\"turn_off\\"}"}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":1,'
+                '"id":"call_2","type":"function",'
+                '"function":{"name":"ha_control","arguments":""}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":1,'
+                '"function":{"arguments":"{\\"entity_id\\": \\"light.bedroom\\", '
+                '\\"action\\": \\"turn_off\\"}"}}]},"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}'
+            ),
             "data: [DONE]",
         ]
 
@@ -206,10 +322,32 @@ class TestMixedContentAndTools:
         """Test streaming with text followed by tool calls."""
         # Create mock stream with text followed by tool call
         sse_lines = [
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":"Let me check that for you."},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"ha_query","arguments":"{\\"entity_id\\": \\"light.kitchen\\"}"}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"content":'
+                '"Let me check that for you."},"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"id":"call_1","type":"function",'
+                '"function":{"name":"ha_query",'
+                '"arguments":"{\\"entity_id\\": \\"light.kitchen\\"}"}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}'
+            ),
             "data: [DONE]",
         ]
 
@@ -239,9 +377,26 @@ class TestErrorHandling:
         """Test handling of malformed tool JSON."""
         # Create mock stream with invalid JSON
         sse_lines = [
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"ha_control","arguments":"{\\"invalid\\": json syntax}"}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"id":"call_1","type":"function",'
+                '"function":{"name":"ha_control",'
+                '"arguments":"{\\"invalid\\": json syntax}"}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}'
+            ),
             "data: [DONE]",
         ]
 
@@ -267,9 +422,25 @@ class TestErrorHandling:
         """Test handling of tool call with no arguments."""
         # Create mock stream with tool call but no args
         sse_lines = [
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"ha_query","arguments":""}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"id":"call_1","type":"function",'
+                '"function":{"name":"ha_query","arguments":""}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}'
+            ),
             "data: [DONE]",
         ]
 
@@ -294,8 +465,21 @@ class TestErrorHandling:
         """Test handling tool call when stream ends without finish_reason."""
         # Some APIs may not send finish_reason
         sse_lines = [
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"ha_query","arguments":"{\\"entity_id\\": \\"light.kitchen\\"}"}}]},"finish_reason":null}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"id":"call_1","type":"function",'
+                '"function":{"name":"ha_query",'
+                '"arguments":"{\\"entity_id\\": \\"light.kitchen\\"}"}}]},'
+                '"finish_reason":null}]}'
+            ),
             "data: [DONE]",
         ]
 
@@ -322,9 +506,26 @@ class TestStateManagement:
         """Test that internal state is reset after tool call."""
         # Create mock stream with tool call
         sse_lines = [
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"test_tool","arguments":"{\\"test\\": \\"value\\"}"}}]},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+                '"id":"call_1","type":"function",'
+                '"function":{"name":"test_tool",'
+                '"arguments":"{\\"test\\": \\"value\\"}"}}]},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}'
+            ),
             "data: [DONE]",
         ]
 
@@ -343,9 +544,23 @@ class TestStateManagement:
         """Test that text-only streaming doesn't set tool state."""
         # Create mock stream with only text
         sse_lines = [
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}',
-            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{"content":"Hello"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"gpt-3.5-turbo",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}'
+            ),
             "data: [DONE]",
         ]
 

@@ -167,9 +167,7 @@ class ConversationHistoryManager:
                         continue
 
                     if "role" not in msg or "content" not in msg:
-                        _LOGGER.warning(
-                            "Message missing role or content, skipping: %s", msg
-                        )
+                        _LOGGER.warning("Message missing role or content, skipping: %s", msg)
                         continue
 
                     valid_messages.append(msg)
@@ -316,7 +314,7 @@ class ConversationHistoryManager:
         old_persist = self._persist
         self._persist = persist
 
-        if persist and not self._store:
+        if persist and not self._store and self._hass:
             self._store = Store(
                 self._hass,
                 STORAGE_VERSION_HISTORY,
@@ -329,9 +327,7 @@ class ConversationHistoryManager:
             "enabled" if old_persist else "disabled",
         )
 
-    async def _migrate_storage(
-        self, old_version: int, data: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _migrate_storage(self, old_version: int, data: dict[str, Any]) -> dict[str, Any]:
         """Migrate storage from old version to current version.
 
         Args:
@@ -389,9 +385,7 @@ class ConversationHistoryManager:
             return
 
         if not content:
-            _LOGGER.warning(
-                "Attempted to add empty message to conversation %s", conversation_id
-            )
+            _LOGGER.warning("Attempted to add empty message to conversation %s", conversation_id)
             return
 
         message = {
@@ -448,9 +442,7 @@ class ConversationHistoryManager:
         history = self._histories[conversation_id]
 
         # Apply message limit
-        effective_max_messages = (
-            max_messages if max_messages is not None else self._max_messages
-        )
+        effective_max_messages = max_messages if max_messages is not None else self._max_messages
         if effective_max_messages is not None and len(history) > effective_max_messages:
             history = history[-effective_max_messages:]
             _LOGGER.debug(
@@ -461,9 +453,7 @@ class ConversationHistoryManager:
             )
 
         # Apply token limit
-        effective_max_tokens = (
-            max_tokens if max_tokens is not None else self._max_tokens
-        )
+        effective_max_tokens = max_tokens if max_tokens is not None else self._max_tokens
         if effective_max_tokens is not None:
             history = self._truncate_by_tokens(history, effective_max_tokens)
 
@@ -490,17 +480,13 @@ class ConversationHistoryManager:
         if conversation_id in self._histories:
             message_count = len(self._histories[conversation_id])
             del self._histories[conversation_id]
-            _LOGGER.info(
-                "Cleared conversation %s (%d messages)", conversation_id, message_count
-            )
+            _LOGGER.info("Cleared conversation %s (%d messages)", conversation_id, message_count)
 
             # Trigger debounced save if persistence is enabled
             if self._persist and self._hass:
                 asyncio.create_task(self._debounced_save())
         else:
-            _LOGGER.debug(
-                "Attempted to clear non-existent conversation %s", conversation_id
-            )
+            _LOGGER.debug("Attempted to clear non-existent conversation %s", conversation_id)
 
     def clear_all(self) -> None:
         """Clear all conversation histories.
@@ -640,7 +626,8 @@ class ConversationHistoryManager:
 
         if len(truncated) < len(history):
             _LOGGER.debug(
-                "Truncated history from %d to %d messages to fit %d token limit (estimated %d tokens)",
+                "Truncated history from %d to %d messages to fit %d token limit "
+                "(estimated %d tokens)",
                 len(history),
                 len(truncated),
                 max_tokens,
@@ -649,9 +636,7 @@ class ConversationHistoryManager:
 
         return truncated
 
-    def update_limits(
-        self, max_messages: int | None = None, max_tokens: int | None = None
-    ) -> None:
+    def update_limits(self, max_messages: int | None = None, max_tokens: int | None = None) -> None:
         """Update the default limits for conversation history.
 
         Args:

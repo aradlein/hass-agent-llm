@@ -8,12 +8,13 @@ This test suite validates the complete external LLM integration flow:
 - Tool call counting
 """
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from homeassistant.core import HomeAssistant
 
+from custom_components.home_agent.agent import HomeAgent
 from custom_components.home_agent.const import (
     CONF_EXTERNAL_LLM_API_KEY,
     CONF_EXTERNAL_LLM_BASE_URL,
@@ -29,7 +30,6 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_TIMEOUT,
     TOOL_QUERY_EXTERNAL_LLM,
 )
-from custom_components.home_agent.agent import HomeAgent
 from custom_components.home_agent.tools.external_llm import ExternalLLMTool
 
 
@@ -137,53 +137,80 @@ async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_
 
         # Mock primary LLM response that calls external LLM tool
         primary_llm_response_with_tool_call = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
-                        "id": "call_123",
-                        "type": "function",
-                        "function": {
-                            "name": TOOL_QUERY_EXTERNAL_LLM,
-                            "arguments": json.dumps({
-                                "prompt": "Analyze energy usage and suggest optimizations",
-                                "context": {
-                                    "energy_data": {
-                                        "sensor.energy_usage": [
-                                            {"time": "2024-01-01T00:00:00", "value": 150},
-                                            {"time": "2024-01-01T01:00:00", "value": 160},
-                                        ]
-                                    }
-                                }
-                            })
-                        }
-                    }]
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_123",
+                                "type": "function",
+                                "function": {
+                                    "name": TOOL_QUERY_EXTERNAL_LLM,
+                                    "arguments": json.dumps(
+                                        {
+                                            "prompt": (
+                                                "Analyze energy usage and " "suggest optimizations"
+                                            ),
+                                            "context": {
+                                                "energy_data": {
+                                                    "sensor.energy_usage": [
+                                                        {
+                                                            "time": "2024-01-01T00:00:00",
+                                                            "value": 150,
+                                                        },
+                                                        {
+                                                            "time": "2024-01-01T01:00:00",
+                                                            "value": 160,
+                                                        },
+                                                    ]
+                                                }
+                                            },
+                                        }
+                                    ),
+                                },
+                            }
+                        ],
+                    }
                 }
-            }],
-            "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+            ],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
         }
 
         # Mock external LLM response
         external_llm_response = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": "Based on the energy data, I recommend: 1) Shift high-energy tasks to off-peak hours, 2) Install solar panels, 3) Upgrade to LED lighting."
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            "Based on the energy data, I recommend: "
+                            "1) Shift high-energy tasks to off-peak hours, "
+                            "2) Install solar panels, 3) Upgrade to LED lighting."
+                        ),
+                    }
                 }
-            }],
-            "usage": {"prompt_tokens": 200, "completion_tokens": 100, "total_tokens": 300}
+            ],
+            "usage": {"prompt_tokens": 200, "completion_tokens": 100, "total_tokens": 300},
         }
 
         # Mock primary LLM final response after receiving tool result
         primary_llm_final_response = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": "I've analyzed your energy usage. Here are the recommendations: shift high-energy tasks to off-peak hours, install solar panels, and upgrade to LED lighting."
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            "I've analyzed your energy usage. "
+                            "Here are the recommendations: "
+                            "shift high-energy tasks to off-peak hours, "
+                            "install solar panels, and upgrade to LED lighting."
+                        ),
+                    }
                 }
-            }],
-            "usage": {"prompt_tokens": 150, "completion_tokens": 75, "total_tokens": 225}
+            ],
+            "usage": {"prompt_tokens": 150, "completion_tokens": 75, "total_tokens": 225},
         }
 
         # Mock aiohttp sessions
@@ -208,9 +235,7 @@ async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_
                     # Primary LLM calls
                     if call_count[0] == 1:
                         # First call: primary LLM decides to use external tool
-                        return create_mock_response(
-                            primary_llm_response_with_tool_call
-                        )
+                        return create_mock_response(primary_llm_response_with_tool_call)
                     # Second call: primary LLM formats final response
                     return create_mock_response(primary_llm_final_response)
                 # External LLM call
@@ -224,7 +249,7 @@ async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_
             # Execute the conversation
             response = await agent.process_message(
                 text="Analyze my energy usage and suggest optimizations",
-                conversation_id="test_conv_1"
+                conversation_id="test_conv_1",
             )
 
             # Verify response from primary LLM includes external LLM's analysis
@@ -245,34 +270,42 @@ async def test_external_llm_error_propagation(mock_hass_for_integration, externa
 
         # Mock primary LLM response that calls external LLM tool
         primary_llm_response_with_tool_call = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
-                        "id": "call_456",
-                        "type": "function",
-                        "function": {
-                            "name": TOOL_QUERY_EXTERNAL_LLM,
-                            "arguments": json.dumps({
-                                "prompt": "Complex analysis task"
-                            })
-                        }
-                    }]
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_456",
+                                "type": "function",
+                                "function": {
+                                    "name": TOOL_QUERY_EXTERNAL_LLM,
+                                    "arguments": json.dumps({"prompt": "Complex analysis task"}),
+                                },
+                            }
+                        ],
+                    }
                 }
-            }],
-            "usage": {"prompt_tokens": 50, "completion_tokens": 25, "total_tokens": 75}
+            ],
+            "usage": {"prompt_tokens": 50, "completion_tokens": 25, "total_tokens": 75},
         }
 
         # Mock primary LLM response after receiving error
         primary_llm_error_response = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": "I apologize, but I encountered an error accessing the external analysis service. The service is currently unavailable."
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            "I apologize, but I encountered an error accessing "
+                            "the external analysis service. "
+                            "The service is currently unavailable."
+                        ),
+                    }
                 }
-            }],
-            "usage": {"prompt_tokens": 75, "completion_tokens": 30, "total_tokens": 105}
+            ],
+            "usage": {"prompt_tokens": 75, "completion_tokens": 30, "total_tokens": 105},
         }
 
         with patch("aiohttp.ClientSession") as mock_session_class:
@@ -291,9 +324,7 @@ async def test_external_llm_error_propagation(mock_hass_for_integration, externa
                             return_value=primary_llm_response_with_tool_call
                         )
                     else:
-                        mock_response.json = AsyncMock(
-                            return_value=primary_llm_error_response
-                        )
+                        mock_response.json = AsyncMock(return_value=primary_llm_error_response)
                     mock_response.raise_for_status = MagicMock()
                     mock_response.text = AsyncMock(return_value="")
                 else:
@@ -319,16 +350,21 @@ async def test_external_llm_error_propagation(mock_hass_for_integration, externa
 
             # Execute the conversation
             response = await agent.process_message(
-                text="Perform complex analysis",
-                conversation_id="test_conv_2"
+                text="Perform complex analysis", conversation_id="test_conv_2"
             )
 
             # Verify primary LLM received error and communicated it to user
-            assert "error" in response.lower() or "apologize" in response.lower() or "unavailable" in response.lower()
+            assert (
+                "error" in response.lower()
+                or "apologize" in response.lower()
+                or "unavailable" in response.lower()
+            )
 
 
 @pytest.mark.asyncio
-async def test_tool_call_counting_includes_external_llm(mock_hass_for_integration, external_llm_config):
+async def test_tool_call_counting_includes_external_llm(
+    mock_hass_for_integration, external_llm_config
+):
     """Test that external LLM calls count toward tool call limit."""
     # Set low limit for testing
     config = external_llm_config.copy()
@@ -341,59 +377,51 @@ async def test_tool_call_counting_includes_external_llm(mock_hass_for_integratio
 
         # Mock primary LLM making multiple tool calls (exceeding limit)
         primary_llm_response = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {
-                            "id": "call_1",
-                            "type": "function",
-                            "function": {
-                                "name": TOOL_QUERY_EXTERNAL_LLM,
-                                "arguments": json.dumps({"prompt": "Task 1"})
-                            }
-                        },
-                        {
-                            "id": "call_2",
-                            "type": "function",
-                            "function": {
-                                "name": TOOL_QUERY_EXTERNAL_LLM,
-                                "arguments": json.dumps({"prompt": "Task 2"})
-                            }
-                        },
-                        {
-                            "id": "call_3",
-                            "type": "function",
-                            "function": {
-                                "name": TOOL_QUERY_EXTERNAL_LLM,
-                                "arguments": json.dumps({"prompt": "Task 3"})
-                            }
-                        }
-                    ]
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {
+                                    "name": TOOL_QUERY_EXTERNAL_LLM,
+                                    "arguments": json.dumps({"prompt": "Task 1"}),
+                                },
+                            },
+                            {
+                                "id": "call_2",
+                                "type": "function",
+                                "function": {
+                                    "name": TOOL_QUERY_EXTERNAL_LLM,
+                                    "arguments": json.dumps({"prompt": "Task 2"}),
+                                },
+                            },
+                            {
+                                "id": "call_3",
+                                "type": "function",
+                                "function": {
+                                    "name": TOOL_QUERY_EXTERNAL_LLM,
+                                    "arguments": json.dumps({"prompt": "Task 3"}),
+                                },
+                            },
+                        ],
+                    }
                 }
-            }],
-            "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+            ],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
         }
 
         external_llm_response = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": "Analysis complete."
-                }
-            }],
-            "usage": {"prompt_tokens": 50, "completion_tokens": 25, "total_tokens": 75}
+            "choices": [{"message": {"role": "assistant", "content": "Analysis complete."}}],
+            "usage": {"prompt_tokens": 50, "completion_tokens": 25, "total_tokens": 75},
         }
 
         final_response = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": "All tasks completed."
-                }
-            }],
-            "usage": {"prompt_tokens": 75, "completion_tokens": 20, "total_tokens": 95}
+            "choices": [{"message": {"role": "assistant", "content": "All tasks completed."}}],
+            "usage": {"prompt_tokens": 75, "completion_tokens": 20, "total_tokens": 95},
         }
 
         with patch("aiohttp.ClientSession") as mock_session_class:
@@ -410,15 +438,11 @@ async def test_tool_call_counting_includes_external_llm(mock_hass_for_integratio
 
                 if "api.primary.com" in url:
                     if call_count[0] == 1:
-                        mock_response.json = AsyncMock(
-                            return_value=primary_llm_response
-                        )
+                        mock_response.json = AsyncMock(return_value=primary_llm_response)
                     else:
                         mock_response.json = AsyncMock(return_value=final_response)
                 else:
-                    mock_response.json = AsyncMock(
-                        return_value=external_llm_response
-                    )
+                    mock_response.json = AsyncMock(return_value=external_llm_response)
 
                 return mock_response
 
@@ -429,22 +453,22 @@ async def test_tool_call_counting_includes_external_llm(mock_hass_for_integratio
 
             # Execute conversation
             await agent.process_message(
-                text="Perform multiple tasks",
-                conversation_id="test_conv_3"
+                text="Perform multiple tasks", conversation_id="test_conv_3"
             )
 
             # Verify that not all 3 external LLM calls were made (due to limit)
             # With limit of 2, only 2 external LLM calls should succeed
             # The total number of calls to external API should be <= 2
             external_api_calls = sum(
-                1 for call in mock_session.post.call_args_list
-                if "api.external.com" in str(call)
+                1 for call in mock_session.post.call_args_list if "api.external.com" in str(call)
             )
             assert external_api_calls <= config[CONF_TOOLS_MAX_CALLS_PER_TURN]
 
 
 @pytest.mark.asyncio
-async def test_external_llm_context_not_included_automatically(mock_hass_for_integration, external_llm_config):
+async def test_external_llm_context_not_included_automatically(
+    mock_hass_for_integration, external_llm_config
+):
     """Test that conversation history is NOT automatically included in external LLM calls."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -453,55 +477,49 @@ async def test_external_llm_context_not_included_automatically(mock_hass_for_int
 
         # First message to establish history
         primary_response_1 = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": "I understand you want analysis."
-                }
-            }],
-            "usage": {"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60}
+            "choices": [
+                {"message": {"role": "assistant", "content": "I understand you want analysis."}}
+            ],
+            "usage": {"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60},
         }
 
         # Second message that triggers external LLM
         primary_response_2 = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
-                        "id": "call_789",
-                        "type": "function",
-                        "function": {
-                            "name": TOOL_QUERY_EXTERNAL_LLM,
-                            "arguments": json.dumps({
-                                "prompt": "Analyze data",
-                                # No context parameter - conversation history should NOT be included
-                            })
-                        }
-                    }]
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_789",
+                                "type": "function",
+                                "function": {
+                                    "name": TOOL_QUERY_EXTERNAL_LLM,
+                                    "arguments": json.dumps(
+                                        {
+                                            "prompt": "Analyze data",
+                                            # No context parameter - history should NOT
+                                            # be included
+                                        }
+                                    ),
+                                },
+                            }
+                        ],
+                    }
                 }
-            }],
-            "usage": {"prompt_tokens": 100, "completion_tokens": 25, "total_tokens": 125}
+            ],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 25, "total_tokens": 125},
         }
 
         external_response = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": "Analysis result."
-                }
-            }],
-            "usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30}
+            "choices": [{"message": {"role": "assistant", "content": "Analysis result."}}],
+            "usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30},
         }
 
         final_response = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": "Here's the analysis."
-                }
-            }],
-            "usage": {"prompt_tokens": 75, "completion_tokens": 15, "total_tokens": 90}
+            "choices": [{"message": {"role": "assistant", "content": "Here's the analysis."}}],
+            "usage": {"prompt_tokens": 75, "completion_tokens": 15, "total_tokens": 90},
         }
 
         with patch("aiohttp.ClientSession") as mock_session_class:
@@ -535,9 +553,7 @@ async def test_external_llm_context_not_included_automatically(mock_hass_for_int
 
                     mock_response.json = AsyncMock(return_value=external_response)
                 else:
-                    mock_response.json = AsyncMock(
-                        return_value=responses[response_index[0]]
-                    )
+                    mock_response.json = AsyncMock(return_value=responses[response_index[0]])
                     response_index[0] += 1
 
                 return mock_response
@@ -548,16 +564,10 @@ async def test_external_llm_context_not_included_automatically(mock_hass_for_int
             mock_session_class.return_value = mock_session
 
             # First message
-            await agent.process_message(
-                text="I need some analysis",
-                conversation_id="test_conv_4"
-            )
+            await agent.process_message(text="I need some analysis", conversation_id="test_conv_4")
 
             # Second message (triggers external LLM)
-            await agent.process_message(
-                text="Do the analysis now",
-                conversation_id="test_conv_4"
-            )
+            await agent.process_message(text="Do the analysis now", conversation_id="test_conv_4")
 
 
 @pytest.mark.asyncio
@@ -579,31 +589,32 @@ async def test_external_llm_configuration_validation(mock_hass_for_integration):
 
         # Mock primary LLM calling external LLM tool
         primary_response = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
-                        "id": "call_999",
-                        "type": "function",
-                        "function": {
-                            "name": TOOL_QUERY_EXTERNAL_LLM,
-                            "arguments": json.dumps({"prompt": "Test"})
-                        }
-                    }]
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_999",
+                                "type": "function",
+                                "function": {
+                                    "name": TOOL_QUERY_EXTERNAL_LLM,
+                                    "arguments": json.dumps({"prompt": "Test"}),
+                                },
+                            }
+                        ],
+                    }
                 }
-            }],
-            "usage": {"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60}
+            ],
+            "usage": {"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60},
         }
 
         error_response = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": "Configuration error occurred."
-                }
-            }],
-            "usage": {"prompt_tokens": 75, "completion_tokens": 10, "total_tokens": 85}
+            "choices": [
+                {"message": {"role": "assistant", "content": "Configuration error occurred."}}
+            ],
+            "usage": {"prompt_tokens": 75, "completion_tokens": 10, "total_tokens": 85},
         }
 
         with patch("aiohttp.ClientSession") as mock_session_class:
@@ -632,8 +643,7 @@ async def test_external_llm_configuration_validation(mock_hass_for_integration):
 
             # Execute - should handle configuration error gracefully
             response = await agent.process_message(
-                text="Test external LLM",
-                conversation_id="test_conv_5"
+                text="Test external LLM", conversation_id="test_conv_5"
             )
 
             # Should complete without crashing, error should be returned to primary LLM

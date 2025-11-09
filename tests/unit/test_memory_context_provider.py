@@ -1,6 +1,6 @@
 """Unit tests for MemoryContextProvider."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -9,12 +9,9 @@ from custom_components.home_agent.const import (
     CONF_MEMORY_ENABLED,
     CONF_MEMORY_MIN_IMPORTANCE,
     DEFAULT_MEMORY_CONTEXT_TOP_K,
-    DEFAULT_MEMORY_ENABLED,
     DEFAULT_MEMORY_MIN_IMPORTANCE,
 )
-from custom_components.home_agent.context_providers.memory import (
-    MemoryContextProvider,
-)
+from custom_components.home_agent.context_providers.memory import MemoryContextProvider
 
 
 @pytest.fixture

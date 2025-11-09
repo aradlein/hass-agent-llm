@@ -1,29 +1,21 @@
 """Unit tests for ContextManager class."""
 import time
-from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from custom_components.home_agent.const import (
     CONTEXT_FORMAT_JSON,
-    CONTEXT_FORMAT_NATURAL_LANGUAGE,
     CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
-    DEFAULT_CONTEXT_FORMAT,
     DEFAULT_CONTEXT_MODE,
     EVENT_CONTEXT_INJECTED,
     MAX_CONTEXT_TOKENS,
     TOKEN_WARNING_THRESHOLD,
 )
 from custom_components.home_agent.context_manager import ContextManager
-from custom_components.home_agent.context_providers import (
-    ContextProvider,
-    DirectContextProvider,
-)
-from custom_components.home_agent.exceptions import (
-    ContextInjectionError,
-    TokenLimitExceeded,
-)
+from custom_components.home_agent.context_providers import ContextProvider, DirectContextProvider
+from custom_components.home_agent.exceptions import ContextInjectionError, TokenLimitExceeded
 
 
 class MockContextProvider(ContextProvider):
@@ -61,12 +53,7 @@ def default_config():
     return {
         "mode": CONTEXT_MODE_DIRECT,
         "format": CONTEXT_FORMAT_JSON,
-        "entities": [
-            {
-                "entity_id": "light.living_room",
-                "attributes": ["brightness"]
-            }
-        ],
+        "entities": [{"entity_id": "light.living_room", "attributes": ["brightness"]}],
         "cache_enabled": False,
         "cache_ttl": 60,
         "emit_events": True,
@@ -146,7 +133,7 @@ class TestContextManagerInitialization:
         with patch.object(
             ContextManager,
             "_create_direct_provider",
-            side_effect=Exception("Provider creation failed")
+            side_effect=Exception("Provider creation failed"),
         ):
             with pytest.raises(ContextInjectionError, match="Failed to initialize"):
                 ContextManager(mock_hass, config)
@@ -184,11 +171,7 @@ class TestGetContext:
 
     async def test_get_context_success(self, context_manager):
         """Test successful context retrieval."""
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Test context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Test context")
         context_manager.set_provider(provider)
 
         context = await context_manager.get_context("test input")
@@ -211,9 +194,7 @@ class TestGetContext:
     async def test_get_context_provider_failure(self, context_manager):
         """Test get_context when provider fails."""
         provider = MockContextProvider(context_manager.hass, {})
-        provider.get_context = AsyncMock(
-            side_effect=Exception("Provider failed")
-        )
+        provider.get_context = AsyncMock(side_effect=Exception("Provider failed"))
         context_manager.set_provider(provider)
 
         with pytest.raises(ContextInjectionError, match="Failed to retrieve context"):
@@ -222,11 +203,7 @@ class TestGetContext:
     async def test_get_context_with_cache_hit(self, context_manager):
         """Test get_context with cache hit."""
         context_manager._cache_enabled = True
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Fresh context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Fresh context")
         context_manager.set_provider(provider)
 
         # Cache a value
@@ -242,11 +219,7 @@ class TestGetContext:
     async def test_get_context_with_cache_miss(self, context_manager):
         """Test get_context with cache miss."""
         context_manager._cache_enabled = True
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Fresh context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Fresh context")
         context_manager.set_provider(provider)
 
         context = await context_manager.get_context("test input")
@@ -261,11 +234,7 @@ class TestGetContext:
         """
         context_manager._cache_enabled = True
         context_manager._cache_ttl = 1
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Fresh context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Fresh context")
         context_manager.set_provider(provider)
 
         # Cache a value with old timestamp
@@ -287,11 +256,7 @@ class TestGetContext:
     async def test_get_context_caches_result(self, context_manager):
         """Test that get_context caches the result."""
         context_manager._cache_enabled = True
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Fresh context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Fresh context")
         context_manager.set_provider(provider)
 
         await context_manager.get_context("test input")
@@ -307,11 +272,7 @@ class TestGetFormattedContext:
 
     async def test_get_formatted_context_success(self, context_manager):
         """Test successful formatted context retrieval."""
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Test context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Test context")
         context_manager.set_provider(provider)
 
         context = await context_manager.get_formatted_context("test input", "conv_123")
@@ -323,9 +284,7 @@ class TestGetFormattedContext:
         """Test that get_formatted_context optimizes size."""
         # Create context with excessive whitespace
         provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Test    context   with    lots     of     spaces"
+            context_manager.hass, {}, "Test    context   with    lots     of     spaces"
         )
         context_manager.set_provider(provider)
 
@@ -334,15 +293,9 @@ class TestGetFormattedContext:
         # Should have normalized whitespace
         assert "  " not in context
 
-    async def test_get_formatted_context_fires_event(
-        self, context_manager, mock_hass
-    ):
+    async def test_get_formatted_context_fires_event(self, context_manager, mock_hass):
         """Test that get_formatted_context fires event."""
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Test context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Test context")
         context_manager.set_provider(provider)
 
         await context_manager.get_formatted_context("test input", "conv_123")
@@ -352,16 +305,10 @@ class TestGetFormattedContext:
         assert event_name == EVENT_CONTEXT_INJECTED
         assert event_data["conversation_id"] == "conv_123"
 
-    async def test_get_formatted_context_no_event_when_disabled(
-        self, context_manager, mock_hass
-    ):
+    async def test_get_formatted_context_no_event_when_disabled(self, context_manager, mock_hass):
         """Test that no event is fired when disabled."""
         context_manager._emit_events = False
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Test context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Test context")
         context_manager.set_provider(provider)
 
         await context_manager.get_formatted_context("test input")
@@ -372,28 +319,18 @@ class TestGetFormattedContext:
         """Test get_formatted_context when token limit exceeded."""
         # Create very large context
         large_context = "x" * (MAX_CONTEXT_TOKENS * 5)
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            large_context
-        )
+        provider = MockContextProvider(context_manager.hass, {}, large_context)
         context_manager.set_provider(provider)
 
         with pytest.raises(TokenLimitExceeded, match="exceeds limit"):
             await context_manager.get_formatted_context("test input")
 
-    async def test_get_formatted_context_approaching_token_limit(
-        self, context_manager
-    ):
+    async def test_get_formatted_context_approaching_token_limit(self, context_manager):
         """Test get_formatted_context warns when approaching limit."""
         # Create context near the limit
         warning_threshold = int(MAX_CONTEXT_TOKENS * TOKEN_WARNING_THRESHOLD)
         large_context = "x" * (warning_threshold * 4 + 100)
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            large_context
-        )
+        provider = MockContextProvider(context_manager.hass, {}, large_context)
         context_manager.set_provider(provider)
 
         # Should succeed but log warning
@@ -405,11 +342,7 @@ class TestGetFormattedContext:
         # Create context that's too large
         max_chars = context_manager._max_context_tokens * 4
         large_context = "x" * (max_chars + 1000)
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            large_context
-        )
+        provider = MockContextProvider(context_manager.hass, {}, large_context)
         context_manager.set_provider(provider)
 
         # Should be truncated in optimization step
@@ -639,11 +572,7 @@ class TestEventFiring:
 
     async def test_fire_context_injected_event(self, context_manager, mock_hass):
         """Test firing context injected event."""
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Test context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Test context")
         context_manager.set_provider(provider)
 
         await context_manager.get_formatted_context("test input", "conv_123")
@@ -656,9 +585,7 @@ class TestEventFiring:
         assert event_data["mode"] == CONTEXT_MODE_DIRECT
         assert "token_count" in event_data
 
-    async def test_fire_context_injected_event_with_entities(
-        self, context_manager, mock_hass
-    ):
+    async def test_fire_context_injected_event_with_entities(self, context_manager, mock_hass):
         """Test firing event includes entity information."""
         # Set up a mock state
         mock_state = MagicMock()
@@ -666,16 +593,10 @@ class TestEventFiring:
         mock_state.state = "on"
         mock_state.attributes = {"friendly_name": "Living Room Light"}
         mock_hass.states.get = MagicMock(return_value=mock_state)
-        mock_hass.states.async_entity_ids = MagicMock(
-            return_value=["light.living_room"]
-        )
+        mock_hass.states.async_entity_ids = MagicMock(return_value=["light.living_room"])
 
         provider = DirectContextProvider(
-            mock_hass,
-            {
-                "entities": [{"entity_id": "light.living_room"}],
-                "format": "json"
-            }
+            mock_hass, {"entities": [{"entity_id": "light.living_room"}], "format": "json"}
         )
         context_manager.set_provider(provider)
 
@@ -685,16 +606,10 @@ class TestEventFiring:
         assert "entities_included" in event_data
         assert "entity_count" in event_data
 
-    async def test_fire_context_injected_event_vector_db_mode(
-        self, context_manager, mock_hass
-    ):
+    async def test_fire_context_injected_event_vector_db_mode(self, context_manager, mock_hass):
         """Test firing event in vector DB mode includes query."""
         context_manager.config["mode"] = CONTEXT_MODE_VECTOR_DB
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Test context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Test context")
         context_manager.set_provider(provider)
 
         await context_manager.get_formatted_context("test input", "conv_123")
@@ -710,11 +625,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_get_context_with_empty_string(self, context_manager):
         """Test get_context with empty user input."""
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Context")
         context_manager.set_provider(provider)
 
         context = await context_manager.get_context("")
@@ -725,11 +636,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_get_formatted_context_with_empty_context(self, context_manager):
         """Test get_formatted_context with empty context."""
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            ""
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "")
         context_manager.set_provider(provider)
 
         context = await context_manager.get_formatted_context("test")
@@ -746,19 +653,13 @@ class TestEdgeCases:
     async def test_concurrent_cache_access(self, context_manager):
         """Test concurrent access to cache doesn't cause issues."""
         context_manager._cache_enabled = True
-        provider = MockContextProvider(
-            context_manager.hass,
-            {},
-            "Test context"
-        )
+        provider = MockContextProvider(context_manager.hass, {}, "Test context")
         context_manager.set_provider(provider)
 
         # Make multiple concurrent requests
         import asyncio
-        tasks = [
-            context_manager.get_context(f"input {i}")
-            for i in range(10)
-        ]
+
+        tasks = [context_manager.get_context(f"input {i}") for i in range(10)]
         results = await asyncio.gather(*tasks)
 
         assert len(results) == 10

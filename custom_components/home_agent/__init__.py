@@ -7,11 +7,12 @@ tool calling, context injection, and conversation history management.
 from __future__ import annotations
 
 import logging
+from typing import Any, cast
 
 from homeassistant.components import conversation as ha_conversation
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers.typing import ConfigType
 
 from .agent import HomeAgent
@@ -69,8 +70,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         yaml_config = hass.data[DOMAIN]["yaml_config"]
         if CONF_TOOLS_CUSTOM in yaml_config:
             config[CONF_TOOLS_CUSTOM] = yaml_config[CONF_TOOLS_CUSTOM]
-            _LOGGER.info("Loaded %d custom tool(s) from YAML configuration",
-                        len(yaml_config[CONF_TOOLS_CUSTOM]))
+            _LOGGER.info(
+                "Loaded %d custom tool(s) from YAML configuration",
+                len(yaml_config[CONF_TOOLS_CUSTOM]),
+            )
 
     # Create Home Agent instance
     agent = HomeAgent(hass, config)
@@ -186,13 +189,13 @@ async def async_setup_services(
         entry_id: Config entry ID
     """
 
-    def _get_entry_data(target_entry_id: str) -> dict:
+    def _get_entry_data(target_entry_id: str) -> dict[str, Any]:
         """Get entry data, defaulting to provided entry_id."""
         if target_entry_id in hass.data[DOMAIN]:
-            return hass.data[DOMAIN][target_entry_id]
-        return hass.data[DOMAIN].get(entry_id, {})
+            return cast(dict[str, Any], hass.data[DOMAIN][target_entry_id])
+        return cast(dict[str, Any], hass.data[DOMAIN].get(entry_id, {}))
 
-    async def handle_process(call: ServiceCall) -> None:
+    async def handle_process(call: ServiceCall) -> dict[str, Any]:
         """Handle the process service call.
 
         Processes a user message through the agent and returns the response.
@@ -205,6 +208,11 @@ async def async_setup_services(
         # Get the right agent instance
         entry_data = _get_entry_data(target_entry_id)
         target_agent = entry_data.get("agent")
+
+        if target_agent is None:
+            raise ValueError("Agent not found for entry")
+
+        target_agent = cast(HomeAgent, target_agent)
 
         try:
             response = await target_agent.process_message(
@@ -237,6 +245,11 @@ async def async_setup_services(
         entry_data = _get_entry_data(target_entry_id)
         target_agent = entry_data.get("agent")
 
+        if target_agent is None:
+            raise ValueError("Agent not found for entry")
+
+        target_agent = cast(HomeAgent, target_agent)
+
         await target_agent.clear_history(conversation_id)
 
         _LOGGER.info(
@@ -255,11 +268,16 @@ async def async_setup_services(
         entry_data = _get_entry_data(target_entry_id)
         target_agent = entry_data.get("agent")
 
+        if target_agent is None:
+            raise ValueError("Agent not found for entry")
+
+        target_agent = cast(HomeAgent, target_agent)
+
         await target_agent.reload_context()
 
         _LOGGER.info("Reloaded context")
 
-    async def handle_execute_tool(call: ServiceCall) -> None:
+    async def handle_execute_tool(call: ServiceCall) -> dict[str, Any]:
         """Handle the execute_tool service call (debug/testing).
 
         Manually executes a tool for testing purposes.
@@ -271,6 +289,11 @@ async def async_setup_services(
         # Get the right agent instance
         entry_data = _get_entry_data(target_entry_id)
         target_agent = entry_data.get("agent")
+
+        if target_agent is None:
+            raise ValueError("Agent not found for entry")
+
+        target_agent = cast(HomeAgent, target_agent)
 
         try:
             result = await target_agent.execute_tool_debug(tool_name, parameters)
@@ -286,7 +309,7 @@ async def async_setup_services(
             _LOGGER.error("Failed to execute tool %s: %s", tool_name, err)
             raise
 
-    async def handle_reindex_entities(call: ServiceCall) -> None:
+    async def handle_reindex_entities(call: ServiceCall) -> dict[str, Any]:
         """Handle the reindex_entities service call.
 
         Forces a full reindex of all entities into the vector database.
@@ -302,7 +325,7 @@ async def async_setup_services(
             return {"error": "Vector DB Manager not enabled"}
 
         try:
-            stats = await vector_manager.async_reindex_all_entities()
+            stats: dict[str, Any] = await vector_manager.async_reindex_all_entities()
             _LOGGER.info("Reindex complete: %s", stats)
             return stats
 
@@ -310,7 +333,7 @@ async def async_setup_services(
             _LOGGER.error("Failed to reindex entities: %s", err)
             raise
 
-    async def handle_index_entity(call: ServiceCall) -> None:
+    async def handle_index_entity(call: ServiceCall) -> dict[str, Any]:
         """Handle the index_entity service call.
 
         Indexes a specific entity into the vector database.
@@ -340,7 +363,7 @@ async def async_setup_services(
             raise
 
     # Memory management services
-    async def handle_list_memories(call: ServiceCall) -> dict:
+    async def handle_list_memories(call: ServiceCall) -> dict[str, Any]:
         """Handle the list_memories service call.
 
         Lists all stored memories with optional filtering.
@@ -412,7 +435,7 @@ async def async_setup_services(
             _LOGGER.error("Failed to delete memory %s: %s", memory_id, err)
             raise
 
-    async def handle_clear_memories(call: ServiceCall) -> dict:
+    async def handle_clear_memories(call: ServiceCall) -> dict[str, Any]:
         """Handle the clear_memories service call.
 
         Clears all memories (requires confirmation).
@@ -444,7 +467,7 @@ async def async_setup_services(
             _LOGGER.error("Failed to clear memories: %s", err)
             raise
 
-    async def handle_search_memories(call: ServiceCall) -> dict:
+    async def handle_search_memories(call: ServiceCall) -> dict[str, Any]:
         """Handle the search_memories service call.
 
         Searches memories by semantic similarity.
@@ -487,7 +510,7 @@ async def async_setup_services(
             _LOGGER.error("Failed to search memories: %s", err)
             raise
 
-    async def handle_add_memory(call: ServiceCall) -> dict:
+    async def handle_add_memory(call: ServiceCall) -> dict[str, Any]:
         """Handle the add_memory service call.
 
         Manually adds a memory.
@@ -559,7 +582,7 @@ async def async_setup_services(
             DOMAIN,
             "list_memories",
             handle_list_memories,
-            supports_response=True,
+            supports_response=SupportsResponse.ONLY,
         )
         _LOGGER.debug("Registered service: list_memories")
 
@@ -572,7 +595,7 @@ async def async_setup_services(
             DOMAIN,
             "clear_memories",
             handle_clear_memories,
-            supports_response=True,
+            supports_response=SupportsResponse.ONLY,
         )
         _LOGGER.debug("Registered service: clear_memories")
 
@@ -581,7 +604,7 @@ async def async_setup_services(
             DOMAIN,
             "search_memories",
             handle_search_memories,
-            supports_response=True,
+            supports_response=SupportsResponse.ONLY,
         )
         _LOGGER.debug("Registered service: search_memories")
 
@@ -590,7 +613,7 @@ async def async_setup_services(
             DOMAIN,
             "add_memory",
             handle_add_memory,
-            supports_response=True,
+            supports_response=SupportsResponse.ONLY,
         )
         _LOGGER.debug("Registered service: add_memory")
 

@@ -5,7 +5,7 @@ for semantic entity search and intelligent context injection.
 """
 
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from homeassistant.core import State
@@ -215,9 +215,16 @@ class TestEmbedQuery:
         }
         provider = VectorDBContextProvider(mock_hass, config)
 
-        # Mock the openai.Embedding.create call
-        mock_response = {"data": [{"embedding": [0.1, 0.2, 0.3]}]}
-        with patch("openai.Embedding.create", return_value=mock_response):
+        # Mock the new OpenAI API client.embeddings.create call
+        mock_embedding_data = MagicMock()
+        mock_embedding_data.embedding = [0.1, 0.2, 0.3]
+        mock_response = MagicMock()
+        mock_response.data = [mock_embedding_data]
+
+        with patch("openai.OpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.embeddings.create.return_value = mock_response
+            mock_openai.return_value = mock_client
             result = await provider._embed_query("test query")
 
         assert result == [0.1, 0.2, 0.3]

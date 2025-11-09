@@ -1,10 +1,10 @@
 """Unit tests for the ExternalLLMTool."""
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-import aiohttp
 
-from custom_components.home_agent.tools.external_llm import ExternalLLMTool
+import aiohttp
+import pytest
+
 from custom_components.home_agent.const import (
     CONF_EXTERNAL_LLM_API_KEY,
     CONF_EXTERNAL_LLM_BASE_URL,
@@ -19,9 +19,8 @@ from custom_components.home_agent.const import (
     DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION,
     TOOL_QUERY_EXTERNAL_LLM,
 )
-from custom_components.home_agent.exceptions import (
-    ValidationError,
-)
+from custom_components.home_agent.exceptions import ValidationError
+from custom_components.home_agent.tools.external_llm import ExternalLLMTool
 
 
 class TestExternalLLMTool:
@@ -142,9 +141,7 @@ class TestExternalLLMTool:
             mock_session.closed = False
             mock_session_class.return_value = mock_session
 
-            result = await tool.execute(
-                prompt="Analyze this energy usage data"
-            )
+            result = await tool.execute(prompt="Analyze this energy usage data")
 
             assert result["success"] is True
             assert result["result"] == "This is a detailed analysis from the external LLM."
@@ -178,10 +175,7 @@ class TestExternalLLMTool:
             mock_session.closed = False
             mock_session_class.return_value = mock_session
 
-            result = await tool.execute(
-                prompt="Analyze this energy usage",
-                context=context_data
-            )
+            result = await tool.execute(prompt="Analyze this energy usage", context=context_data)
 
             assert result["success"] is True
             assert result["result"] == "This is a detailed analysis from the external LLM."
@@ -219,7 +213,9 @@ class TestExternalLLMTool:
         assert "required" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_execute_invalid_prompt_type_raises_validation_error(self, mock_hass, mock_config):
+    async def test_execute_invalid_prompt_type_raises_validation_error(
+        self, mock_hass, mock_config
+    ):
         """Test that non-string prompt raises ValidationError."""
         tool = ExternalLLMTool(mock_hass, mock_config)
 
@@ -230,15 +226,14 @@ class TestExternalLLMTool:
         assert "string" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_execute_invalid_context_type_raises_validation_error(self, mock_hass, mock_config):
+    async def test_execute_invalid_context_type_raises_validation_error(
+        self, mock_hass, mock_config
+    ):
         """Test that non-dict context raises ValidationError."""
         tool = ExternalLLMTool(mock_hass, mock_config)
 
         with pytest.raises(ValidationError) as exc_info:
-            await tool.execute(
-                prompt="Test prompt",
-                context="invalid context"  # Not a dict
-            )
+            await tool.execute(prompt="Test prompt", context="invalid context")  # Not a dict
 
         assert "context" in str(exc_info.value).lower()
         assert "dict" in str(exc_info.value).lower() or "object" in str(exc_info.value).lower()
@@ -332,9 +327,7 @@ class TestExternalLLMTool:
         # Mock aiohttp session to simulate connection error
         with patch("aiohttp.ClientSession") as mock_session_class:
             mock_session = AsyncMock()
-            mock_session.post = MagicMock(
-                side_effect=aiohttp.ClientError("Connection failed")
-            )
+            mock_session.post = MagicMock(side_effect=aiohttp.ClientError("Connection failed"))
             mock_session.closed = False
             mock_session_class.return_value = mock_session
 
@@ -479,16 +472,13 @@ class TestExternalLLMTool:
         """Test that context is formatted as JSON."""
         tool = ExternalLLMTool(mock_hass, mock_config)
 
-        context = {
-            "key1": "value1",
-            "key2": [1, 2, 3],
-            "key3": {"nested": "object"}
-        }
+        context = {"key1": "value1", "key2": [1, 2, 3], "key3": {"nested": "object"}}
 
         formatted = tool._format_context(context)
 
         # Should be valid JSON
         import json
+
         parsed = json.loads(formatted)
         assert parsed == context
 

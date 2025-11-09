@@ -1,8 +1,8 @@
 """Shared test fixtures for Home Agent."""
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from homeassistant.core import HomeAssistant
-from homeassistant.setup import async_setup_component
 
 
 @pytest.fixture
@@ -58,19 +58,8 @@ def mock_llm_client():
     client = AsyncMock()
     client.chat.completions.create = AsyncMock(
         return_value=MagicMock(
-            choices=[
-                MagicMock(
-                    message=MagicMock(
-                        content="Test response",
-                        tool_calls=None
-                    )
-                )
-            ],
-            usage=MagicMock(
-                prompt_tokens=10,
-                completion_tokens=5,
-                total_tokens=15
-            )
+            choices=[MagicMock(message=MagicMock(content="Test response", tool_calls=None))],
+            usage=MagicMock(prompt_tokens=10, completion_tokens=5, total_tokens=15),
         )
     )
     return client
@@ -85,7 +74,7 @@ def mock_chromadb():
             "ids": [["entity1", "entity2"]],
             "distances": [[0.1, 0.2]],
             "documents": [["doc1", "doc2"]],
-            "metadatas": [[{"entity_id": "light.living_room"}, {"entity_id": "sensor.temp"}]]
+            "metadatas": [[{"entity_id": "light.living_room"}, {"entity_id": "sensor.temp"}]],
         }
         mock.return_value.get_or_create_collection.return_value = collection
         yield mock
@@ -101,8 +90,8 @@ def sample_entities():
             "attributes": {
                 "brightness": 128,
                 "color_temp": 370,
-                "friendly_name": "Living Room Light"
-            }
+                "friendly_name": "Living Room Light",
+            },
         },
         {
             "entity_id": "sensor.living_room_temperature",
@@ -110,8 +99,8 @@ def sample_entities():
             "attributes": {
                 "unit_of_measurement": "°F",
                 "device_class": "temperature",
-                "friendly_name": "Living Room Temperature"
-            }
+                "friendly_name": "Living Room Temperature",
+            },
         },
         {
             "entity_id": "climate.thermostat",
@@ -120,9 +109,9 @@ def sample_entities():
                 "temperature": 72,
                 "target_temperature": 70,
                 "hvac_mode": "heat",
-                "friendly_name": "Thermostat"
-            }
-        }
+                "friendly_name": "Thermostat",
+            },
+        },
     ]
 
 
@@ -136,30 +125,19 @@ def sample_config():
             "api_key": "test-key-123",
             "model": "gpt-4o-mini",
             "temperature": 0.7,
-            "max_tokens": 500
+            "max_tokens": 500,
         },
         "context": {
             "mode": "direct",
             "direct": {
                 "entities": [
-                    {
-                        "entity_id": "light.living_room",
-                        "attributes": ["state", "brightness"]
-                    }
+                    {"entity_id": "light.living_room", "attributes": ["state", "brightness"]}
                 ],
-                "format": "json"
-            }
+                "format": "json",
+            },
         },
-        "history": {
-            "enabled": True,
-            "max_messages": 10,
-            "persist": False
-        },
-        "tools": {
-            "enable_native": True,
-            "max_calls_per_turn": 5,
-            "timeout_seconds": 30
-        }
+        "history": {"enabled": True, "max_messages": 10, "persist": False},
+        "tools": {"enable_native": True, "max_calls_per_turn": 5, "timeout_seconds": 30},
     }
 
 
@@ -171,6 +149,9 @@ def sample_tool_call():
         "type": "function",
         "function": {
             "name": "ha_control",
-            "arguments": '{"action": "turn_on", "entity_id": "light.living_room", "parameters": {"brightness_pct": 50}}'
-        }
+            "arguments": (
+                '{"action": "turn_on", "entity_id": "light.living_room", '
+                '"parameters": {"brightness_pct": 50}}'
+            ),
+        },
     }

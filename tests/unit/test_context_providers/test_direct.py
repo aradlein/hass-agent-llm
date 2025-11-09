@@ -5,14 +5,12 @@ configured entities and formats them for LLM consumption.
 """
 
 import json
-import pytest
 from unittest.mock import Mock
 
+import pytest
 from homeassistant.core import State
 
-from custom_components.home_agent.context_providers.direct import (
-    DirectContextProvider,
-)
+from custom_components.home_agent.context_providers.direct import DirectContextProvider
 
 
 class TestDirectContextProviderInit:
@@ -21,10 +19,8 @@ class TestDirectContextProviderInit:
     def test_direct_context_provider_init(self, mock_hass):
         """Test initializing direct context provider."""
         config = {
-            "entities": [
-                {"entity_id": "light.living_room", "attributes": ["brightness"]}
-            ],
-            "format": "json"
+            "entities": [{"entity_id": "light.living_room", "attributes": ["brightness"]}],
+            "format": "json",
         }
         provider = DirectContextProvider(mock_hass, config)
 
@@ -42,10 +38,7 @@ class TestDirectContextProviderInit:
 
     def test_direct_context_provider_natural_language_format(self, mock_hass):
         """Test natural_language format."""
-        config = {
-            "entities": [],
-            "format": "natural_language"
-        }
+        config = {"entities": [], "format": "natural_language"}
         provider = DirectContextProvider(mock_hass, config)
 
         assert provider.format_type == "natural_language"
@@ -65,10 +58,8 @@ class TestGetContext:
     async def test_get_context_json_single_entity(self, mock_hass):
         """Test getting context in JSON format for single entity."""
         config = {
-            "entities": [
-                {"entity_id": "light.living_room", "attributes": ["brightness"]}
-            ],
-            "format": "json"
+            "entities": [{"entity_id": "light.living_room", "attributes": ["brightness"]}],
+            "format": "json",
         }
         provider = DirectContextProvider(mock_hass, config)
 
@@ -93,11 +84,8 @@ class TestGetContext:
     async def test_get_context_json_multiple_entities(self, mock_hass):
         """Test getting context for multiple entities."""
         config = {
-            "entities": [
-                {"entity_id": "light.living_room"},
-                {"entity_id": "sensor.temperature"}
-            ],
-            "format": "json"
+            "entities": [{"entity_id": "light.living_room"}, {"entity_id": "sensor.temperature"}],
+            "format": "json",
         }
         provider = DirectContextProvider(mock_hass, config)
 
@@ -130,21 +118,13 @@ class TestGetContext:
     @pytest.mark.asyncio
     async def test_get_context_natural_language(self, mock_hass):
         """Test getting context in natural language format."""
-        config = {
-            "entities": [
-                {"entity_id": "light.living_room"}
-            ],
-            "format": "natural_language"
-        }
+        config = {"entities": [{"entity_id": "light.living_room"}], "format": "natural_language"}
         provider = DirectContextProvider(mock_hass, config)
 
         state = Mock(spec=State)
         state.entity_id = "light.living_room"
         state.state = "on"
-        state.attributes = {
-            "brightness": 128,
-            "friendly_name": "Living Room Light"
-        }
+        state.attributes = {"brightness": 128, "friendly_name": "Living Room Light"}
         mock_hass.states.get.return_value = state
 
         result = await provider.get_context("status")
@@ -157,12 +137,7 @@ class TestGetContext:
     @pytest.mark.asyncio
     async def test_get_context_entity_not_found(self, mock_hass):
         """Test getting context when entity doesn't exist."""
-        config = {
-            "entities": [
-                {"entity_id": "light.nonexistent"}
-            ],
-            "format": "json"
-        }
+        config = {"entities": [{"entity_id": "light.nonexistent"}], "format": "json"}
         provider = DirectContextProvider(mock_hass, config)
         mock_hass.states.get.return_value = None
 
@@ -175,19 +150,14 @@ class TestGetContext:
     @pytest.mark.asyncio
     async def test_get_context_wildcard_entities(self, mock_hass):
         """Test getting context with wildcard pattern."""
-        config = {
-            "entities": [
-                {"entity_id": "light.*"}
-            ],
-            "format": "json"
-        }
+        config = {"entities": [{"entity_id": "light.*"}], "format": "json"}
         provider = DirectContextProvider(mock_hass, config)
 
         # Mock entity list
         mock_hass.states.async_entity_ids.return_value = [
             "light.living_room",
             "light.bedroom",
-            "sensor.temperature"
+            "sensor.temperature",
         ]
 
         # Mock entity states
@@ -218,10 +188,7 @@ class TestGetContext:
     @pytest.mark.asyncio
     async def test_get_context_invalid_format_type(self, mock_hass):
         """Test that invalid format type raises ValueError."""
-        config = {
-            "entities": [],
-            "format": "invalid"
-        }
+        config = {"entities": [], "format": "invalid"}
         provider = DirectContextProvider(mock_hass, config)
 
         with pytest.raises(ValueError) as exc_info:
@@ -255,13 +222,8 @@ class TestGetContext:
     async def test_get_context_with_attribute_filter(self, mock_hass):
         """Test getting context with attribute filter."""
         config = {
-            "entities": [
-                {
-                    "entity_id": "light.living_room",
-                    "attributes": ["brightness"]
-                }
-            ],
-            "format": "json"
+            "entities": [{"entity_id": "light.living_room", "attributes": ["brightness"]}],
+            "format": "json",
         }
         provider = DirectContextProvider(mock_hass, config)
 
@@ -271,7 +233,7 @@ class TestGetContext:
         state.attributes = {
             "brightness": 128,
             "color_temp": 370,
-            "friendly_name": "Living Room Light"
+            "friendly_name": "Living Room Light",
         }
         mock_hass.states.get.return_value = state
 
@@ -287,10 +249,8 @@ class TestGetContext:
     async def test_get_context_missing_entity_id(self, mock_hass):
         """Test handling entity config missing entity_id."""
         config = {
-            "entities": [
-                {"attributes": ["brightness"]}  # Missing entity_id
-            ],
-            "format": "json"
+            "entities": [{"attributes": ["brightness"]}],  # Missing entity_id
+            "format": "json",
         }
         provider = DirectContextProvider(mock_hass, config)
 
@@ -317,11 +277,7 @@ class TestFormatAsJson:
         """Test formatting single entity as JSON."""
         provider = DirectContextProvider(mock_hass, {})
         entity_states = [
-            {
-                "entity_id": "light.living_room",
-                "state": "on",
-                "attributes": {"brightness": 128}
-            }
+            {"entity_id": "light.living_room", "state": "on", "attributes": {"brightness": 128}}
         ]
 
         result = provider._format_as_json(entity_states)
@@ -336,7 +292,7 @@ class TestFormatAsJson:
         provider = DirectContextProvider(mock_hass, {})
         entity_states = [
             {"entity_id": "light.living_room", "state": "on", "attributes": {}},
-            {"entity_id": "sensor.temp", "state": "72", "attributes": {}}
+            {"entity_id": "sensor.temp", "state": "72", "attributes": {}},
         ]
 
         result = provider._format_as_json(entity_states)
@@ -375,7 +331,7 @@ class TestFormatAsNaturalLanguage:
             {
                 "entity_id": "light.living_room",
                 "state": "on",
-                "attributes": {"friendly_name": "Living Room Light"}
+                "attributes": {"friendly_name": "Living Room Light"},
             }
         ]
 
@@ -388,13 +344,7 @@ class TestFormatAsNaturalLanguage:
     def test_format_natural_language_no_friendly_name(self, mock_hass):
         """Test formatting without friendly_name."""
         provider = DirectContextProvider(mock_hass, {})
-        entity_states = [
-            {
-                "entity_id": "sensor.temperature",
-                "state": "72",
-                "attributes": {}
-            }
-        ]
+        entity_states = [{"entity_id": "sensor.temperature", "state": "72", "attributes": {}}]
 
         result = provider._format_as_natural_language(entity_states)
 
@@ -408,13 +358,13 @@ class TestFormatAsNaturalLanguage:
             {
                 "entity_id": "light.living_room",
                 "state": "on",
-                "attributes": {"friendly_name": "Living Room Light"}
+                "attributes": {"friendly_name": "Living Room Light"},
             },
             {
                 "entity_id": "sensor.temp",
                 "state": "72",
-                "attributes": {"friendly_name": "Temperature"}
-            }
+                "attributes": {"friendly_name": "Temperature"},
+            },
         ]
 
         result = provider._format_as_natural_language(entity_states)
@@ -431,11 +381,7 @@ class TestFormatEntityNaturalLanguage:
         """Test formatting light entity that is on."""
         provider = DirectContextProvider(mock_hass, {})
 
-        result = provider._format_light(
-            "Living Room Light",
-            "on",
-            {"brightness": 128}
-        )
+        result = provider._format_light("Living Room Light", "on", {"brightness": 128})
 
         assert "Living Room Light is on" in result
         assert "50%" in result  # 128/255 * 100 ≈ 50%
@@ -453,9 +399,7 @@ class TestFormatEntityNaturalLanguage:
         provider = DirectContextProvider(mock_hass, {})
 
         result = provider._format_light(
-            "Kitchen Light",
-            "on",
-            {"brightness": 255, "color_temp": 370}
+            "Kitchen Light", "on", {"brightness": 255, "color_temp": 370}
         )
 
         assert "Kitchen Light is on" in result
@@ -466,11 +410,7 @@ class TestFormatEntityNaturalLanguage:
         """Test formatting sensor with unit of measurement."""
         provider = DirectContextProvider(mock_hass, {})
 
-        result = provider._format_sensor(
-            "Temperature",
-            "72",
-            {"unit_of_measurement": "°F"}
-        )
+        result = provider._format_sensor("Temperature", "72", {"unit_of_measurement": "°F"})
 
         assert "Temperature is 72 °F" in result
 
@@ -478,11 +418,7 @@ class TestFormatEntityNaturalLanguage:
         """Test formatting sensor with device class."""
         provider = DirectContextProvider(mock_hass, {})
 
-        result = provider._format_sensor(
-            "Battery",
-            "95",
-            {"device_class": "battery"}
-        )
+        result = provider._format_sensor("Battery", "95", {"device_class": "battery"})
 
         assert "Battery (battery) is 95" in result
 
@@ -490,11 +426,7 @@ class TestFormatEntityNaturalLanguage:
         """Test formatting binary sensor for open door."""
         provider = DirectContextProvider(mock_hass, {})
 
-        result = provider._format_binary_sensor(
-            "Front Door",
-            "on",
-            {"device_class": "door"}
-        )
+        result = provider._format_binary_sensor("Front Door", "on", {"device_class": "door"})
 
         assert "Front Door is open" in result
 
@@ -502,11 +434,7 @@ class TestFormatEntityNaturalLanguage:
         """Test formatting binary sensor for closed door."""
         provider = DirectContextProvider(mock_hass, {})
 
-        result = provider._format_binary_sensor(
-            "Front Door",
-            "off",
-            {"device_class": "door"}
-        )
+        result = provider._format_binary_sensor("Front Door", "off", {"device_class": "door"})
 
         assert "Front Door is closed" in result
 
@@ -515,9 +443,7 @@ class TestFormatEntityNaturalLanguage:
         provider = DirectContextProvider(mock_hass, {})
 
         result = provider._format_binary_sensor(
-            "Living Room Motion",
-            "on",
-            {"device_class": "motion"}
+            "Living Room Motion", "on", {"device_class": "motion"}
         )
 
         assert "Living Room Motion detects motion" in result
@@ -529,11 +455,7 @@ class TestFormatEntityNaturalLanguage:
         result = provider._format_climate(
             "Thermostat",
             "heat",
-            {
-                "current_temperature": 68,
-                "target_temperature": 70,
-                "temperature_unit": "°F"
-            }
+            {"current_temperature": 68, "target_temperature": 70, "temperature_unit": "°F"},
         )
 
         assert "Thermostat is heat" in result
@@ -561,10 +483,7 @@ class TestFormatEntityNaturalLanguage:
         provider = DirectContextProvider(mock_hass, {})
 
         result = provider._format_entity_natural_language(
-            "unknown_domain",
-            "Test Entity",
-            "active",
-            {}
+            "unknown_domain", "Test Entity", "active", {}
         )
 
         assert "Test Entity is active" in result
@@ -577,9 +496,7 @@ class TestGatherEntityStates:
     async def test_gather_entity_states_single(self, mock_hass):
         """Test gathering states for single entity."""
         provider = DirectContextProvider(mock_hass, {})
-        provider.entities_config = [
-            {"entity_id": "light.living_room"}
-        ]
+        provider.entities_config = [{"entity_id": "light.living_room"}]
 
         state = Mock(spec=State)
         state.entity_id = "light.living_room"
@@ -598,7 +515,7 @@ class TestGatherEntityStates:
         provider = DirectContextProvider(mock_hass, {})
         provider.entities_config = [
             {"entity_id": "light.living_room"},
-            {"entity_id": "sensor.temperature"}
+            {"entity_id": "sensor.temperature"},
         ]
 
         light_state = Mock(spec=State)
@@ -628,14 +545,9 @@ class TestGatherEntityStates:
     async def test_gather_entity_states_with_wildcards(self, mock_hass):
         """Test gathering states with wildcard patterns."""
         provider = DirectContextProvider(mock_hass, {})
-        provider.entities_config = [
-            {"entity_id": "light.*"}
-        ]
+        provider.entities_config = [{"entity_id": "light.*"}]
 
-        mock_hass.states.async_entity_ids.return_value = [
-            "light.living_room",
-            "light.bedroom"
-        ]
+        mock_hass.states.async_entity_ids.return_value = ["light.living_room", "light.bedroom"]
 
         light1 = Mock(spec=State)
         light1.entity_id = "light.living_room"
@@ -666,7 +578,7 @@ class TestGatherEntityStates:
         provider = DirectContextProvider(mock_hass, {})
         provider.entities_config = [
             {"entity_id": "light.existing"},
-            {"entity_id": "light.nonexistent"}
+            {"entity_id": "light.nonexistent"},
         ]
 
         existing_state = Mock(spec=State)

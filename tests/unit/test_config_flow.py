@@ -1,5 +1,5 @@
 """Unit tests for Home Agent config flow."""
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from homeassistant import config_entries
@@ -9,9 +9,7 @@ from custom_components.home_agent.config_flow import HomeAgentConfigFlow, HomeAg
 from custom_components.home_agent.const import (
     CONF_DEBUG_LOGGING,
     CONF_STREAMING_ENABLED,
-    DEFAULT_DEBUG_LOGGING,
     DEFAULT_STREAMING_ENABLED,
-    DOMAIN,
 )
 
 

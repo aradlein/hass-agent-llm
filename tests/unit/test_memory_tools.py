@@ -6,10 +6,10 @@ import pytest
 
 from custom_components.home_agent.exceptions import ToolExecutionError
 from custom_components.home_agent.tools.memory_tools import (
-    RecallMemoryTool,
-    StoreMemoryTool,
     TOOL_RECALL_MEMORY,
     TOOL_STORE_MEMORY,
+    RecallMemoryTool,
+    StoreMemoryTool,
 )
 
 
@@ -214,6 +214,8 @@ class TestRecallMemoryTool:
         mock_memory_manager.search_memories.assert_called_once()
         call_kwargs = mock_memory_manager.search_memories.call_args[1]
         assert call_kwargs["top_k"] == 5
+        # Verify result structure
+        assert result["success"] is True
 
     @pytest.mark.asyncio
     async def test_execute_no_memories_found(self, recall_memory_tool, mock_memory_manager):
@@ -260,7 +262,9 @@ class TestRecallMemoryTool:
         result = await recall_memory_tool.execute(query="test")
 
         # Check that importance is formatted with 2 decimal places
-        assert "(importance: 0.76)" in result["message"] or "(importance: 0.75)" in result["message"]
+        assert (
+            "(importance: 0.76)" in result["message"] or "(importance: 0.75)" in result["message"]
+        )
 
     @pytest.mark.asyncio
     async def test_execute_handles_missing_fields(self, recall_memory_tool, mock_memory_manager):

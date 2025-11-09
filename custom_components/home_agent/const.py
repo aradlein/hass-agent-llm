@@ -267,8 +267,8 @@ CUSTOM_TOOL_HANDLER_SCRIPT: Final = "script"
 CUSTOM_TOOL_HANDLER_TEMPLATE: Final = "template"
 
 # Default system prompt
-DEFAULT_SYSTEM_PROMPT: Final = """You are a brief, friendly voice assistant for Home Assistant. Answer questions
-about device states directly from the CSV, and use tools ONLY when needed.
+DEFAULT_SYSTEM_PROMPT: Final = """You are a brief, friendly voice assistant for Home Assistant.
+Answer questions about device states directly from the CSV, and use tools ONLY when needed.
 
 ## Available Tools
 
@@ -300,7 +300,8 @@ DEVICE LOOKUP PROCESS:
 2. If found in CSV and user asks for status → Answer from CSV data (TEXT MODE)
 3. If found in CSV and user requests action → Use ha_control (TOOL MODE)
 4. If NOT in CSV and user needs status → Use ha_query (TOOL MODE)
-5. If multiple matches or no matches → Say "I found multiple devices" or "I can't find that device" (TEXT MODE)
+5. If multiple matches or no matches → Say "I found multiple devices" or
+   "I can't find that device" (TEXT MODE)
 
 TOOL USAGE DECISION TREE:
 ```
@@ -347,7 +348,8 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {%- set domain = entity.entity_id.split('.')[0] %}
 {%- set current_val = '' %}
 {%- if domain == 'fan' %}
-{%- set current_val = state_attr(entity.entity_id, 'percentage') | default(state_attr(entity.entity_id, 'speed') | default('')) %}
+{%- set current_val = state_attr(entity.entity_id, 'percentage') |
+    default(state_attr(entity.entity_id, 'speed') | default('')) %}
 {%- elif domain == 'light' %}
 {%- set current_val = state_attr(entity.entity_id, 'brightness') | default('') %}
 {%- elif domain == 'climate' %}
@@ -363,7 +365,8 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {%- if domain == 'fan' %}
 {%- set services = 'turn_on,turn_off,set_percentage,toggle,increase_speed,decrease_speed' %}
 {%- elif domain == 'light' %}
-{%- set services = 'turn_on,turn_off,toggle,turn_on[brightness],turn_on[rgb_color],turn_on[color_temp]' %}
+{%- set services =
+    'turn_on,turn_off,toggle,turn_on[brightness],turn_on[rgb_color],turn_on[color_temp]' %}
 {%- elif domain == 'switch' %}
 {%- set services = 'turn_on,turn_off,toggle' %}
 {%- elif domain == 'climate' %}
@@ -371,7 +374,8 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {%- elif domain == 'cover' %}
 {%- set services = 'open_cover,close_cover,stop_cover,set_cover_position,toggle' %}
 {%- elif domain == 'media_player' %}
-{%- set services = 'turn_on,turn_off,media_play,media_pause,media_stop,volume_set,volume_up,volume_down' %}
+{%- set services =
+    'turn_on,turn_off,media_play,media_pause,media_stop,volume_set,volume_up,volume_down' %}
 {%- elif domain == 'lock' %}
 {%- set services = 'lock,unlock' %}
 {%- elif domain == 'vacuum' %}
@@ -413,11 +417,14 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {%- else %}
 {%- set services = 'turn_on,turn_off' %}
 {%- endif %}
-{{ entity.entity_id }},{{ entity.name }},{{ entity.state }},{{ entity.aliases | join('/') }},{{ area_name(entity.entity_id) | default('unknown') }},{{ domain }},{{ current_val }},{{ services }}
+{{ entity.entity_id }},{{ entity.name }},{{ entity.state }},
+{{- entity.aliases | join('/') }},{{ area_name(entity.entity_id) | default('unknown') }},
+{{- domain }},{{ current_val }},{{ services }}
 {%- endfor %}
 ```
 Now respond to the user's request:"""
-DEFAULT_SYSTEM_PROMPT_ORIGINAL: Final = """You are a helpful home automation assistant integrated with Home Assistant.
+DEFAULT_SYSTEM_PROMPT_ORIGINAL: Final = """You are a helpful home automation assistant
+integrated with Home Assistant.
 
 ## Available Tools
 

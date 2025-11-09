@@ -185,8 +185,7 @@ class ToolRegistry:
         """
         if tool.name in self._tools:
             raise ValidationError(
-                f"Tool '{tool.name}' is already registered. "
-                f"Each tool must have a unique name."
+                f"Tool '{tool.name}' is already registered. " f"Each tool must have a unique name."
             )
 
         self._tools[tool.name] = tool
@@ -251,12 +250,10 @@ class ToolRegistry:
                 filter_fn=lambda t: "control" in t.name
             )
         """
-        tools = self._tools.values()
+        tools = list(self._tools.values())
 
         if filter_fn:
             tools = [tool for tool in tools if filter_fn(tool)]
-        else:
-            tools = list(tools)
 
         return [tool.to_openai_format() for tool in tools]
 

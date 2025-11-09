@@ -1,11 +1,10 @@
 """Unit tests for the HomeAssistantQueryTool."""
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
-from homeassistant.core import State
-from homeassistant.util import dt as dt_util
+from datetime import timedelta
+from unittest.mock import patch
 
-from custom_components.home_agent.tools.ha_query import HomeAssistantQueryTool
+import pytest
+from homeassistant.core import State
+
 from custom_components.home_agent.const import (
     HISTORY_AGGREGATE_AVG,
     HISTORY_AGGREGATE_COUNT,
@@ -19,6 +18,7 @@ from custom_components.home_agent.exceptions import (
     ToolExecutionError,
     ValidationError,
 )
+from custom_components.home_agent.tools.ha_query import HomeAssistantQueryTool
 
 
 class TestHomeAssistantQueryTool:
@@ -101,7 +101,9 @@ class TestHomeAssistantQueryTool:
         assert "attributes" in entity
 
     @pytest.mark.asyncio
-    async def test_query_with_wildcard_domain(self, mock_hass, sample_light_state, sample_sensor_state):
+    async def test_query_with_wildcard_domain(
+        self, mock_hass, sample_light_state, sample_sensor_state
+    ):
         """Test querying with domain wildcard (light.*)."""
         tool = HomeAssistantQueryTool(mock_hass)
 
@@ -109,7 +111,7 @@ class TestHomeAssistantQueryTool:
         mock_hass.states.async_entity_ids.return_value = [
             "light.living_room",
             "light.bedroom",
-            "sensor.temperature"
+            "sensor.temperature",
         ]
 
         # Mock state retrieval
@@ -135,7 +137,7 @@ class TestHomeAssistantQueryTool:
             "light.living_room",
             "sensor.living_room_temperature",
             "climate.living_room_thermostat",
-            "switch.bedroom"
+            "switch.bedroom",
         ]
 
         mock_hass.states.get.return_value = sample_light_state
@@ -157,8 +159,7 @@ class TestHomeAssistantQueryTool:
         mock_hass.states.get.return_value = sample_light_state
 
         result = await tool.execute(
-            entity_id="light.living_room",
-            attributes=["brightness", "color_temp"]
+            entity_id="light.living_room", attributes=["brightness", "color_temp"]
         )
 
         assert result["success"] is True
@@ -175,10 +176,7 @@ class TestHomeAssistantQueryTool:
         """Test querying with no matching entities."""
         tool = HomeAssistantQueryTool(mock_hass)
 
-        mock_hass.states.async_entity_ids.return_value = [
-            "light.living_room",
-            "sensor.temperature"
-        ]
+        mock_hass.states.async_entity_ids.return_value = ["light.living_room", "sensor.temperature"]
 
         result = await tool.execute(entity_id="switch.nonexistent")
 
@@ -226,7 +224,9 @@ class TestHomeAssistantQueryTool:
         assert tool._is_valid_entity_pattern("") is False
 
     @pytest.mark.asyncio
-    async def test_entity_access_validation_allowed(self, mock_hass, exposed_entities, sample_light_state):
+    async def test_entity_access_validation_allowed(
+        self, mock_hass, exposed_entities, sample_light_state
+    ):
         """Test entity access validation when entity is allowed."""
         tool = HomeAssistantQueryTool(mock_hass, exposed_entities)
 
@@ -277,32 +277,33 @@ class TestHomeAssistantQueryTool:
         """Test formatting entity state with attribute filter."""
         tool = HomeAssistantQueryTool(mock_hass)
 
-        formatted = tool._format_entity_state(
-            sample_light_state,
-            attributes_filter=["brightness"]
-        )
+        formatted = tool._format_entity_state(sample_light_state, attributes_filter=["brightness"])
 
         assert "brightness" in formatted["attributes"]
         assert "color_temp" not in formatted["attributes"]
 
     @pytest.mark.asyncio
-    async def test_query_history_with_duration(self, mock_hass, mock_history_states, mock_recorder_instance):
+    async def test_query_history_with_duration(
+        self, mock_hass, mock_history_states, mock_recorder_instance
+    ):
         """Test querying historical data."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
-             patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
-
+        with patch(
+            "homeassistant.components.recorder.util.async_migration_in_progress"
+        ) as mock_migration, patch(
+            "homeassistant.components.recorder.get_instance"
+        ) as mock_get_instance, patch(
+            "homeassistant.components.recorder.history.state_changes_during_period"
+        ) as mock_history:
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
-                entity_id="sensor.living_room_temperature",
-                history={"duration": "24h"}
+                entity_id="sensor.living_room_temperature", history={"duration": "24h"}
             )
 
             assert result["success"] is True
@@ -311,23 +312,28 @@ class TestHomeAssistantQueryTool:
             assert result["duration"] == "24h"
 
     @pytest.mark.asyncio
-    async def test_query_history_with_avg_aggregation(self, mock_hass, mock_history_states, mock_recorder_instance):
+    async def test_query_history_with_avg_aggregation(
+        self, mock_hass, mock_history_states, mock_recorder_instance
+    ):
         """Test querying historical data with average aggregation."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
-             patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
-
+        with patch(
+            "homeassistant.components.recorder.util.async_migration_in_progress"
+        ) as mock_migration, patch(
+            "homeassistant.components.recorder.get_instance"
+        ) as mock_get_instance, patch(
+            "homeassistant.components.recorder.history.state_changes_during_period"
+        ) as mock_history:
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
                 entity_id="sensor.living_room_temperature",
-                history={"duration": "24h", "aggregate": HISTORY_AGGREGATE_AVG}
+                history={"duration": "24h", "aggregate": HISTORY_AGGREGATE_AVG},
             )
 
             assert result["success"] is True
@@ -337,23 +343,28 @@ class TestHomeAssistantQueryTool:
             assert isinstance(history_data["value"], (int, float))
 
     @pytest.mark.asyncio
-    async def test_query_history_with_min_aggregation(self, mock_hass, mock_history_states, mock_recorder_instance):
+    async def test_query_history_with_min_aggregation(
+        self, mock_hass, mock_history_states, mock_recorder_instance
+    ):
         """Test querying historical data with min aggregation."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
-             patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
-
+        with patch(
+            "homeassistant.components.recorder.util.async_migration_in_progress"
+        ) as mock_migration, patch(
+            "homeassistant.components.recorder.get_instance"
+        ) as mock_get_instance, patch(
+            "homeassistant.components.recorder.history.state_changes_during_period"
+        ) as mock_history:
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
                 entity_id="sensor.living_room_temperature",
-                history={"duration": "1h", "aggregate": HISTORY_AGGREGATE_MIN}
+                history={"duration": "1h", "aggregate": HISTORY_AGGREGATE_MIN},
             )
 
             history_data = result["history"][0]
@@ -362,23 +373,28 @@ class TestHomeAssistantQueryTool:
             assert history_data["value"] == 68
 
     @pytest.mark.asyncio
-    async def test_query_history_with_max_aggregation(self, mock_hass, mock_history_states, mock_recorder_instance):
+    async def test_query_history_with_max_aggregation(
+        self, mock_hass, mock_history_states, mock_recorder_instance
+    ):
         """Test querying historical data with max aggregation."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
-             patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
-
+        with patch(
+            "homeassistant.components.recorder.util.async_migration_in_progress"
+        ) as mock_migration, patch(
+            "homeassistant.components.recorder.get_instance"
+        ) as mock_get_instance, patch(
+            "homeassistant.components.recorder.history.state_changes_during_period"
+        ) as mock_history:
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
                 entity_id="sensor.living_room_temperature",
-                history={"duration": "1h", "aggregate": HISTORY_AGGREGATE_MAX}
+                history={"duration": "1h", "aggregate": HISTORY_AGGREGATE_MAX},
             )
 
             history_data = result["history"][0]
@@ -387,23 +403,28 @@ class TestHomeAssistantQueryTool:
             assert history_data["value"] == 77
 
     @pytest.mark.asyncio
-    async def test_query_history_with_count_aggregation(self, mock_hass, mock_history_states, mock_recorder_instance):
+    async def test_query_history_with_count_aggregation(
+        self, mock_hass, mock_history_states, mock_recorder_instance
+    ):
         """Test querying historical data with count aggregation."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
-             patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
-
+        with patch(
+            "homeassistant.components.recorder.util.async_migration_in_progress"
+        ) as mock_migration, patch(
+            "homeassistant.components.recorder.get_instance"
+        ) as mock_get_instance, patch(
+            "homeassistant.components.recorder.history.state_changes_during_period"
+        ) as mock_history:
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
                 entity_id="sensor.living_room_temperature",
-                history={"duration": "1h", "aggregate": HISTORY_AGGREGATE_COUNT}
+                history={"duration": "1h", "aggregate": HISTORY_AGGREGATE_COUNT},
             )
 
             history_data = result["history"][0]
@@ -411,23 +432,28 @@ class TestHomeAssistantQueryTool:
             assert history_data["value"] == len(mock_history_states)
 
     @pytest.mark.asyncio
-    async def test_query_history_with_sum_aggregation(self, mock_hass, mock_history_states, mock_recorder_instance):
+    async def test_query_history_with_sum_aggregation(
+        self, mock_hass, mock_history_states, mock_recorder_instance
+    ):
         """Test querying historical data with sum aggregation."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
-             patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
-
+        with patch(
+            "homeassistant.components.recorder.util.async_migration_in_progress"
+        ) as mock_migration, patch(
+            "homeassistant.components.recorder.get_instance"
+        ) as mock_get_instance, patch(
+            "homeassistant.components.recorder.history.state_changes_during_period"
+        ) as mock_history:
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
 
             result = await tool.execute(
                 entity_id="sensor.living_room_temperature",
-                history={"duration": "1h", "aggregate": HISTORY_AGGREGATE_SUM}
+                history={"duration": "1h", "aggregate": HISTORY_AGGREGATE_SUM},
             )
 
             history_data = result["history"][0]
@@ -443,8 +469,7 @@ class TestHomeAssistantQueryTool:
 
         with pytest.raises(ValidationError) as exc_info:
             await tool.execute(
-                entity_id="sensor.temperature",
-                history={"aggregate": HISTORY_AGGREGATE_AVG}
+                entity_id="sensor.temperature", history={"aggregate": HISTORY_AGGREGATE_AVG}
             )
 
         assert "duration" in str(exc_info.value).lower()
@@ -458,10 +483,7 @@ class TestHomeAssistantQueryTool:
         mock_hass.states.async_entity_ids.return_value = ["sensor.temperature"]
 
         with pytest.raises(ValidationError) as exc_info:
-            await tool.execute(
-                entity_id="sensor.temperature",
-                history={"duration": "invalid"}
-            )
+            await tool.execute(entity_id="sensor.temperature", history={"duration": "invalid"})
 
         assert "invalid duration format" in str(exc_info.value).lower()
 
@@ -473,10 +495,7 @@ class TestHomeAssistantQueryTool:
         mock_hass.states.async_entity_ids.return_value = ["sensor.temperature"]
 
         with pytest.raises(ValidationError) as exc_info:
-            await tool.execute(
-                entity_id="sensor.temperature",
-                history={"duration": "31d"}
-            )
+            await tool.execute(entity_id="sensor.temperature", history={"duration": "31d"})
 
         assert "exceeds maximum" in str(exc_info.value).lower()
 
@@ -573,34 +592,38 @@ class TestHomeAssistantQueryTool:
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.temperature"]
 
-        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.get_instance") as mock_get_instance:
-
+        with patch(
+            "homeassistant.components.recorder.util.async_migration_in_progress"
+        ) as mock_migration, patch(
+            "homeassistant.components.recorder.get_instance"
+        ) as mock_get_instance:
             mock_migration.return_value = False
             mock_get_instance.return_value = None  # Recorder not available
 
             with pytest.raises(ToolExecutionError) as exc_info:
-                await tool.execute(
-                    entity_id="sensor.temperature",
-                    history={"duration": "1h"}
-                )
+                await tool.execute(entity_id="sensor.temperature", history={"duration": "1h"})
 
             assert "recorder" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_query_history_skips_failed_entities(self, mock_hass, mock_history_states, mock_recorder_instance):
+    async def test_query_history_skips_failed_entities(
+        self, mock_hass, mock_history_states, mock_recorder_instance
+    ):
         """Test that history query continues if one entity fails."""
         tool = HomeAssistantQueryTool(mock_hass)
 
         mock_hass.states.async_entity_ids.return_value = [
             "sensor.temperature1",
-            "sensor.temperature2"
+            "sensor.temperature2",
         ]
 
-        with patch("homeassistant.components.recorder.util.async_migration_in_progress") as mock_migration, \
-             patch("homeassistant.components.recorder.get_instance") as mock_get_instance, \
-             patch("homeassistant.components.recorder.history.state_changes_during_period") as mock_history:
-
+        with patch(
+            "homeassistant.components.recorder.util.async_migration_in_progress"
+        ) as mock_migration, patch(
+            "homeassistant.components.recorder.get_instance"
+        ) as mock_get_instance, patch(
+            "homeassistant.components.recorder.history.state_changes_during_period"
+        ) as mock_history:
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
 
@@ -616,10 +639,7 @@ class TestHomeAssistantQueryTool:
 
             mock_history.side_effect = history_side_effect
 
-            result = await tool.execute(
-                entity_id="sensor.temperature*",
-                history={"duration": "1h"}
-            )
+            result = await tool.execute(entity_id="sensor.temperature*", history={"duration": "1h"})
 
             # Should succeed with one entity
             assert result["success"] is True
@@ -646,10 +666,7 @@ class TestHomeAssistantQueryTool:
         """Test finding entities with exact match."""
         tool = HomeAssistantQueryTool(mock_hass)
 
-        mock_hass.states.async_entity_ids.return_value = [
-            "light.living_room",
-            "light.bedroom"
-        ]
+        mock_hass.states.async_entity_ids.return_value = ["light.living_room", "light.bedroom"]
 
         matches = tool._find_matching_entities("light.living_room")
 
@@ -664,7 +681,7 @@ class TestHomeAssistantQueryTool:
         mock_hass.states.async_entity_ids.return_value = [
             "light.living_room",
             "light.bedroom",
-            "sensor.temperature"
+            "sensor.temperature",
         ]
 
         matches = tool._find_matching_entities("light.*")
@@ -679,9 +696,7 @@ class TestHomeAssistantQueryTool:
         """Test finding entities with no matches."""
         tool = HomeAssistantQueryTool(mock_hass)
 
-        mock_hass.states.async_entity_ids.return_value = [
-            "light.living_room"
-        ]
+        mock_hass.states.async_entity_ids.return_value = ["light.living_room"]
 
         matches = tool._find_matching_entities("switch.*")
 

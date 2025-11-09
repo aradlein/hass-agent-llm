@@ -1,10 +1,10 @@
 """Unit tests for the ToolRegistry and BaseTool."""
-import pytest
-from unittest.mock import AsyncMock, MagicMock
 from typing import Any
 
+import pytest
+
+from custom_components.home_agent.exceptions import ToolExecutionError, ValidationError
 from custom_components.home_agent.tools.registry import BaseTool, ToolRegistry
-from custom_components.home_agent.exceptions import ValidationError, ToolExecutionError
 
 
 class MockTool(BaseTool):
@@ -31,25 +31,15 @@ class MockTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "param1": {
-                    "type": "string",
-                    "description": "First parameter"
-                },
-                "param2": {
-                    "type": "integer",
-                    "description": "Second parameter"
-                }
+                "param1": {"type": "string", "description": "First parameter"},
+                "param2": {"type": "integer", "description": "Second parameter"},
             },
-            "required": ["param1"]
+            "required": ["param1"],
         }
 
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         """Execute the tool."""
-        return {
-            "success": True,
-            "message": "Mock execution successful",
-            "params": kwargs
-        }
+        return {"success": True, "message": "Mock execution successful", "params": kwargs}
 
 
 class FailingMockTool(BaseTool):
@@ -68,11 +58,7 @@ class FailingMockTool(BaseTool):
     @property
     def parameters(self) -> dict[str, Any]:
         """Return the tool parameter schema."""
-        return {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
+        return {"type": "object", "properties": {}, "required": []}
 
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         """Execute the tool (always fails)."""
@@ -281,9 +267,7 @@ class TestToolRegistry:
         registry.register(tool3)
 
         # Filter to only include tools with "include" in name
-        llm_tools = registry.get_tools_for_llm(
-            filter_fn=lambda t: "include" in t.name
-        )
+        llm_tools = registry.get_tools_for_llm(filter_fn=lambda t: "include" in t.name)
 
         assert len(llm_tools) == 2
         names = {tool["function"]["name"] for tool in llm_tools}
@@ -302,10 +286,7 @@ class TestToolRegistry:
         tool = MockTool(mock_hass)
         registry.register(tool)
 
-        result = await registry.execute_tool("mock_tool", {
-            "param1": "test_value",
-            "param2": 123
-        })
+        result = await registry.execute_tool("mock_tool", {"param1": "test_value", "param2": 123})
 
         assert result["success"] is True
         assert result["params"]["param1"] == "test_value"
@@ -361,10 +342,9 @@ class TestToolRegistry:
         registry.register(tool)
 
         # Should not raise an error
-        result = registry.validate_parameters("mock_tool", {
-            "param1": "required_value",
-            "param2": 42
-        })
+        result = registry.validate_parameters(
+            "mock_tool", {"param1": "required_value", "param2": 42}
+        )
 
         assert result is True
 
@@ -375,9 +355,7 @@ class TestToolRegistry:
         registry.register(tool)
 
         with pytest.raises(ValidationError) as exc_info:
-            registry.validate_parameters("mock_tool", {
-                "param2": 42  # Missing required param1
-            })
+            registry.validate_parameters("mock_tool", {"param2": 42})  # Missing required param1
 
         assert "Missing required parameters" in str(exc_info.value)
         assert "param1" in str(exc_info.value)
@@ -399,9 +377,7 @@ class TestToolRegistry:
         registry.register(tool)
 
         # Should pass with only required parameter
-        result = registry.validate_parameters("mock_tool", {
-            "param1": "required_value"
-        })
+        result = registry.validate_parameters("mock_tool", {"param1": "required_value"})
 
         assert result is True
 

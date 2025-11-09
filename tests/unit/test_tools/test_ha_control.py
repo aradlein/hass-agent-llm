@@ -1,15 +1,10 @@
 """Unit tests for the HomeAssistantControlTool."""
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.const import (
-    ATTR_ENTITY_ID,
-    SERVICE_TOGGLE,
-    SERVICE_TURN_OFF,
-    SERVICE_TURN_ON,
-)
 
-from custom_components.home_agent.tools.ha_control import HomeAssistantControlTool
+import pytest
+from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TOGGLE, SERVICE_TURN_OFF, SERVICE_TURN_ON
+from homeassistant.exceptions import HomeAssistantError
+
 from custom_components.home_agent.const import (
     ACTION_SET_VALUE,
     ACTION_TOGGLE,
@@ -22,6 +17,7 @@ from custom_components.home_agent.exceptions import (
     ToolExecutionError,
     ValidationError,
 )
+from custom_components.home_agent.tools.ha_control import HomeAssistantControlTool
 
 
 class TestHomeAssistantControlTool:
@@ -102,10 +98,7 @@ class TestHomeAssistantControlTool:
             # Mock service call
             mock_hass.services.async_call = AsyncMock()
 
-            result = await tool.execute(
-                action=ACTION_TURN_ON,
-                entity_id="light.living_room"
-            )
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="light.living_room")
 
             assert result["success"] is True
             assert result["entity_id"] == "light.living_room"
@@ -133,10 +126,7 @@ class TestHomeAssistantControlTool:
             mock_hass.states.get.return_value = sample_switch_state
             mock_hass.services.async_call = AsyncMock()
 
-            result = await tool.execute(
-                action=ACTION_TURN_OFF,
-                entity_id="switch.fan"
-            )
+            result = await tool.execute(action=ACTION_TURN_OFF, entity_id="switch.fan")
 
             assert result["success"] is True
             assert result["action"] == ACTION_TURN_OFF
@@ -159,10 +149,7 @@ class TestHomeAssistantControlTool:
             mock_hass.states.get.return_value = sample_light_state
             mock_hass.services.async_call = AsyncMock()
 
-            result = await tool.execute(
-                action=ACTION_TOGGLE,
-                entity_id="light.living_room"
-            )
+            result = await tool.execute(action=ACTION_TOGGLE, entity_id="light.living_room")
 
             assert result["success"] is True
             assert result["action"] == ACTION_TOGGLE
@@ -187,7 +174,7 @@ class TestHomeAssistantControlTool:
             result = await tool.execute(
                 action=ACTION_TURN_ON,
                 entity_id="light.living_room",
-                parameters={"brightness_pct": 50, "color_temp": 370}
+                parameters={"brightness_pct": 50, "color_temp": 370},
             )
 
             assert result["success"] is True
@@ -214,7 +201,7 @@ class TestHomeAssistantControlTool:
             result = await tool.execute(
                 action=ACTION_SET_VALUE,
                 entity_id="light.living_room",
-                parameters={"brightness_pct": 75}
+                parameters={"brightness_pct": 75},
             )
 
             assert result["success"] is True
@@ -239,7 +226,7 @@ class TestHomeAssistantControlTool:
             result = await tool.execute(
                 action=ACTION_SET_VALUE,
                 entity_id="climate.thermostat",
-                parameters={"temperature": 72}
+                parameters={"temperature": 72},
             )
 
             assert result["success"] is True
@@ -265,7 +252,7 @@ class TestHomeAssistantControlTool:
             result = await tool.execute(
                 action=ACTION_SET_VALUE,
                 entity_id="climate.thermostat",
-                parameters={"hvac_mode": "cool"}
+                parameters={"hvac_mode": "cool"},
             )
 
             assert result["success"] is True
@@ -302,10 +289,7 @@ class TestHomeAssistantControlTool:
         tool = HomeAssistantControlTool(mock_hass)
 
         with pytest.raises(ValidationError) as exc_info:
-            await tool.execute(
-                action="invalid_action",
-                entity_id="light.living_room"
-            )
+            await tool.execute(action="invalid_action", entity_id="light.living_room")
 
         assert "invalid action" in str(exc_info.value).lower()
 
@@ -315,15 +299,14 @@ class TestHomeAssistantControlTool:
         tool = HomeAssistantControlTool(mock_hass)
 
         with pytest.raises(ValidationError) as exc_info:
-            await tool.execute(
-                action=ACTION_TURN_ON,
-                entity_id="invalid_format"  # Missing dot
-            )
+            await tool.execute(action=ACTION_TURN_ON, entity_id="invalid_format")  # Missing dot
 
         assert "invalid entity_id format" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_entity_access_validation_allowed(self, mock_hass, exposed_entities, sample_light_state):
+    async def test_entity_access_validation_allowed(
+        self, mock_hass, exposed_entities, sample_light_state
+    ):
         """Test entity access validation when entity is allowed."""
         tool = HomeAssistantControlTool(mock_hass, exposed_entities)
 
@@ -336,10 +319,7 @@ class TestHomeAssistantControlTool:
             mock_hass.services.async_call = AsyncMock()
 
             # Should succeed - light.living_room is in exposed_entities
-            result = await tool.execute(
-                action=ACTION_TURN_ON,
-                entity_id="light.living_room"
-            )
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="light.living_room")
 
             assert result["success"] is True
 
@@ -350,8 +330,7 @@ class TestHomeAssistantControlTool:
 
         with pytest.raises(PermissionDenied) as exc_info:
             await tool.execute(
-                action=ACTION_TURN_ON,
-                entity_id="light.secret_room"  # Not in exposed_entities
+                action=ACTION_TURN_ON, entity_id="light.secret_room"  # Not in exposed_entities
             )
 
         assert "not accessible" in str(exc_info.value).lower()
@@ -371,10 +350,7 @@ class TestHomeAssistantControlTool:
             mock_hass.services.async_call = AsyncMock()
 
             # Should succeed even though entity is not in any list
-            result = await tool.execute(
-                action=ACTION_TURN_ON,
-                entity_id="light.any_entity"
-            )
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="light.any_entity")
 
             assert result["success"] is True
 
@@ -391,10 +367,7 @@ class TestHomeAssistantControlTool:
             mock_hass.states.get.return_value = None  # Not in state machine
 
             with pytest.raises(ValidationError) as exc_info:
-                await tool.execute(
-                    action=ACTION_TURN_ON,
-                    entity_id="light.nonexistent"
-                )
+                await tool.execute(action=ACTION_TURN_ON, entity_id="light.nonexistent")
 
             assert "does not exist" in str(exc_info.value).lower()
 
@@ -412,15 +385,14 @@ class TestHomeAssistantControlTool:
             mock_hass.services.async_call = AsyncMock()
 
             # Should still work
-            result = await tool.execute(
-                action=ACTION_TURN_ON,
-                entity_id="light.living_room"
-            )
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="light.living_room")
 
             assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_service_call_failure_raises_tool_execution_error(self, mock_hass, sample_light_state):
+    async def test_service_call_failure_raises_tool_execution_error(
+        self, mock_hass, sample_light_state
+    ):
         """Test that service call failure raises ToolExecutionError."""
         tool = HomeAssistantControlTool(mock_hass)
 
@@ -435,10 +407,7 @@ class TestHomeAssistantControlTool:
             )
 
             with pytest.raises(ToolExecutionError) as exc_info:
-                await tool.execute(
-                    action=ACTION_TURN_ON,
-                    entity_id="light.living_room"
-                )
+                await tool.execute(action=ACTION_TURN_ON, entity_id="light.living_room")
 
             assert "failed to execute" in str(exc_info.value).lower()
 
@@ -455,10 +424,7 @@ class TestHomeAssistantControlTool:
             mock_hass.states.get.return_value = sample_light_state
             mock_hass.services.async_call = AsyncMock()
 
-            result = await tool.execute(
-                action=ACTION_TURN_ON,
-                entity_id="light.living_room"
-            )
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="light.living_room")
 
             assert "attributes" in result
             assert "friendly_name" in result["attributes"]
@@ -477,10 +443,7 @@ class TestHomeAssistantControlTool:
             mock_hass.states.get.return_value = sample_climate_state
             mock_hass.services.async_call = AsyncMock()
 
-            result = await tool.execute(
-                action=ACTION_TURN_ON,
-                entity_id="climate.thermostat"
-            )
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="climate.thermostat")
 
             assert "attributes" in result
             assert "temperature" in result["attributes"]
@@ -490,11 +453,7 @@ class TestHomeAssistantControlTool:
         """Test building success messages."""
         tool = HomeAssistantControlTool(mock_hass)
 
-        message = tool._build_success_message(
-            ACTION_TURN_ON,
-            "light.living_room",
-            "on"
-        )
+        message = tool._build_success_message(ACTION_TURN_ON, "light.living_room", "on")
 
         assert "Living Room" in message
         assert "on" in message.lower()
@@ -558,7 +517,7 @@ class TestHomeAssistantControlTool:
             "color_temp": 370,
             "rgb_color": [255, 200, 150],
             "supported_features": 63,
-            "irrelevant_attr": "should not be included"
+            "irrelevant_attr": "should not be included",
         }
 
         relevant = tool._extract_relevant_attributes("light.living_room", attrs)
@@ -580,7 +539,7 @@ class TestHomeAssistantControlTool:
             "hvac_mode": "heat",
             "fan_mode": "auto",
             "supported_features": 91,
-            "irrelevant_attr": "should not be included"
+            "irrelevant_attr": "should not be included",
         }
 
         relevant = tool._extract_relevant_attributes("climate.thermostat", attrs)
@@ -604,10 +563,7 @@ class TestHomeAssistantControlTool:
             mock_hass.states.get.return_value = sample_light_state
             mock_hass.services.async_call = AsyncMock()
 
-            await tool.execute(
-                action=ACTION_TURN_ON,
-                entity_id="light.living_room"
-            )
+            await tool.execute(action=ACTION_TURN_ON, entity_id="light.living_room")
 
             # Verify blocking=True was passed
             call_kwargs = mock_hass.services.async_call.call_args[1]

@@ -99,14 +99,14 @@ class MemoryManager:
         )
 
         # State
-        self._store = Store(hass, MEMORY_STORAGE_VERSION, MEMORY_STORAGE_KEY)
+        self._store: Store[dict[str, Any]] = Store(hass, MEMORY_STORAGE_VERSION, MEMORY_STORAGE_KEY)
         self._memories: dict[str, dict[str, Any]] = {}
-        self._collection = None
+        self._collection: Any = None
         self._chromadb_available = False
         self._save_lock = asyncio.Lock()
-        self._save_task = None
+        self._save_task: asyncio.Task[None] | None = None
         self._pending_save = False
-        self._cleanup_task = None
+        self._cleanup_task: asyncio.Task[None] | None = None
 
         _LOGGER.info(
             "Memory Manager initialized (max=%d, collection=%s)",
@@ -280,6 +280,15 @@ class MemoryManager:
                     content[:50],
                 )
 
+            # Ensure metadata has required fields
+            memory_metadata: dict[str, Any] = metadata or {}
+            if "entities_involved" not in memory_metadata:
+                memory_metadata["entities_involved"] = []
+            if "topics" not in memory_metadata:
+                memory_metadata["topics"] = []
+            if "extraction_method" not in memory_metadata:
+                memory_metadata["extraction_method"] = "manual"
+
             memory = {
                 "id": memory_id,
                 "type": memory_type,
@@ -288,18 +297,10 @@ class MemoryManager:
                 "extracted_at": current_time,
                 "last_accessed": current_time,
                 "importance": importance,
-                "metadata": metadata or {},
+                "metadata": memory_metadata,
                 "expires_at": expires_at,
                 "is_transient": is_transient,
             }
-
-            # Ensure metadata has required fields
-            if "entities_involved" not in memory["metadata"]:
-                memory["metadata"]["entities_involved"] = []
-            if "topics" not in memory["metadata"]:
-                memory["metadata"]["topics"] = []
-            if "extraction_method" not in memory["metadata"]:
-                memory["metadata"]["extraction_method"] = "manual"
 
             # Store in memory
             self._memories[memory_id] = memory
@@ -382,6 +383,10 @@ class MemoryManager:
             n_results = min(top_k * 2, len(self._memories))
 
             # Query ChromaDB
+            if self._collection is None:
+                _LOGGER.warning("ChromaDB collection not initialized")
+                return []
+
             results = await self.hass.async_add_executor_job(
                 lambda: self._collection.query(
                     query_embeddings=[embedding],
@@ -444,7 +449,7 @@ class MemoryManager:
             del self._memories[memory_id]
 
             # Remove from ChromaDB
-            if self._chromadb_available:
+            if self._chromadb_available and self._collection is not None:
                 await self.hass.async_add_executor_job(
                     lambda: self._collection.delete(ids=[memory_id])
                 )
@@ -504,7 +509,7 @@ class MemoryManager:
             self._memories.clear()
 
             # Clear ChromaDB
-            if self._chromadb_available:
+            if self._chromadb_available and self._collection is not None:
                 await self.hass.async_add_executor_job(lambda: self._collection.delete(where={}))
 
             # Save to store
@@ -568,6 +573,7 @@ class MemoryManager:
             )
             self._collection = await self.hass.async_add_executor_job(get_collection)
             _LOGGER.debug("Memory ChromaDB collection ready")
+            return None
 
     def _calculate_expires_at(self, memory_type: str, current_time: float) -> float | None:
         """Calculate expiration timestamp for a memory based on its type.
@@ -590,7 +596,7 @@ class MemoryManager:
         if ttl is None:
             return None
 
-        return current_time + ttl
+        return float(current_time + ttl)
 
     def _is_transient_state(self, content: str) -> bool:
         """Detect if content represents a transient state.
@@ -641,6 +647,9 @@ class MemoryManager:
             embedding = await self.vector_db_manager._embed_text(content)
 
             # Query ChromaDB for similar memories (check top 5 to catch more duplicates)
+            if self._collection is None:
+                return None
+
             results = await self.hass.async_add_executor_job(
                 lambda: self._collection.query(
                     query_embeddings=[embedding],
@@ -670,7 +679,7 @@ class MemoryManager:
                     )
 
                     if similarity >= self.dedup_threshold:
-                        duplicate_id = results["ids"][0][i]
+                        duplicate_id: str = results["ids"][0][i]
                         _LOGGER.info(
                             "Duplicate found with similarity=%.3f (threshold=%.3f)",
                             similarity,
@@ -710,6 +719,10 @@ class MemoryManager:
                 metadata["conversation_id"] = memory["source_conversation_id"]
 
             # Add to collection
+            if self._collection is None:
+                _LOGGER.warning("ChromaDB collection not initialized, skipping upsert")
+                return
+
             await self.hass.async_add_executor_job(
                 lambda: self._collection.upsert(
                     ids=[memory["id"]],

@@ -1,11 +1,11 @@
 """Unit tests for ServiceCustomTool execution."""
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from homeassistant.core import ServiceNotFound
 
-from custom_components.home_agent.tools.custom import ServiceCustomTool
 from custom_components.home_agent.exceptions import ValidationError
+from custom_components.home_agent.tools.custom import ServiceCustomTool
 
 
 class TestServiceCustomToolExecution:
@@ -17,17 +17,12 @@ class TestServiceCustomToolExecution:
         config = {
             "name": "trigger_morning_routine",
             "description": "Trigger the morning routine automation",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            },
+            "parameters": {"type": "object", "properties": {}},
             "handler": {
                 "type": "service",
                 "service": "automation.trigger",
-                "data": {
-                    "entity_id": "automation.morning_routine"
-                }
-            }
+                "data": {"entity_id": "automation.morning_routine"},
+            },
         }
         # Mock hass.services.has_service to return True
         mock_hass.services.has_service = MagicMock(return_value=True)
@@ -41,19 +36,13 @@ class TestServiceCustomToolExecution:
             "description": "Send arrival notification",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "person": {"type": "string"},
-                    "location": {"type": "string"}
-                }
+                "properties": {"person": {"type": "string"}, "location": {"type": "string"}},
             },
             "handler": {
                 "type": "service",
                 "service": "script.arrival_notification",
-                "data": {
-                    "person": "{{ person }}",
-                    "location": "{{ location }}"
-                }
-            }
+                "data": {"person": "{{ person }}", "location": "{{ location }}"},
+            },
         }
         mock_hass.services.has_service = MagicMock(return_value=True)
         return ServiceCustomTool(mock_hass, config)
@@ -64,17 +53,12 @@ class TestServiceCustomToolExecution:
         config = {
             "name": "set_movie_scene",
             "description": "Activate movie watching scene",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            },
+            "parameters": {"type": "object", "properties": {}},
             "handler": {
                 "type": "service",
                 "service": "scene.turn_on",
-                "target": {
-                    "entity_id": "scene.movie_time"
-                }
-            }
+                "target": {"entity_id": "scene.movie_time"},
+            },
         }
         mock_hass.services.has_service = MagicMock(return_value=True)
         return ServiceCustomTool(mock_hass, config)
@@ -85,19 +69,12 @@ class TestServiceCustomToolExecution:
         config = {
             "name": "turn_on_room_lights",
             "description": "Turn on lights in a specific room",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "room": {"type": "string"}
-                }
-            },
+            "parameters": {"type": "object", "properties": {"room": {"type": "string"}}},
             "handler": {
                 "type": "service",
                 "service": "light.turn_on",
-                "target": {
-                    "area_id": "{{ room }}"
-                }
-            }
+                "target": {"area_id": "{{ room }}"},
+            },
         }
         mock_hass.services.has_service = MagicMock(return_value=True)
         return ServiceCustomTool(mock_hass, config)
@@ -115,7 +92,7 @@ class TestServiceCustomToolExecution:
             service="trigger",
             service_data={"entity_id": "automation.morning_routine"},
             target=None,
-            blocking=True
+            blocking=True,
         )
 
         assert result["success"] is True
@@ -130,7 +107,9 @@ class TestServiceCustomToolExecution:
         with patch("custom_components.home_agent.tools.custom.Template") as mock_template_class:
             mock_template = MagicMock()
             mock_template.async_render = MagicMock(
-                side_effect=lambda x: x.get("person", "John") if "person" in x else x.get("location", "Home")
+                side_effect=lambda x: x.get("person", "John")
+                if "person" in x
+                else x.get("location", "Home")
             )
             mock_template_class.return_value = mock_template
 
@@ -160,7 +139,9 @@ class TestServiceCustomToolExecution:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_service_call_with_templated_target(self, light_tool_with_template_target, mock_hass):
+    async def test_service_call_with_templated_target(
+        self, light_tool_with_template_target, mock_hass
+    ):
         """Test service call with templated target."""
         mock_hass.services.async_call = AsyncMock()
 
@@ -195,9 +176,7 @@ class TestServiceCustomToolExecution:
     @pytest.mark.asyncio
     async def test_service_call_exception(self, simple_automation_tool, mock_hass):
         """Test handling of general exceptions during service call."""
-        mock_hass.services.async_call = AsyncMock(
-            side_effect=Exception("Service execution failed")
-        )
+        mock_hass.services.async_call = AsyncMock(side_effect=Exception("Service execution failed"))
 
         result = await simple_automation_tool.execute()
 
@@ -224,17 +203,12 @@ class TestServiceCustomToolExecution:
         config = {
             "name": "turn_off_lights",
             "description": "Turn off multiple lights",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            },
+            "parameters": {"type": "object", "properties": {}},
             "handler": {
                 "type": "service",
                 "service": "light.turn_off",
-                "target": {
-                    "entity_id": ["light.bedroom", "light.kitchen"]
-                }
-            }
+                "target": {"entity_id": ["light.bedroom", "light.kitchen"]},
+            },
         }
         mock_hass.services.has_service = MagicMock(return_value=True)
         mock_hass.services.async_call = AsyncMock()
@@ -253,17 +227,12 @@ class TestServiceCustomToolExecution:
         config = {
             "name": "turn_on_device",
             "description": "Turn on a device",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            },
+            "parameters": {"type": "object", "properties": {}},
             "handler": {
                 "type": "service",
                 "service": "homeassistant.turn_on",
-                "target": {
-                    "device_id": "device123"
-                }
-            }
+                "target": {"device_id": "device123"},
+            },
         }
         mock_hass.services.has_service = MagicMock(return_value=True)
         mock_hass.services.async_call = AsyncMock()
@@ -282,19 +251,16 @@ class TestServiceCustomToolExecution:
         config = {
             "name": "set_climate",
             "description": "Set climate temperature",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            },
+            "parameters": {"type": "object", "properties": {}},
             "handler": {
                 "type": "service",
                 "service": "climate.set_temperature",
                 "data": {
                     "entity_id": "climate.living_room",
                     "temperature": 72,
-                    "hvac_mode": "heat"
-                }
-            }
+                    "hvac_mode": "heat",
+                },
+            },
         }
         mock_hass.services.has_service = MagicMock(return_value=True)
         mock_hass.services.async_call = AsyncMock()
@@ -320,10 +286,7 @@ class TestServiceCustomToolValidation:
             "name": "invalid_tool",
             "description": "Tool without service",
             "parameters": {},
-            "handler": {
-                "type": "service",
-                "data": {}
-            }
+            "handler": {"type": "service", "data": {}},
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -338,10 +301,7 @@ class TestServiceCustomToolValidation:
             "name": "invalid_tool",
             "description": "Tool with invalid service",
             "parameters": {},
-            "handler": {
-                "type": "service",
-                "service": "invalid_service"
-            }
+            "handler": {"type": "service", "service": "invalid_service"},
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -356,10 +316,7 @@ class TestServiceCustomToolValidation:
             "name": "invalid_tool",
             "description": "Tool with invalid service",
             "parameters": {},
-            "handler": {
-                "type": "service",
-                "service": ".invalid"
-            }
+            "handler": {"type": "service", "service": ".invalid"},
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -374,10 +331,7 @@ class TestServiceCustomToolValidation:
             "name": "nonexistent_service_tool",
             "description": "Tool with nonexistent service",
             "parameters": {},
-            "handler": {
-                "type": "service",
-                "service": "fake.nonexistent"
-            }
+            "handler": {"type": "service", "service": "fake.nonexistent"},
         }
 
         # Mock service not found
@@ -400,22 +354,14 @@ class TestServiceCustomToolTemplateRendering:
             "description": "Service with templates",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "message": {"type": "string"},
-                    "target": {"type": "string"}
-                }
+                "properties": {"message": {"type": "string"}, "target": {"type": "string"}},
             },
             "handler": {
                 "type": "service",
                 "service": "notify.mobile_app",
-                "data": {
-                    "message": "{{ message }}",
-                    "title": "Notification"
-                },
-                "target": {
-                    "entity_id": "notify.{{ target }}"
-                }
-            }
+                "data": {"message": "{{ message }}", "title": "Notification"},
+                "target": {"entity_id": "notify.{{ target }}"},
+            },
         }
         mock_hass.services.has_service = MagicMock(return_value=True)
         return ServiceCustomTool(mock_hass, config)
@@ -430,20 +376,14 @@ class TestServiceCustomToolTemplateRendering:
             mock_template.async_render = MagicMock(return_value="Hello World")
             mock_template_class.return_value = mock_template
 
-            result = await tool_with_templates._render_template(
-                "{{ message }}",
-                variables
-            )
+            result = await tool_with_templates._render_template("{{ message }}", variables)
 
         assert result == "Hello World"
 
     @pytest.mark.asyncio
     async def test_render_template_no_template(self, tool_with_templates):
         """Test rendering string without template."""
-        result = await tool_with_templates._render_template(
-            "static_string",
-            {}
-        )
+        result = await tool_with_templates._render_template("static_string", {})
 
         assert result == "static_string"
 
@@ -476,16 +416,8 @@ class TestServiceCustomToolProperties:
         config = {
             "name": "test_service",
             "description": "Test service tool",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "param1": {"type": "string"}
-                }
-            },
-            "handler": {
-                "type": "service",
-                "service": "test.service"
-            }
+            "parameters": {"type": "object", "properties": {"param1": {"type": "string"}}},
+            "handler": {"type": "service", "service": "test.service"},
         }
         mock_hass.services.has_service = MagicMock(return_value=True)
         return ServiceCustomTool(mock_hass, config)

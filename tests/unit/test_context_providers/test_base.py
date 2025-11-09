@@ -4,10 +4,10 @@ This module tests the abstract base class for context providers,
 including helper methods and the abstract interface.
 """
 
-import pytest
-from unittest.mock import MagicMock, Mock
+from unittest.mock import Mock
 
-from homeassistant.core import HomeAssistant, State
+import pytest
+from homeassistant.core import State
 
 from custom_components.home_agent.context_providers.base import ContextProvider
 
@@ -57,8 +57,10 @@ class TestContextProviderAbstractMethod:
 
     def test_concrete_implementation_required(self, mock_hass):
         """Test that concrete class must implement get_context."""
+
         class IncompleteProvider(ContextProvider):
             """Provider missing get_context implementation."""
+
             pass
 
         with pytest.raises(TypeError):
@@ -80,10 +82,7 @@ class TestFormatEntityState:
         """Test formatting basic entity state."""
         provider = ConcreteContextProvider(mock_hass, {})
 
-        result = provider._format_entity_state(
-            entity_id="light.living_room",
-            state="on"
-        )
+        result = provider._format_entity_state(entity_id="light.living_room", state="on")
 
         assert result["entity_id"] == "light.living_room"
         assert result["state"] == "on"
@@ -92,15 +91,10 @@ class TestFormatEntityState:
     def test_format_entity_state_with_attributes(self, mock_hass):
         """Test formatting entity state with attributes."""
         provider = ConcreteContextProvider(mock_hass, {})
-        attributes = {
-            "brightness": 128,
-            "color_temp": 370
-        }
+        attributes = {"brightness": 128, "color_temp": 370}
 
         result = provider._format_entity_state(
-            entity_id="light.living_room",
-            state="on",
-            attributes=attributes
+            entity_id="light.living_room", state="on", attributes=attributes
         )
 
         assert result["entity_id"] == "light.living_room"
@@ -112,10 +106,7 @@ class TestFormatEntityState:
         """Test formatting with None state."""
         provider = ConcreteContextProvider(mock_hass, {})
 
-        result = provider._format_entity_state(
-            entity_id="sensor.temperature",
-            state=None
-        )
+        result = provider._format_entity_state(entity_id="sensor.temperature", state=None)
 
         assert result["entity_id"] == "sensor.temperature"
         assert result["state"] == "None"
@@ -124,10 +115,7 @@ class TestFormatEntityState:
         """Test formatting with numeric state."""
         provider = ConcreteContextProvider(mock_hass, {})
 
-        result = provider._format_entity_state(
-            entity_id="sensor.temperature",
-            state=72.5
-        )
+        result = provider._format_entity_state(entity_id="sensor.temperature", state=72.5)
 
         assert result["entity_id"] == "sensor.temperature"
         assert result["state"] == "72.5"
@@ -137,9 +125,7 @@ class TestFormatEntityState:
         provider = ConcreteContextProvider(mock_hass, {})
 
         result = provider._format_entity_state(
-            entity_id="switch.outlet",
-            state="off",
-            attributes={}
+            entity_id="switch.outlet", state="off", attributes={}
         )
 
         assert result["entity_id"] == "switch.outlet"
@@ -158,10 +144,7 @@ class TestGetEntityState:
         state = Mock(spec=State)
         state.entity_id = "light.living_room"
         state.state = "on"
-        state.attributes = {
-            "brightness": 128,
-            "friendly_name": "Living Room Light"
-        }
+        state.attributes = {"brightness": 128, "friendly_name": "Living Room Light"}
         mock_hass.states.get.return_value = state
 
         result = provider._get_entity_state("light.living_room")
@@ -194,13 +177,12 @@ class TestGetEntityState:
             "brightness": 128,
             "color_temp": 370,
             "friendly_name": "Living Room Light",
-            "other_attr": "value"
+            "other_attr": "value",
         }
         mock_hass.states.get.return_value = state
 
         result = provider._get_entity_state(
-            "light.living_room",
-            attribute_filter=["brightness", "color_temp"]
+            "light.living_room", attribute_filter=["brightness", "color_temp"]
         )
 
         assert result is not None
@@ -219,10 +201,7 @@ class TestGetEntityState:
         state.attributes = {"unit": "°F"}
         mock_hass.states.get.return_value = state
 
-        result = provider._get_entity_state(
-            "sensor.temperature",
-            attribute_filter=[]
-        )
+        result = provider._get_entity_state("sensor.temperature", attribute_filter=[])
 
         assert result is not None
         assert result["attributes"] == {}
@@ -253,8 +232,7 @@ class TestGetEntityState:
         mock_hass.states.get.return_value = state
 
         result = provider._get_entity_state(
-            "light.living_room",
-            attribute_filter=["nonexistent", "brightness"]
+            "light.living_room", attribute_filter=["nonexistent", "brightness"]
         )
 
         assert result is not None
@@ -294,7 +272,7 @@ class TestGetEntitiesMatchingPattern:
             "light.living_room",
             "light.bedroom",
             "sensor.temperature",
-            "switch.outlet"
+            "switch.outlet",
         ]
 
         result = provider._get_entities_matching_pattern("light.*")
@@ -311,7 +289,7 @@ class TestGetEntitiesMatchingPattern:
             "sensor.living_room_temperature",
             "sensor.bedroom_temperature",
             "sensor.living_room_humidity",
-            "light.living_room"
+            "light.living_room",
         ]
 
         result = provider._get_entities_matching_pattern("sensor.*_temperature")
@@ -324,10 +302,7 @@ class TestGetEntitiesMatchingPattern:
     def test_get_entities_wildcard_no_matches(self, mock_hass):
         """Test wildcard pattern with no matches."""
         provider = ConcreteContextProvider(mock_hass, {})
-        mock_hass.states.async_entity_ids.return_value = [
-            "light.living_room",
-            "sensor.temperature"
-        ]
+        mock_hass.states.async_entity_ids.return_value = ["light.living_room", "sensor.temperature"]
 
         result = provider._get_entities_matching_pattern("switch.*")
 
@@ -336,11 +311,7 @@ class TestGetEntitiesMatchingPattern:
     def test_get_entities_wildcard_all(self, mock_hass):
         """Test getting all entities with full wildcard."""
         provider = ConcreteContextProvider(mock_hass, {})
-        all_entities = [
-            "light.living_room",
-            "sensor.temperature",
-            "switch.outlet"
-        ]
+        all_entities = ["light.living_room", "sensor.temperature", "switch.outlet"]
         mock_hass.states.async_entity_ids.return_value = all_entities
 
         result = provider._get_entities_matching_pattern("*")
@@ -354,7 +325,7 @@ class TestGetEntitiesMatchingPattern:
         mock_hass.states.async_entity_ids.return_value = [
             "sensor.living_room_temp",
             "sensor.bedroom_temp",
-            "sensor.living_room_humidity"
+            "sensor.living_room_humidity",
         ]
 
         result = provider._get_entities_matching_pattern("sensor.*_temp")
@@ -370,7 +341,7 @@ class TestGetEntitiesMatchingPattern:
             "binary_sensor.door_1",
             "binary_sensor.door_2",
             "binary_sensor.window_1",
-            "sensor.door_1"
+            "sensor.door_1",
         ]
 
         result = provider._get_entities_matching_pattern("binary_sensor.door_*")
@@ -413,10 +384,7 @@ class TestContextProviderIntegration:
         """Test complete workflow for getting multiple entities via wildcard."""
         provider = ConcreteContextProvider(mock_hass, {})
 
-        mock_hass.states.async_entity_ids.return_value = [
-            "light.living_room",
-            "light.bedroom"
-        ]
+        mock_hass.states.async_entity_ids.return_value = ["light.living_room", "light.bedroom"]
 
         # Mock individual entity states
         light1 = Mock(spec=State)

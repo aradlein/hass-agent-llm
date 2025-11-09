@@ -9,9 +9,13 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, Sequence, cast
 
 from homeassistant.core import HomeAssistant
+
+if TYPE_CHECKING:
+    from chromadb.api import ClientAPI
+    from chromadb.api.models.Collection import Collection
 
 from ..const import (
     CONF_OPENAI_API_KEY,
@@ -70,9 +74,7 @@ class VectorDBContextProvider(ContextProvider):
 
         self.host = config.get(CONF_VECTOR_DB_HOST, DEFAULT_VECTOR_DB_HOST)
         self.port = config.get(CONF_VECTOR_DB_PORT, DEFAULT_VECTOR_DB_PORT)
-        self.collection_name = config.get(
-            CONF_VECTOR_DB_COLLECTION, DEFAULT_VECTOR_DB_COLLECTION
-        )
+        self.collection_name = config.get(CONF_VECTOR_DB_COLLECTION, DEFAULT_VECTOR_DB_COLLECTION)
         self.embedding_model = config.get(
             CONF_VECTOR_DB_EMBEDDING_MODEL, DEFAULT_VECTOR_DB_EMBEDDING_MODEL
         )
@@ -88,9 +90,9 @@ class VectorDBContextProvider(ContextProvider):
             CONF_VECTOR_DB_SIMILARITY_THRESHOLD, DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD
         )
 
-        self._client = None
-        self._collection = None
-        self._embedding_cache = {}
+        self._client: ClientAPI | None = None
+        self._collection: Collection | None = None
+        self._embedding_cache: dict[str, list[float]] = {}
 
         _LOGGER.info(
             "Vector DB provider initialized (host=%s:%s, collection=%s)",
@@ -124,9 +126,7 @@ class VectorDBContextProvider(ContextProvider):
                     entity_state = self._get_entity_state(entity_id)
                     if entity_state:
                         # Add available services for this entity
-                        entity_state["available_services"] = self._get_entity_services(
-                            entity_id
-                        )
+                        entity_state["available_services"] = self._get_entity_services(entity_id)
                         entities.append(entity_state)
                 except Exception as err:
                     _LOGGER.warning("Failed to get state for %s: %s", entity_id, err)
@@ -146,22 +146,24 @@ class VectorDBContextProvider(ContextProvider):
             try:
                 # Create ChromaDB client in executor to avoid blocking the event loop
                 # ChromaDB's HttpClient does SSL setup and file I/O during init
-                self._client = await self.hass.async_add_executor_job(
+                from functools import partial
+
+                create_client = partial(
                     chromadb.HttpClient,
-                    self.host,
-                    self.port,
+                    host=self.host,
+                    port=self.port,
                 )
+                self._client = await self.hass.async_add_executor_job(create_client)
                 _LOGGER.debug("ChromaDB client connected")
             except Exception as err:
-                raise ContextInjectionError(
-                    f"Failed to connect to ChromaDB: {err}"
-                ) from err
+                raise ContextInjectionError(f"Failed to connect to ChromaDB: {err}") from err
 
         if self._collection is None:
             try:
                 # Collection operations should also be in executor as they may do I/O
                 from functools import partial
 
+                assert self._client is not None  # Type narrowing for mypy
                 get_collection = partial(
                     self._client.get_or_create_collection,
                     name=self.collection_name,
@@ -170,9 +172,7 @@ class VectorDBContextProvider(ContextProvider):
                 self._collection = await self.hass.async_add_executor_job(get_collection)
                 _LOGGER.debug("ChromaDB collection ready")
             except Exception as err:
-                raise ContextInjectionError(
-                    f"Failed to access collection: {err}"
-                ) from err
+                raise ContextInjectionError(f"Failed to access collection: {err}") from err
 
     async def _embed_query(self, text: str) -> list[float]:
         """Embed text using configured embedding model."""
@@ -181,6 +181,7 @@ class VectorDBContextProvider(ContextProvider):
             return self._embedding_cache[cache_key]
 
         try:
+            embedding: list[float]
             if self.embedding_provider == EMBEDDING_PROVIDER_OPENAI:
                 embedding = await self._embed_with_openai(text)
             elif self.embedding_provider == EMBEDDING_PROVIDER_OLLAMA:
@@ -205,20 +206,21 @@ class VectorDBContextProvider(ContextProvider):
 
         if not self.openai_api_key:
             raise ContextInjectionError(
-                "OpenAI API key not configured. "
-                "Please configure it in Vector DB settings."
+                "OpenAI API key not configured. " "Please configure it in Vector DB settings."
             )
 
-        # Set API key for OpenAI client
-        openai.api_key = self.openai_api_key
+        # Create OpenAI client with API key
+        client = openai.OpenAI(api_key=self.openai_api_key)
 
+        # Use the new API for embeddings
         response = await self.hass.async_add_executor_job(
-            lambda: openai.Embedding.create(
+            lambda: client.embeddings.create(
                 model=self.embedding_model,
                 input=text,
             )
         )
-        return response["data"][0]["embedding"]
+        embedding: list[float] = response.data[0].embedding
+        return embedding
 
     async def _embed_with_ollama(self, text: str) -> list[float]:
         """Generate embedding using Ollama API."""
@@ -229,46 +231,59 @@ class VectorDBContextProvider(ContextProvider):
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                async with session.post(
+                    url, json=payload, timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         raise ContextInjectionError(
                             f"Ollama API error {response.status}: {error_text}"
                         )
                     result = await response.json()
-                    return result["embedding"]
+                    embedding: list[float] = result["embedding"]
+                    return embedding
         except aiohttp.ClientError as err:
             raise ContextInjectionError(
                 f"Failed to connect to Ollama at {self.embedding_base_url}: {err}"
             ) from err
 
-    async def _query_vector_db(
-        self, embedding: list[float], top_k: int
-    ) -> list[dict[str, Any]]:
+    async def _query_vector_db(self, embedding: list[float], top_k: int) -> list[dict[str, Any]]:
         """Query ChromaDB with embedding vector."""
         if self._collection is None:
             raise ContextInjectionError("Collection not initialized")
 
         try:
+            # Type narrowing assertion for mypy
+            assert self._collection is not None
+            collection = self._collection
+
+            # Cast to list[Sequence[float]] to satisfy chromadb's type signature
+            query_embeddings = cast(list[Sequence[float]], [embedding])
+
             results = await self.hass.async_add_executor_job(
-                lambda: self._collection.query(
-                    query_embeddings=[embedding],
+                lambda: collection.query(
+                    query_embeddings=query_embeddings,
                     n_results=top_k,
                 )
             )
 
-            parsed_results = []
+            parsed_results: list[dict[str, Any]] = []
             if results and "ids" in results and results["ids"]:
-                ids = results["ids"][0]
-                distances = results.get("distances", [[]])[0]
-
-                for i, entity_id in enumerate(ids):
-                    parsed_results.append(
-                        {
-                            "entity_id": entity_id,
-                            "distance": distances[i] if i < len(distances) else 0,
-                        }
+                ids_list = results["ids"]
+                if ids_list and len(ids_list) > 0:
+                    ids = ids_list[0]
+                    distances_list: Any = results.get("distances", [[]])
+                    distances = (
+                        distances_list[0] if distances_list and len(distances_list) > 0 else []
                     )
+
+                    for i, entity_id in enumerate(ids):
+                        parsed_results.append(
+                            {
+                                "entity_id": entity_id,
+                                "distance": distances[i] if i < len(distances) else 0,
+                            }
+                        )
 
             return parsed_results
 

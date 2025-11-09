@@ -10,13 +10,17 @@ import asyncio
 import hashlib
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any, Callable, Sequence, cast
 
 from homeassistant.components import conversation as ha_conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.helpers.event import async_track_time_interval
+
+if TYPE_CHECKING:
+    from chromadb.api import ClientAPI
+    from chromadb.api.models.Collection import Collection
 
 from .const import (
     CONF_EMBEDDING_KEEP_ALIVE,
@@ -100,12 +104,12 @@ class VectorDBManager:
         self.openai_api_key = config.get(CONF_OPENAI_API_KEY, "")
 
         # State
-        self._client = None
-        self._collection = None
-        self._embedding_cache = {}
+        self._client: ClientAPI | None = None
+        self._collection: Collection | None = None
+        self._embedding_cache: dict[str, list[float]] = {}
         self._indexing_lock = asyncio.Lock()
-        self._state_listener = None
-        self._maintenance_listener = None
+        self._state_listener: Callable[[], None] | None = None
+        self._maintenance_listener: Callable[[], None] | None = None
 
         _LOGGER.info(
             "Vector DB Manager initialized (host=%s:%s, collection=%s)",
@@ -255,10 +259,15 @@ class VectorDBManager:
             }
 
             # Add to collection
+            # Type narrowing assertion for mypy
+            assert self._collection is not None
+            collection = self._collection
+            # Cast to list[Sequence[float]] to satisfy chromadb's type signature
+            embeddings = cast(list[Sequence[float]], [embedding])
             await self.hass.async_add_executor_job(
-                lambda: self._collection.upsert(
+                lambda: collection.upsert(
                     ids=[entity_id],
-                    embeddings=[embedding],
+                    embeddings=embeddings,
                     metadatas=[metadata],
                     documents=[text],
                 )
@@ -284,7 +293,10 @@ class VectorDBManager:
         try:
             await self._ensure_initialized()
 
-            await self.hass.async_add_executor_job(lambda: self._collection.delete(ids=[entity_id]))
+            # Type narrowing assertion for mypy
+            assert self._collection is not None
+            collection = self._collection
+            await self.hass.async_add_executor_job(lambda: collection.delete(ids=[entity_id]))
 
             _LOGGER.debug("Removed entity from index: %s", entity_id)
 
@@ -296,7 +308,7 @@ class VectorDBManager:
             )
 
     @callback
-    def _async_handle_state_change(self, event: Event) -> None:
+    def _async_handle_state_change(self, event: Event[Any]) -> None:
         """Handle entity state changes for incremental indexing.
 
         Args:
@@ -325,7 +337,7 @@ class VectorDBManager:
                 err,
             )
 
-    async def _async_run_maintenance(self, _) -> None:
+    async def _async_run_maintenance(self, _: Any) -> None:
         """Run periodic maintenance tasks.
 
         Removes embeddings for entities that no longer exist.
@@ -334,7 +346,10 @@ class VectorDBManager:
             _LOGGER.debug("Running vector DB maintenance")
 
             # Get all indexed entity IDs
-            result = await self.hass.async_add_executor_job(lambda: self._collection.get())
+            # Type narrowing assertion for mypy
+            assert self._collection is not None
+            collection = self._collection
+            result = await self.hass.async_add_executor_job(lambda: collection.get())
 
             if not result or "ids" not in result:
                 return
@@ -446,11 +461,14 @@ class VectorDBManager:
             try:
                 # Create ChromaDB client in executor to avoid blocking the event loop
                 # ChromaDB's HttpClient does SSL setup and file I/O during init
-                self._client = await self.hass.async_add_executor_job(
+                from functools import partial
+
+                create_client = partial(
                     chromadb.HttpClient,
-                    self.host,
-                    self.port,
+                    host=self.host,
+                    port=self.port,
                 )
+                self._client = await self.hass.async_add_executor_job(create_client)
                 _LOGGER.debug("ChromaDB client connected to %s:%s", self.host, self.port)
             except Exception as err:
                 raise ContextInjectionError(f"Failed to connect to ChromaDB: {err}") from err
@@ -460,6 +478,7 @@ class VectorDBManager:
                 # Collection operations should also be in executor as they may do I/O
                 from functools import partial
 
+                assert self._client is not None  # Type narrowing for mypy
                 get_collection = partial(
                     self._client.get_or_create_collection,
                     name=self.collection_name,
@@ -484,6 +503,7 @@ class VectorDBManager:
             return self._embedding_cache[cache_key]
 
         try:
+            embedding: list[float]
             if self.embedding_provider == EMBEDDING_PROVIDER_OPENAI:
                 embedding = await self._embed_with_openai(text)
             elif self.embedding_provider == EMBEDDING_PROVIDER_OLLAMA:
@@ -518,16 +538,18 @@ class VectorDBManager:
                 "OpenAI API key not configured. " "Please configure it in Vector DB settings."
             )
 
-        # Set API key for OpenAI client
-        openai.api_key = self.openai_api_key
+        # Create OpenAI client with API key
+        client = openai.OpenAI(api_key=self.openai_api_key)
 
+        # Use the new API for embeddings
         response = await self.hass.async_add_executor_job(
-            lambda: openai.Embedding.create(
+            lambda: client.embeddings.create(
                 model=self.embedding_model,
                 input=text,
             )
         )
-        return response["data"][0]["embedding"]
+        embedding: list[float] = response.data[0].embedding
+        return embedding
 
     async def _embed_with_ollama(self, text: str) -> list[float]:
         """Generate embedding using Ollama API.
@@ -558,7 +580,8 @@ class VectorDBManager:
                             f"Ollama API error {response.status}: {error_text}"
                         )
                     result = await response.json()
-                    return result["embedding"]
+                    embedding: list[float] = result["embedding"]
+                    return embedding
         except aiohttp.ClientError as err:
             raise ContextInjectionError(
                 f"Failed to connect to Ollama at {self.embedding_base_url}: {err}"

@@ -9,12 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.const import (
-    ATTR_ENTITY_ID,
-    SERVICE_TOGGLE,
-    SERVICE_TURN_OFF,
-    SERVICE_TURN_ON,
-)
+from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TOGGLE, SERVICE_TURN_OFF, SERVICE_TURN_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
@@ -351,7 +346,7 @@ class HomeAssistantControlTool(BaseTool):
         """
         # For lights, use turn_on with parameters
         if domain == "light":
-            return SERVICE_TURN_ON
+            return SERVICE_TURN_ON  # type: ignore[no-any-return]
 
         # For climate, use set_temperature, set_hvac_mode, etc.
         if domain == "climate":
@@ -387,7 +382,7 @@ class HomeAssistantControlTool(BaseTool):
             "No specific set_value service found for domain %s, using turn_on",
             domain,
         )
-        return SERVICE_TURN_ON
+        return SERVICE_TURN_ON  # type: ignore[no-any-return]
 
     def _build_success_message(
         self,

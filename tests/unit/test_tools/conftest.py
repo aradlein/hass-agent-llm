@@ -1,7 +1,8 @@
 """Shared fixtures for tools tests."""
+from datetime import timedelta
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock
 from homeassistant.core import State
 from homeassistant.util import dt as dt_util
 
@@ -42,7 +43,7 @@ def sample_light_state():
             "brightness": 128,
             "color_temp": 370,
             "rgb_color": [255, 200, 150],
-            "supported_features": 63
+            "supported_features": 63,
         },
         last_changed=dt_util.now() - timedelta(minutes=5),
         last_updated=dt_util.now() - timedelta(minutes=5),
@@ -63,7 +64,7 @@ def sample_climate_state():
             "current_temperature": 71,
             "hvac_mode": "heat",
             "fan_mode": "auto",
-            "supported_features": 91
+            "supported_features": 91,
         },
         last_changed=dt_util.now() - timedelta(hours=2),
         last_updated=dt_util.now() - timedelta(minutes=10),
@@ -128,8 +129,8 @@ def mock_history_states():
                 "friendly_name": "Living Room Temperature",
                 "unit_of_measurement": "°F",
             },
-            last_changed=now - timedelta(hours=24-i),
-            last_updated=now - timedelta(hours=24-i),
+            last_changed=now - timedelta(hours=24 - i),
+            last_updated=now - timedelta(hours=24 - i),
         )
         states.append(state)
 
