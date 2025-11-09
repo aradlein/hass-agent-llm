@@ -307,6 +307,27 @@ class VectorDBManager:
                 err,
             )
 
+    async def async_collection_exists(self, collection_name: str) -> bool:
+        """Check if a collection exists in ChromaDB.
+
+        Args:
+            collection_name: Name of the collection to check
+
+        Returns:
+            True if collection exists, False otherwise
+        """
+        try:
+            await self._ensure_initialized()
+            if self._client is None:
+                return False
+            await self.hass.async_add_executor_job(
+                self._client.get_collection,
+                collection_name,
+            )
+            return True
+        except Exception:
+            return False
+
     @callback
     def _async_handle_state_change(self, event: Event[Any]) -> None:
         """Handle entity state changes for incremental indexing.

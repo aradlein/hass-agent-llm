@@ -17,6 +17,9 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_ADDITIONAL_COLLECTIONS,
+    CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD,
+    CONF_ADDITIONAL_TOP_K,
     CONF_CONTEXT_FORMAT,
     CONF_CONTEXT_MODE,
     CONF_DEBUG_LOGGING,
@@ -66,6 +69,9 @@ from .const import (
     CONTEXT_FORMAT_NATURAL_LANGUAGE,
     CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
+    DEFAULT_ADDITIONAL_COLLECTIONS,
+    DEFAULT_ADDITIONAL_L2_DISTANCE_THRESHOLD,
+    DEFAULT_ADDITIONAL_TOP_K,
     DEFAULT_CONTEXT_FORMAT,
     DEFAULT_CONTEXT_MODE,
     DEFAULT_DEBUG_LOGGING,
@@ -546,11 +552,28 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             FlowResult indicating completion or next step
         """
         if user_input is not None:
+            # Convert comma-separated collection names to list
+            if CONF_ADDITIONAL_COLLECTIONS in user_input:
+                collections_str = user_input[CONF_ADDITIONAL_COLLECTIONS]
+                if isinstance(collections_str, str):
+                    # Parse comma-separated string to list, removing whitespace
+                    collections_list = [c.strip() for c in collections_str.split(",") if c.strip()]
+                    user_input[CONF_ADDITIONAL_COLLECTIONS] = collections_list
+
             updated_options = {**self._config_entry.options, **user_input}
             return self.async_create_entry(title="", data=updated_options)
 
         current_options = self._config_entry.options
         current_data = self._config_entry.data
+
+        # Convert list to comma-separated string for display
+        additional_collections = current_options.get(
+            CONF_ADDITIONAL_COLLECTIONS, DEFAULT_ADDITIONAL_COLLECTIONS
+        )
+        if isinstance(additional_collections, list):
+            additional_collections_str = ", ".join(additional_collections)
+        else:
+            additional_collections_str = ""
 
         return self.async_show_form(
             step_id="vector_db_settings",
@@ -649,6 +672,23 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                             ),
                         ),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1000.0)),
+                    vol.Optional(
+                        CONF_ADDITIONAL_COLLECTIONS,
+                        default=additional_collections_str,
+                    ): str,
+                    vol.Optional(
+                        CONF_ADDITIONAL_TOP_K,
+                        default=current_options.get(
+                            CONF_ADDITIONAL_TOP_K, DEFAULT_ADDITIONAL_TOP_K
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
+                    vol.Optional(
+                        CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD,
+                        default=current_options.get(
+                            CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD,
+                            DEFAULT_ADDITIONAL_L2_DISTANCE_THRESHOLD,
+                        ),
+                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2000.0)),
                 }
             ),
             description_placeholders={

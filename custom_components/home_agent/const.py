@@ -38,6 +38,11 @@ CONF_VECTOR_DB_EMBEDDING_BASE_URL: Final = "vector_db_embedding_base_url"
 CONF_OPENAI_API_KEY: Final = "openai_api_key"
 CONF_EMBEDDING_KEEP_ALIVE: Final = "embedding_keep_alive"
 
+# Configuration keys - Additional Collections
+CONF_ADDITIONAL_COLLECTIONS: Final = "additional_collections"
+CONF_ADDITIONAL_TOP_K: Final = "additional_top_k"
+CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD: Final = "additional_l2_distance_threshold"
+
 # Configuration keys - Conversation History
 CONF_HISTORY_ENABLED: Final = "history_enabled"
 CONF_HISTORY_MAX_MESSAGES: Final = "history_max_messages"
@@ -134,6 +139,11 @@ DEFAULT_VECTOR_DB_EMBEDDING_MODEL: Final = "text-embedding-3-small"
 DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER: Final = EMBEDDING_PROVIDER_OLLAMA
 DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL: Final = "http://localhost:11434"
 DEFAULT_EMBEDDING_KEEP_ALIVE: Final = "5m"
+
+# Default values - Additional Collections
+DEFAULT_ADDITIONAL_COLLECTIONS: Final[list[str]] = []
+DEFAULT_ADDITIONAL_TOP_K: Final = 5
+DEFAULT_ADDITIONAL_L2_DISTANCE_THRESHOLD: Final = 250.0
 
 # Default values - Conversation History
 DEFAULT_HISTORY_ENABLED: Final = True

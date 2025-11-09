@@ -11,6 +11,9 @@ import pytest
 from homeassistant.core import State
 
 from custom_components.home_agent.const import (
+    CONF_ADDITIONAL_COLLECTIONS,
+    CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD,
+    CONF_ADDITIONAL_TOP_K,
     CONF_OPENAI_API_KEY,
     CONF_VECTOR_DB_COLLECTION,
     CONF_VECTOR_DB_EMBEDDING_MODEL,
@@ -296,3 +299,289 @@ class TestEmbedQuery:
                 await provider._embed_query("test")
 
             assert "Embedding failed" in str(exc_info.value)
+
+
+class TestAdditionalCollections:
+    """Tests for additional collections feature."""
+
+    def test_init_with_additional_collections(self, mock_hass):
+        """Test initialization with additional collections configuration."""
+        if not CHROMADB_AVAILABLE:
+            pytest.skip("ChromaDB not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_ADDITIONAL_COLLECTIONS: ["docs", "knowledge_base"],
+            CONF_ADDITIONAL_TOP_K: 3,
+            CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD: 200.0,
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        assert provider.additional_collections == ["docs", "knowledge_base"]
+        assert provider.additional_top_k == 3
+        assert provider.additional_threshold == 200.0
+
+    def test_init_with_empty_additional_collections(self, mock_hass):
+        """Test initialization with empty additional collections (default)."""
+        if not CHROMADB_AVAILABLE:
+            pytest.skip("ChromaDB not available")
+
+        config = {CONF_OPENAI_API_KEY: "sk-test"}
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        assert provider.additional_collections == []
+        assert provider.additional_top_k == 5
+        assert provider.additional_threshold == 250.0
+
+    @pytest.mark.asyncio
+    async def test_get_context_with_additional_collections(self, mock_hass):
+        """Test get_context includes results from additional collections."""
+        if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
+            pytest.skip("ChromaDB or OpenAI not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_VECTOR_DB_TOP_K: 2,
+            CONF_ADDITIONAL_COLLECTIONS: ["docs"],
+            CONF_ADDITIONAL_TOP_K: 2,
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        # Mock ChromaDB client and collection
+        provider._client = Mock()
+        provider._collection = Mock()
+
+        # Mock embedding
+        with patch.object(provider, "_embed_query", return_value=[0.1, 0.2, 0.3]):
+            # Mock entity collection query
+            with patch.object(
+                provider,
+                "_query_vector_db",
+                return_value=[
+                    {"entity_id": "light.living_room", "distance": 0.1},
+                ],
+            ):
+                # Mock additional collections query
+                with patch.object(
+                    provider,
+                    "_query_additional_collections",
+                    return_value=[
+                        {
+                            "id": "doc1",
+                            "distance": 0.15,
+                            "document": "How to use the lights",
+                            "metadata": {"category": "manual"},
+                            "collection": "docs",
+                        },
+                    ],
+                ):
+                    # Mock entity state
+                    light_state = Mock(spec=State)
+                    light_state.state = "on"
+                    light_state.attributes = {"brightness": 128}
+                    mock_hass.states.get.return_value = light_state
+
+                    result = await provider.get_context("how to use lights")
+
+                    # Verify result includes both entity and additional context
+                    assert "entities" in result
+                    assert "RELEVANT ADDITIONAL CONTEXT" in result
+                    assert "additional_context" in result
+                    assert "doc1" in result
+
+    @pytest.mark.asyncio
+    async def test_get_context_additional_only(self, mock_hass):
+        """Test context with only additional results (no entity matches)."""
+        if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
+            pytest.skip("ChromaDB or OpenAI not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_ADDITIONAL_COLLECTIONS: ["docs"],
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        provider._client = Mock()
+        provider._collection = Mock()
+
+        with patch.object(provider, "_embed_query", return_value=[0.1, 0.2, 0.3]):
+            # No entity results (filtered out by threshold)
+            with patch.object(provider, "_query_vector_db", return_value=[]):
+                # But has additional results
+                with patch.object(
+                    provider,
+                    "_query_additional_collections",
+                    return_value=[
+                        {
+                            "id": "doc1",
+                            "distance": 0.15,
+                            "document": "Documentation content",
+                            "metadata": {},
+                            "collection": "docs",
+                        },
+                    ],
+                ):
+                    result = await provider.get_context("some question")
+
+                    # Should only have additional context
+                    assert "RELEVANT ADDITIONAL CONTEXT" in result
+                    assert "entities" not in result
+                    assert "doc1" in result
+
+    @pytest.mark.asyncio
+    async def test_query_additional_collections_success(self, mock_hass):
+        """Test querying additional collections successfully."""
+        if not CHROMADB_AVAILABLE:
+            pytest.skip("ChromaDB not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_ADDITIONAL_COLLECTIONS: ["docs", "kb"],
+            CONF_ADDITIONAL_TOP_K: 3,
+            CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD: 100.0,
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        # Mock client
+        mock_client = Mock()
+        provider._client = mock_client
+
+        # Mock collections
+        mock_docs_collection = Mock()
+        mock_kb_collection = Mock()
+
+        def get_collection_side_effect(name):
+            if name == "docs":
+                return mock_docs_collection
+            elif name == "kb":
+                return mock_kb_collection
+            raise Exception(f"Collection {name} not found")
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        # Mock query results
+        mock_docs_collection.query.return_value = {
+            "ids": [["doc1", "doc2"]],
+            "distances": [[50.0, 75.0]],
+            "documents": [["Doc 1 content", "Doc 2 content"]],
+            "metadatas": [[{"type": "manual"}, {"type": "guide"}]],
+        }
+
+        mock_kb_collection.query.return_value = {
+            "ids": [["kb1"]],
+            "distances": [[60.0]],
+            "documents": [["KB content"]],
+            "metadatas": [[{"type": "article"}]],
+        }
+
+        embedding = [0.1, 0.2, 0.3]
+        results = await provider._query_additional_collections(embedding)
+
+        # Should have merged and sorted results
+        assert len(results) <= 3  # Top K limit
+        # Results should be sorted by distance
+        assert all(
+            results[i]["distance"] <= results[i + 1]["distance"] for i in range(len(results) - 1)
+        )
+        # All results should be below threshold
+        assert all(r["distance"] <= 100.0 for r in results)
+
+    @pytest.mark.asyncio
+    async def test_query_additional_collections_nonexistent(self, mock_hass):
+        """Test querying non-existent collection (should skip gracefully)."""
+        if not CHROMADB_AVAILABLE:
+            pytest.skip("ChromaDB not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_ADDITIONAL_COLLECTIONS: ["nonexistent", "docs"],
+            CONF_ADDITIONAL_TOP_K: 2,
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        mock_client = Mock()
+        provider._client = mock_client
+
+        # First collection doesn't exist, second does
+        mock_docs_collection = Mock()
+
+        def get_collection_side_effect(name):
+            if name == "nonexistent":
+                raise Exception("Collection not found")
+            elif name == "docs":
+                return mock_docs_collection
+            raise Exception(f"Collection {name} not found")
+
+        mock_client.get_collection.side_effect = get_collection_side_effect
+
+        mock_docs_collection.query.return_value = {
+            "ids": [["doc1"]],
+            "distances": [[50.0]],
+            "documents": [["Doc content"]],
+            "metadatas": [[{"type": "manual"}]],
+        }
+
+        embedding = [0.1, 0.2, 0.3]
+        results = await provider._query_additional_collections(embedding)
+
+        # Should only have result from "docs" collection
+        assert len(results) == 1
+        assert results[0]["id"] == "doc1"
+        assert results[0]["collection"] == "docs"
+
+    @pytest.mark.asyncio
+    async def test_query_additional_collections_empty_config(self, mock_hass):
+        """Test querying with no additional collections configured."""
+        if not CHROMADB_AVAILABLE:
+            pytest.skip("ChromaDB not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_ADDITIONAL_COLLECTIONS: [],
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        embedding = [0.1, 0.2, 0.3]
+        results = await provider._query_additional_collections(embedding)
+
+        # Should return empty list
+        assert results == []
+
+    @pytest.mark.asyncio
+    async def test_query_additional_collections_threshold_filtering(self, mock_hass):
+        """Test that results are filtered by threshold."""
+        if not CHROMADB_AVAILABLE:
+            pytest.skip("ChromaDB not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_ADDITIONAL_COLLECTIONS: ["docs"],
+            CONF_ADDITIONAL_TOP_K: 5,
+            CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD: 100.0,  # Strict threshold
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        mock_client = Mock()
+        provider._client = mock_client
+
+        mock_collection = Mock()
+        mock_client.get_collection.return_value = mock_collection
+
+        # Return results with varying distances
+        mock_collection.query.return_value = {
+            "ids": [["doc1", "doc2", "doc3"]],
+            "distances": [[50.0, 120.0, 80.0]],  # doc2 exceeds threshold
+            "documents": [["Doc 1", "Doc 2", "Doc 3"]],
+            "metadatas": [[{}, {}, {}]],
+        }
+
+        embedding = [0.1, 0.2, 0.3]
+        results = await provider._query_additional_collections(embedding)
+
+        # Should only include doc1 and doc3 (below threshold)
+        assert len(results) == 2
+        assert all(r["distance"] <= 100.0 for r in results)
+        result_ids = [r["id"] for r in results]
+        assert "doc1" in result_ids
+        assert "doc3" in result_ids
+        assert "doc2" not in result_ids

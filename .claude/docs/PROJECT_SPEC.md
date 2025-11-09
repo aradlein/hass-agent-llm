@@ -43,6 +43,11 @@
 - ✅ Context optimization and compression
 - ✅ Event system with detailed metrics
 - ✅ Enhanced configuration UI with menu-based options
+- ✅ Additional ChromaDB collections support (v0.4.7-beta)
+  - Two-tier ranking system (entity priority + supplementary context)
+  - Multi-collection querying with intelligent merging
+  - Separate thresholds and top K for additional collections
+  - Graceful error handling for non-existent collections
 
 **Key Files:** `vector_db_manager.py`, `context_optimizer.py`, `context_providers/vector_db.py`
 **Services:** `reindex_entities`, `index_entity`
@@ -593,7 +598,7 @@ The component provides flexible context injection to give the LLM relevant infor
   4. More efficient token usage - only relevant entities included
 - **Example:** User asks "Is it cold in the bedroom?" → retrieves bedroom temperature sensor context
 
-#### Additional Collections Support (Planned Enhancement)
+#### Additional Collections Support ✅ **IMPLEMENTED**
 - **Purpose:** Query additional ChromaDB collections alongside entity embeddings for supplementary context
 - **Use Cases:**
   - Product manuals and documentation
@@ -623,7 +628,9 @@ The component provides flexible context injection to give the LLM relevant infor
   ```
 - **Error Handling:** Non-existent collections skipped silently with warning logged
 - **Documentation:** See `docs/reference/VECTOR_DB_SETUP.md` (lines 597-676)
-- **Status:** Planned feature - GitHub Issue #15
+- **Status:** ✅ Implemented in v0.4.7-beta - PR #19
+- **Key Files:** `context_providers/vector_db.py`, `const.py`, `config_flow.py`, `vector_db_manager.py`
+- **Tests:** 8 comprehensive test cases in `tests/unit/test_context_providers/test_vector_db.py::TestAdditionalCollections`
 
 #### Context Format Options
 - **JSON Format:** Structured data for precise parsing

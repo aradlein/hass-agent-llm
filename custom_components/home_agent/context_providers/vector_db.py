@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     from chromadb.api.models.Collection import Collection
 
 from ..const import (
+    CONF_ADDITIONAL_COLLECTIONS,
+    CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD,
+    CONF_ADDITIONAL_TOP_K,
     CONF_OPENAI_API_KEY,
     CONF_VECTOR_DB_COLLECTION,
     CONF_VECTOR_DB_EMBEDDING_BASE_URL,
@@ -27,6 +30,9 @@ from ..const import (
     CONF_VECTOR_DB_PORT,
     CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
     CONF_VECTOR_DB_TOP_K,
+    DEFAULT_ADDITIONAL_COLLECTIONS,
+    DEFAULT_ADDITIONAL_L2_DISTANCE_THRESHOLD,
+    DEFAULT_ADDITIONAL_TOP_K,
     DEFAULT_VECTOR_DB_COLLECTION,
     DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
     DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
@@ -90,6 +96,15 @@ class VectorDBContextProvider(ContextProvider):
             CONF_VECTOR_DB_SIMILARITY_THRESHOLD, DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD
         )
 
+        # Additional collections configuration
+        self.additional_collections = config.get(
+            CONF_ADDITIONAL_COLLECTIONS, DEFAULT_ADDITIONAL_COLLECTIONS
+        )
+        self.additional_top_k = config.get(CONF_ADDITIONAL_TOP_K, DEFAULT_ADDITIONAL_TOP_K)
+        self.additional_threshold = config.get(
+            CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD, DEFAULT_ADDITIONAL_L2_DISTANCE_THRESHOLD
+        )
+
         self._client: ClientAPI | None = None
         self._collection: Collection | None = None
         self._embedding_cache: dict[str, list[float]] = {}
@@ -102,39 +117,81 @@ class VectorDBContextProvider(ContextProvider):
         )
 
     async def get_context(self, user_input: str) -> str:
-        """Get relevant context via semantic search."""
+        """Get relevant context via semantic search.
+
+        Implements two-tier ranking system:
+        1. Entity collection (priority) - always queried first
+        2. Additional collections (supplementary) - merged and ranked together
+        """
         try:
             await self._ensure_initialized()
             query_embedding = await self._embed_query(user_input)
-            results = await self._query_vector_db(query_embedding, self.top_k)
+
+            # Tier 1: Query entity collection (priority)
+            entity_results = await self._query_vector_db(query_embedding, self.top_k)
 
             # ChromaDB uses L2 distance - smaller distances mean more similar
             # Filter to keep only results with distance below threshold
-            # (lower threshold = more strict, only very similar results)
-            filtered_results = [
-                r for r in results if r.get("distance", float("inf")) <= self.similarity_threshold
+            filtered_entity_results = [
+                r
+                for r in entity_results
+                if r.get("distance", float("inf")) <= self.similarity_threshold
             ]
 
-            if not filtered_results:
+            # Build entity context
+            entity_context = ""
+            if filtered_entity_results:
+                entity_ids = [r["entity_id"] for r in filtered_entity_results]
+                entities = []
+
+                for entity_id in entity_ids:
+                    try:
+                        entity_state = self._get_entity_state(entity_id)
+                        if entity_state:
+                            # Add available services for this entity
+                            entity_state["available_services"] = self._get_entity_services(
+                                entity_id
+                            )
+                            entities.append(entity_state)
+                    except Exception as err:
+                        _LOGGER.warning("Failed to get state for %s: %s", entity_id, err)
+
+                if entities:
+                    entity_context = json.dumps(
+                        {"entities": entities, "count": len(entities)}, indent=2
+                    )
+
+            # Tier 2: Query additional collections (supplementary)
+            additional_context = ""
+            if self.additional_collections and isinstance(self.additional_collections, list):
+                additional_results = await self._query_additional_collections(query_embedding)
+
+                if additional_results:
+                    # Format additional results as JSON with metadata
+                    additional_context = json.dumps(
+                        {
+                            "additional_context": additional_results,
+                            "count": len(additional_results),
+                        },
+                        indent=2,
+                    )
+
+            # Combine contexts
+            if entity_context and additional_context:
+                return (
+                    f"{entity_context}\n\n"
+                    "### RELEVANT ADDITIONAL CONTEXT FOR ANSWERING QUESTIONS, NOT CONTROL ###\n"
+                    f"{additional_context}"
+                )
+            elif entity_context:
+                return entity_context
+            elif additional_context:
+                return (
+                    "### RELEVANT ADDITIONAL CONTEXT FOR ANSWERING QUESTIONS, NOT CONTROL ###\n"
+                    f"{additional_context}"
+                )
+            else:
                 return "No relevant context found."
-
-            entity_ids = [r["entity_id"] for r in filtered_results]
-            entities = []
-
-            for entity_id in entity_ids:
-                try:
-                    entity_state = self._get_entity_state(entity_id)
-                    if entity_state:
-                        # Add available services for this entity
-                        entity_state["available_services"] = self._get_entity_services(entity_id)
-                        entities.append(entity_state)
-                except Exception as err:
-                    _LOGGER.warning("Failed to get state for %s: %s", entity_id, err)
-
-            if not entities:
-                return "No entity states available."
-
-            return json.dumps({"entities": entities, "count": len(entities)}, indent=2)
 
         except Exception as err:
             _LOGGER.error("Vector DB context retrieval failed: %s", err, exc_info=True)
@@ -289,3 +346,83 @@ class VectorDBContextProvider(ContextProvider):
 
         except Exception as err:
             raise ContextInjectionError(f"Vector DB query failed: {err}") from err
+
+    async def _query_additional_collections(
+        self, query_embedding: list[float]
+    ) -> list[dict[str, Any]]:
+        """Query additional collections and return merged, ranked results.
+
+        Args:
+            query_embedding: The embedding vector to query with
+
+        Returns:
+            List of merged results from all additional collections, sorted by distance
+        """
+        if not self.additional_collections:
+            return []
+
+        if self._client is None:
+            _LOGGER.warning("ChromaDB client not initialized, cannot query additional collections")
+            return []
+
+        all_results = []
+
+        # Query each additional collection
+        for collection_name in self.additional_collections:
+            try:
+                # Try to get the collection
+                collection = await self.hass.async_add_executor_job(
+                    self._client.get_collection,
+                    collection_name,
+                )
+
+                # Query the collection with extra results for merging
+                results = await self.hass.async_add_executor_job(
+                    lambda col=collection: col.query(
+                        query_embeddings=[query_embedding],
+                        n_results=self.additional_top_k * len(self.additional_collections),
+                        include=["documents", "metadatas", "distances"],
+                    )
+                )
+
+                # Parse and add results with collection name
+                if results and "ids" in results and results["ids"]:
+                    ids = results["ids"][0]
+                    distances = results.get("distances", [[]])[0]
+                    documents = results.get("documents", [[]])[0]
+                    metadatas = results.get("metadatas", [[]])[0]
+
+                    for i in range(len(ids)):
+                        result = {
+                            "id": ids[i],
+                            "distance": distances[i] if i < len(distances) else float("inf"),
+                            "document": documents[i] if i < len(documents) else "",
+                            "metadata": metadatas[i] if i < len(metadatas) else {},
+                            "collection": collection_name,
+                        }
+                        all_results.append(result)
+
+            except Exception as err:
+                # Log warning but continue with other collections
+                _LOGGER.warning(
+                    "Collection '%s' not found or inaccessible, skipping. Error: %s",
+                    collection_name,
+                    str(err),
+                )
+                continue
+
+        if not all_results:
+            return []
+
+        # Sort by distance (ascending - lower is better)
+        all_results.sort(key=lambda x: x.get("distance", float("inf")))
+
+        # Filter by threshold
+        filtered_results = [
+            r for r in all_results if r.get("distance", float("inf")) <= self.additional_threshold
+        ]
+
+        # Take top K from merged pool
+        top_results = filtered_results[: self.additional_top_k]
+
+        return top_results
