@@ -72,7 +72,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"counter.home_agent_conversations_total\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> last()",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_conversations_total\")\n  |> filter(fn: (r) => r[\"domain\"] == \"counter\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> last()",
           "refId": "A"
         }
       ],
@@ -99,11 +99,11 @@
               },
               {
                 "color": "yellow",
-                "value": 1000
+                "value": 5000
               },
               {
                 "color": "red",
-                "value": 2000
+                "value": 10000
               }
             ]
           },
@@ -137,7 +137,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"home_agent_last_conversation_duration\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> mean()",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_conversation_duration\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> mean()",
           "refId": "A"
         }
       ],
@@ -194,7 +194,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"home_agent_last_conversation_tokens\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> sum()",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_conversation_tokens\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> sum()",
           "refId": "A"
         }
       ],
@@ -259,7 +259,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "successes = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"counter.home_agent_tool_successes\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> last()\n  |> toFloat()\n\nfailures = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"counter.home_agent_tool_failures\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> last()\n  |> toFloat()\n\nunion(tables: [successes, failures])\n  |> pivot(rowKey:[\"_time\"], columnKey: [\"_measurement\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({\n      _time: r._time,\n      _value: (r[\"counter.home_agent_tool_successes\"] / (r[\"counter.home_agent_tool_successes\"] + r[\"counter.home_agent_tool_failures\"])) * 100.0\n    }))",
+          "query": "import \"array\"\n\nsuccesses = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_tool_successes\")\n  |> filter(fn: (r) => r[\"domain\"] == \"counter\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> last()\n  |> findRecord(fn: (key) => true, idx: 0)\n\nfailures = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_tool_failures\")\n  |> filter(fn: (r) => r[\"domain\"] == \"counter\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> last()\n  |> findRecord(fn: (key) => true, idx: 0)\n\nsuccessCount = float(v: successes._value)\nfailureCount = float(v: failures._value)\ntotal = successCount + failureCount\n\nrate = if total > 0.0 then (successCount / total) * 100.0 else 0.0\n\narray.from(rows: [{_time: now(), _value: rate}])",
           "refId": "A"
         }
       ],
@@ -392,27 +392,24 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"home_agent_last_llm_latency\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
-          "refId": "A",
-          "alias": "LLM Latency"
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_llm_latency\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "refId": "A"
         },
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"home_agent_last_tool_latency\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
-          "refId": "B",
-          "alias": "Tool Latency"
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_tool_latency\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "refId": "B"
         },
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"home_agent_last_context_latency\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
-          "refId": "C",
-          "alias": "Context Latency"
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_context_latency\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "refId": "C"
         }
       ],
       "title": "Performance Metrics - Latency Breakdown",
@@ -498,18 +495,16 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"home_agent_last_conversation_tokens\")\n  |> filter(fn: (r) => r._field == \"prompt_tokens\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
-          "refId": "A",
-          "alias": "Prompt Tokens"
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_conversation_tokens\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"prompt_tokens\")\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)",
+          "refId": "A"
         },
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"home_agent_last_conversation_tokens\")\n  |> filter(fn: (r) => r._field == \"completion_tokens\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
-          "refId": "B",
-          "alias": "Completion Tokens"
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_conversation_tokens\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"completion_tokens\")\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)",
+          "refId": "B"
         }
       ],
       "title": "Token Usage Over Time",
@@ -595,7 +590,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"home_agent_last_conversation_duration\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_conversation_duration\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
           "refId": "A"
         }
       ],
@@ -639,7 +634,7 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": ["sum"],
           "fields": "",
           "values": false
         },
@@ -652,7 +647,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"home_agent_used_external_llm\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> sum()",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_used_external_llm\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> sum()",
           "refId": "A"
         }
       ],
@@ -672,11 +667,11 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "Count",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 100,
+            "drawStyle": "line",
+            "fillOpacity": 20,
             "gradientMode": "none",
             "hideFrom": {
               "tooltip": false,
@@ -684,13 +679,13 @@
               "legend": false
             },
             "lineInterpolation": "linear",
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
-            "spanNulls": false,
+            "showPoints": "auto",
+            "spanNulls": true,
             "stacking": {
               "group": "A",
               "mode": "normal"
@@ -739,9 +734,8 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"home_agent_used_external_llm\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> aggregateWindow(every: v.windowPeriod, fn: sum, createEmpty: false)",
-          "refId": "A",
-          "alias": "External LLM Used"
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_used_external_llm\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)",
+          "refId": "A"
         }
       ],
       "title": "External LLM Usage Over Time",
@@ -760,7 +754,7 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Errors",
+            "axisLabel": "Total Errors",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
@@ -777,8 +771,8 @@
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
-            "spanNulls": false,
+            "showPoints": "auto",
+            "spanNulls": true,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -831,12 +825,11 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"counter.home_agent_errors_total\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
-          "refId": "A",
-          "alias": "Error Rate (per minute)"
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_errors_total\")\n  |> filter(fn: (r) => r[\"domain\"] == \"counter\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)",
+          "refId": "A"
         }
       ],
-      "title": "Error Rate",
+      "title": "Error Count Over Time",
       "type": "timeseries"
     }
   ],
@@ -867,8 +860,8 @@
       {
         "current": {
           "selected": false,
-          "text": "home_assistant",
-          "value": "home_assistant"
+          "text": "homeassistant",
+          "value": "homeassistant"
         },
         "hide": 0,
         "label": "Bucket",
@@ -876,11 +869,11 @@
         "options": [
           {
             "selected": true,
-            "text": "home_assistant",
-            "value": "home_assistant"
+            "text": "homeassistant",
+            "value": "homeassistant"
           }
         ],
-        "query": "home_assistant",
+        "query": "homeassistant",
         "skipUrlSync": false,
         "type": "textbox"
       }
@@ -894,6 +887,6 @@
   "timezone": "",
   "title": "Home Agent Metrics (InfluxDB)",
   "uid": "home-agent-influxdb",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
