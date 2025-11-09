@@ -116,9 +116,6 @@ _LOGGER = logging.getLogger(__name__)
 # OpenAI default base URL
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 
-# Regex pattern for keep_alive: accepts duration strings (5m, 1h, 30s) or -1 for indefinite
-KEEP_ALIVE_PATTERN = r"^(-1|\d+[smh])$"
-
 
 class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Home Agent.
@@ -204,7 +201,7 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(
                         CONF_LLM_KEEP_ALIVE,
                         default=DEFAULT_LLM_KEEP_ALIVE,
-                    ): vol.Match(KEEP_ALIVE_PATTERN),
+                    ): str,
                 }
             ),
             errors=errors,
@@ -464,7 +461,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_LLM_KEEP_ALIVE,
                         default=current_data.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
-                    ): vol.Match(KEEP_ALIVE_PATTERN),
+                    ): str,
                 }
             ),
             errors=errors,
@@ -491,6 +488,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=updated_options)
 
         current_options = self._config_entry.options
+        current_data = self._config_entry.data
 
         return self.async_show_form(
             step_id="context_settings",
@@ -498,11 +496,17 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         CONF_CONTEXT_MODE,
-                        default=current_options.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE),
+                        default=current_options.get(
+                            CONF_CONTEXT_MODE,
+                            current_data.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE),
+                        ),
                     ): vol.In([CONTEXT_MODE_DIRECT, CONTEXT_MODE_VECTOR_DB]),
                     vol.Optional(
                         CONF_CONTEXT_FORMAT,
-                        default=current_options.get(CONF_CONTEXT_FORMAT, DEFAULT_CONTEXT_FORMAT),
+                        default=current_options.get(
+                            CONF_CONTEXT_FORMAT,
+                            current_data.get(CONF_CONTEXT_FORMAT, DEFAULT_CONTEXT_FORMAT),
+                        ),
                     ): vol.In(
                         [
                             CONTEXT_FORMAT_JSON,
@@ -512,7 +516,9 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DIRECT_ENTITIES,
-                        default=current_options.get(CONF_DIRECT_ENTITIES, ""),
+                        default=current_options.get(
+                            CONF_DIRECT_ENTITIES, current_data.get(CONF_DIRECT_ENTITIES, "")
+                        ),
                     ): str,
                 }
             ),
@@ -539,6 +545,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=updated_options)
 
         current_options = self._config_entry.options
+        current_data = self._config_entry.data
 
         return self.async_show_form(
             step_id="vector_db_settings",
@@ -546,23 +553,35 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Optional(
                         CONF_VECTOR_DB_HOST,
-                        default=current_options.get(CONF_VECTOR_DB_HOST, DEFAULT_VECTOR_DB_HOST),
+                        default=current_options.get(
+                            CONF_VECTOR_DB_HOST,
+                            current_data.get(CONF_VECTOR_DB_HOST, DEFAULT_VECTOR_DB_HOST),
+                        ),
                     ): str,
                     vol.Optional(
                         CONF_VECTOR_DB_PORT,
-                        default=current_options.get(CONF_VECTOR_DB_PORT, DEFAULT_VECTOR_DB_PORT),
+                        default=current_options.get(
+                            CONF_VECTOR_DB_PORT,
+                            current_data.get(CONF_VECTOR_DB_PORT, DEFAULT_VECTOR_DB_PORT),
+                        ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
                     vol.Optional(
                         CONF_VECTOR_DB_COLLECTION,
                         default=current_options.get(
-                            CONF_VECTOR_DB_COLLECTION, DEFAULT_VECTOR_DB_COLLECTION
+                            CONF_VECTOR_DB_COLLECTION,
+                            current_data.get(
+                                CONF_VECTOR_DB_COLLECTION, DEFAULT_VECTOR_DB_COLLECTION
+                            ),
                         ),
                     ): str,
                     vol.Optional(
                         CONF_VECTOR_DB_EMBEDDING_PROVIDER,
                         default=current_options.get(
                             CONF_VECTOR_DB_EMBEDDING_PROVIDER,
-                            DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER,
+                            current_data.get(
+                                CONF_VECTOR_DB_EMBEDDING_PROVIDER,
+                                DEFAULT_VECTOR_DB_EMBEDDING_PROVIDER,
+                            ),
                         ),
                     ): selector.SelectSelector(
                         selector.SelectSelectorConfig(
@@ -577,36 +596,52 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         CONF_VECTOR_DB_EMBEDDING_BASE_URL,
                         default=current_options.get(
                             CONF_VECTOR_DB_EMBEDDING_BASE_URL,
-                            DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
+                            current_data.get(
+                                CONF_VECTOR_DB_EMBEDDING_BASE_URL,
+                                DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
+                            ),
                         ),
                     ): str,
                     vol.Optional(
                         CONF_VECTOR_DB_EMBEDDING_MODEL,
                         default=current_options.get(
                             CONF_VECTOR_DB_EMBEDDING_MODEL,
-                            DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
+                            current_data.get(
+                                CONF_VECTOR_DB_EMBEDDING_MODEL,
+                                DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
+                            ),
                         ),
                     ): str,
                     vol.Optional(
                         CONF_EMBEDDING_KEEP_ALIVE,
                         default=current_options.get(
                             CONF_EMBEDDING_KEEP_ALIVE,
-                            DEFAULT_EMBEDDING_KEEP_ALIVE,
+                            current_data.get(
+                                CONF_EMBEDDING_KEEP_ALIVE, DEFAULT_EMBEDDING_KEEP_ALIVE
+                            ),
                         ),
-                    ): vol.Match(KEEP_ALIVE_PATTERN),
+                    ): str,
                     vol.Optional(
                         CONF_OPENAI_API_KEY,
-                        default=current_options.get(CONF_OPENAI_API_KEY, ""),
+                        default=current_options.get(
+                            CONF_OPENAI_API_KEY, current_data.get(CONF_OPENAI_API_KEY, "")
+                        ),
                     ): str,
                     vol.Optional(
                         CONF_VECTOR_DB_TOP_K,
-                        default=current_options.get(CONF_VECTOR_DB_TOP_K, DEFAULT_VECTOR_DB_TOP_K),
+                        default=current_options.get(
+                            CONF_VECTOR_DB_TOP_K,
+                            current_data.get(CONF_VECTOR_DB_TOP_K, DEFAULT_VECTOR_DB_TOP_K),
+                        ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
                     vol.Optional(
                         CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
                         default=current_options.get(
                             CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
-                            DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD,
+                            current_data.get(
+                                CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
+                                DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD,
+                            ),
                         ),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1000.0)),
                 }
@@ -634,6 +669,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=updated_options)
 
         current_options = self._config_entry.options
+        current_data = self._config_entry.data
 
         return self.async_show_form(
             step_id="history_settings",
@@ -641,18 +677,25 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         CONF_HISTORY_ENABLED,
-                        default=current_options.get(CONF_HISTORY_ENABLED, DEFAULT_HISTORY_ENABLED),
+                        default=current_options.get(
+                            CONF_HISTORY_ENABLED,
+                            current_data.get(CONF_HISTORY_ENABLED, DEFAULT_HISTORY_ENABLED),
+                        ),
                     ): bool,
                     vol.Optional(
                         CONF_HISTORY_MAX_MESSAGES,
                         default=current_options.get(
-                            CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES
+                            CONF_HISTORY_MAX_MESSAGES,
+                            current_data.get(
+                                CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES
+                            ),
                         ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
                     vol.Optional(
                         CONF_HISTORY_MAX_TOKENS,
                         default=current_options.get(
-                            CONF_HISTORY_MAX_TOKENS, DEFAULT_HISTORY_MAX_TOKENS
+                            CONF_HISTORY_MAX_TOKENS,
+                            current_data.get(CONF_HISTORY_MAX_TOKENS, DEFAULT_HISTORY_MAX_TOKENS),
                         ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=100, max=50000)),
                 }
@@ -675,6 +718,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=updated_options)
 
         current_options = self._config_entry.options
+        current_data = self._config_entry.data
 
         return self.async_show_form(
             step_id="prompt_settings",
@@ -683,13 +727,17 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     vol.Required(
                         CONF_PROMPT_USE_DEFAULT,
                         default=current_options.get(
-                            CONF_PROMPT_USE_DEFAULT, DEFAULT_PROMPT_USE_DEFAULT
+                            CONF_PROMPT_USE_DEFAULT,
+                            current_data.get(CONF_PROMPT_USE_DEFAULT, DEFAULT_PROMPT_USE_DEFAULT),
                         ),
                     ): bool,
                     vol.Optional(
                         CONF_PROMPT_CUSTOM_ADDITIONS,
                         description={
-                            "suggested_value": current_options.get(CONF_PROMPT_CUSTOM_ADDITIONS, "")
+                            "suggested_value": current_options.get(
+                                CONF_PROMPT_CUSTOM_ADDITIONS,
+                                current_data.get(CONF_PROMPT_CUSTOM_ADDITIONS, ""),
+                            )
                         },
                     ): selector.TemplateSelector(),
                 }
@@ -719,6 +767,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=updated_options)
 
         current_options = self._config_entry.options
+        current_data = self._config_entry.data
 
         return self.async_show_form(
             step_id="tool_settings",
@@ -728,12 +777,17 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         CONF_TOOLS_MAX_CALLS_PER_TURN,
                         default=current_options.get(
                             CONF_TOOLS_MAX_CALLS_PER_TURN,
-                            DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
+                            current_data.get(
+                                CONF_TOOLS_MAX_CALLS_PER_TURN, DEFAULT_TOOLS_MAX_CALLS_PER_TURN
+                            ),
                         ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=20)),
                     vol.Optional(
                         CONF_TOOLS_TIMEOUT,
-                        default=current_options.get(CONF_TOOLS_TIMEOUT, DEFAULT_TOOLS_TIMEOUT),
+                        default=current_options.get(
+                            CONF_TOOLS_TIMEOUT,
+                            current_data.get(CONF_TOOLS_TIMEOUT, DEFAULT_TOOLS_TIMEOUT),
+                        ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=5, max=300)),
                 }
             ),
@@ -762,7 +816,9 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     _LOGGER.error("External LLM validation error: %s", err)
                     return self.async_show_form(
                         step_id="external_llm_settings",
-                        data_schema=self._get_external_llm_schema(user_input),
+                        data_schema=self._get_external_llm_schema(
+                            self._config_entry.options, self._config_entry.data
+                        ),
                         errors={"base": "invalid_external_llm"},
                     )
 
@@ -770,10 +826,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=updated_options)
 
         current_options = self._config_entry.options
+        current_data = self._config_entry.data
 
         return self.async_show_form(
             step_id="external_llm_settings",
-            data_schema=self._get_external_llm_schema(current_options),
+            data_schema=self._get_external_llm_schema(current_options, current_data),
             description_placeholders={
                 "use_case": (
                     "Enable this to allow the primary LLM to delegate "
@@ -782,64 +839,86 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             },
         )
 
-    def _get_external_llm_schema(self, current_options: dict[str, Any]) -> vol.Schema:
+    def _get_external_llm_schema(
+        self, current_options: dict[str, Any], current_data: dict[str, Any] | None = None
+    ) -> vol.Schema:
         """Get schema for external LLM settings.
 
         Args:
             current_options: Current option values
+            current_data: Current data values (fallback)
 
         Returns:
             Voluptuous schema for external LLM configuration
         """
+        if current_data is None:
+            current_data = {}
+
         return vol.Schema(
             {
                 vol.Required(
                     CONF_EXTERNAL_LLM_ENABLED,
                     default=current_options.get(
-                        CONF_EXTERNAL_LLM_ENABLED, DEFAULT_EXTERNAL_LLM_ENABLED
+                        CONF_EXTERNAL_LLM_ENABLED,
+                        current_data.get(CONF_EXTERNAL_LLM_ENABLED, DEFAULT_EXTERNAL_LLM_ENABLED),
                     ),
                 ): bool,
                 vol.Optional(
                     CONF_EXTERNAL_LLM_BASE_URL,
-                    default=current_options.get(CONF_EXTERNAL_LLM_BASE_URL, OPENAI_BASE_URL),
+                    default=current_options.get(
+                        CONF_EXTERNAL_LLM_BASE_URL,
+                        current_data.get(CONF_EXTERNAL_LLM_BASE_URL, OPENAI_BASE_URL),
+                    ),
                 ): str,
                 vol.Optional(
                     CONF_EXTERNAL_LLM_API_KEY,
-                    default=current_options.get(CONF_EXTERNAL_LLM_API_KEY, ""),
+                    default=current_options.get(
+                        CONF_EXTERNAL_LLM_API_KEY, current_data.get(CONF_EXTERNAL_LLM_API_KEY, "")
+                    ),
                 ): str,
                 vol.Optional(
                     CONF_EXTERNAL_LLM_MODEL,
                     default=current_options.get(
-                        CONF_EXTERNAL_LLM_MODEL, DEFAULT_EXTERNAL_LLM_MODEL
+                        CONF_EXTERNAL_LLM_MODEL,
+                        current_data.get(CONF_EXTERNAL_LLM_MODEL, DEFAULT_EXTERNAL_LLM_MODEL),
                     ),
                 ): str,
                 vol.Optional(
                     CONF_EXTERNAL_LLM_TEMPERATURE,
                     default=current_options.get(
                         CONF_EXTERNAL_LLM_TEMPERATURE,
-                        DEFAULT_EXTERNAL_LLM_TEMPERATURE,
+                        current_data.get(
+                            CONF_EXTERNAL_LLM_TEMPERATURE, DEFAULT_EXTERNAL_LLM_TEMPERATURE
+                        ),
                     ),
                 ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
                 vol.Optional(
                     CONF_EXTERNAL_LLM_MAX_TOKENS,
                     default=current_options.get(
                         CONF_EXTERNAL_LLM_MAX_TOKENS,
-                        DEFAULT_EXTERNAL_LLM_MAX_TOKENS,
+                        current_data.get(
+                            CONF_EXTERNAL_LLM_MAX_TOKENS, DEFAULT_EXTERNAL_LLM_MAX_TOKENS
+                        ),
                     ),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100000)),
                 vol.Optional(
                     CONF_EXTERNAL_LLM_KEEP_ALIVE,
                     default=current_options.get(
                         CONF_EXTERNAL_LLM_KEEP_ALIVE,
-                        DEFAULT_EXTERNAL_LLM_KEEP_ALIVE,
+                        current_data.get(
+                            CONF_EXTERNAL_LLM_KEEP_ALIVE, DEFAULT_EXTERNAL_LLM_KEEP_ALIVE
+                        ),
                     ),
-                ): vol.Match(KEEP_ALIVE_PATTERN),
+                ): str,
                 vol.Optional(
                     CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
                     description={
                         "suggested_value": current_options.get(
                             CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
-                            DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION,
+                            current_data.get(
+                                CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
+                                DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION,
+                            ),
                         )
                     },
                 ): selector.TemplateSelector(),
@@ -847,7 +926,10 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
                     default=current_options.get(
                         CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
-                        DEFAULT_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
+                        current_data.get(
+                            CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
+                            DEFAULT_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
+                        ),
                     ),
                 ): bool,
             }
@@ -1011,6 +1093,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=updated_options)
 
         current_options = self._config_entry.options
+        current_data = self._config_entry.data
 
         return self.async_show_form(
             step_id="debug_settings",
@@ -1018,12 +1101,16 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         CONF_DEBUG_LOGGING,
-                        default=current_options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
+                        default=current_options.get(
+                            CONF_DEBUG_LOGGING,
+                            current_data.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
+                        ),
                     ): bool,
                     vol.Required(
                         CONF_STREAMING_ENABLED,
                         default=current_options.get(
-                            CONF_STREAMING_ENABLED, DEFAULT_STREAMING_ENABLED
+                            CONF_STREAMING_ENABLED,
+                            current_data.get(CONF_STREAMING_ENABLED, DEFAULT_STREAMING_ENABLED),
                         ),
                     ): bool,
                 }
