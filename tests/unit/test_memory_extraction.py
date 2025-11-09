@@ -224,7 +224,7 @@ class TestParseAndStoreMemories:
             [
                 {
                     "type": "preference",
-                    "content": "User prefers 68°F",
+                    "content": "User prefers bedroom temperature at 68°F for sleeping comfort during nighttime",
                     "importance": 0.8,
                     "entities": ["climate.bedroom"],
                     "topics": ["temperature"],
@@ -245,7 +245,7 @@ class TestParseAndStoreMemories:
 [
   {
     "type": "fact",
-    "content": "Test fact",
+    "content": "The living room has three ceiling lights controlled by smart switches for ambient lighting",
     "importance": 0.5
   }
 ]
@@ -294,9 +294,21 @@ class TestParseAndStoreMemories:
 
         extraction_result = json.dumps(
             [
-                {"type": "fact", "content": "Fact 1", "importance": 0.5},
-                {"type": "preference", "content": "Preference 1", "importance": 0.8},
-                {"type": "context", "content": "Context 1", "importance": 0.6},
+                {
+                    "type": "fact",
+                    "content": "The home office desk has an ergonomic setup with adjustable monitor stands and keyboard tray",
+                    "importance": 0.5,
+                },
+                {
+                    "type": "preference",
+                    "content": "User prefers warm white lighting in the living room during evening hours for relaxation",
+                    "importance": 0.8,
+                },
+                {
+                    "type": "context",
+                    "content": "The family typically gathers in the living room between 7pm and 9pm for entertainment",
+                    "importance": 0.6,
+                },
             ]
         )
 
@@ -317,8 +329,16 @@ class TestParseAndStoreMemories:
 
         extraction_result = json.dumps(
             [
-                {"type": "fact", "content": "Fact 1", "importance": 0.5},
-                {"type": "fact", "content": "Fact 2", "importance": 0.5},
+                {
+                    "type": "fact",
+                    "content": "The garage door opener is connected to the smart home system for remote access",
+                    "importance": 0.5,
+                },
+                {
+                    "type": "fact",
+                    "content": "The kitchen has under-cabinet LED lighting controlled by motion sensors for convenience",
+                    "importance": 0.5,
+                },
             ]
         )
 
@@ -334,7 +354,10 @@ class TestParseAndStoreMemories:
         extraction_result = json.dumps(
             [
                 {"type": "fact"},  # Missing content
-                {"type": "fact", "content": "Valid fact"},
+                {
+                    "type": "fact",
+                    "content": "The master bedroom has blackout curtains controlled by automated window shades for better sleep",
+                },
             ]
         )
 
@@ -374,7 +397,7 @@ class TestExtractAndStoreMemories:
         home_agent._memory_manager = mock_memory_manager
         home_agent.config[CONF_MEMORY_EXTRACTION_LLM] = "local"
 
-        extraction_result = '[{"type": "fact", "content": "Test", "importance": 0.5}]'
+        extraction_result = '[{"type": "fact", "content": "The smart thermostat automatically adjusts temperature based on occupancy patterns throughout the day", "importance": 0.5}]'
 
         with patch.object(
             home_agent,
@@ -394,7 +417,7 @@ class TestExtractAndStoreMemories:
         home_agent.config[CONF_MEMORY_EXTRACTION_LLM] = "external"
         home_agent.config[CONF_EXTERNAL_LLM_ENABLED] = True
 
-        extraction_result = '[{"type": "fact", "content": "Test", "importance": 0.5}]'
+        extraction_result = '[{"type": "fact", "content": "The smart security system includes door sensors on all entry points with automatic alerts enabled", "importance": 0.5}]'
 
         home_agent.tool_handler.execute_tool = AsyncMock(
             return_value={"success": True, "result": extraction_result}
@@ -434,7 +457,7 @@ class TestExtractAndStoreMemories:
         home_agent._memory_manager = mock_memory_manager
         home_agent.config[CONF_MEMORY_EXTRACTION_LLM] = "local"
 
-        extraction_result = '[{"type": "fact", "content": "Test", "importance": 0.5}]'
+        extraction_result = '[{"type": "fact", "content": "The outdoor lighting system includes motion-activated pathway lights for enhanced security and convenience", "importance": 0.5}]'
 
         with patch.object(
             home_agent,

@@ -59,8 +59,9 @@ def memory_manager(mock_hass):
     config = {
         "memory_dedup_threshold": 0.9,
     }
-    with patch("custom_components.home_agent.memory_manager.VectorDBManager"):
-        manager = MemoryManager(mock_hass, config)
+    with patch("custom_components.home_agent.vector_db_manager.VectorDBManager"):
+        mock_vector_db = MagicMock()
+        manager = MemoryManager(mock_hass, mock_vector_db, config)
         return manager
 
 
@@ -71,7 +72,7 @@ def home_agent(mock_hass, agent_config, memory_manager):
         with patch("custom_components.home_agent.agent.ConversationHistoryManager"):
             with patch("custom_components.home_agent.agent.ToolHandler"):
                 agent = HomeAgent(mock_hass, agent_config)
-                agent.memory_manager = memory_manager
+                agent._memory_manager = memory_manager
                 return agent
 
 
@@ -156,9 +157,7 @@ class TestMemoryQualityValidation:
         ]
 
         extraction_result = json.dumps(short_memories)
-        stored_count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        stored_count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         # No memories should be stored
         assert stored_count == 0
@@ -183,9 +182,7 @@ class TestMemoryQualityValidation:
         ]
 
         extraction_result = json.dumps(low_importance_memories)
-        stored_count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        stored_count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert stored_count == 0
         assert home_agent.memory_manager.add_memory.call_count == 0
@@ -214,9 +211,7 @@ class TestMemoryQualityValidation:
         ]
 
         extraction_result = json.dumps(low_value_memories)
-        stored_count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        stored_count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert stored_count == 0
         assert home_agent.memory_manager.add_memory.call_count == 0
@@ -240,9 +235,7 @@ class TestMemoryQualityValidation:
         ]
 
         extraction_result = json.dumps(transient_memories)
-        stored_count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        stored_count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert stored_count == 0
         assert home_agent.memory_manager.add_memory.call_count == 0
@@ -284,9 +277,7 @@ class TestMemoryQualityValidation:
         ]
 
         extraction_result = json.dumps(good_memories)
-        stored_count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        stored_count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         # All 4 memories should be stored
         assert stored_count == 4
@@ -350,9 +341,7 @@ class TestMemoryQualityValidation:
         ]
 
         extraction_result = json.dumps(mixed_memories)
-        stored_count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        stored_count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         # Only 3 good memories should be stored
         assert stored_count == 3
@@ -360,8 +349,7 @@ class TestMemoryQualityValidation:
 
         # Verify that the right memories were stored (the good ones)
         stored_contents = [
-            call[1]["content"]
-            for call in home_agent.memory_manager.add_memory.call_args_list
+            call[1]["content"] for call in home_agent.memory_manager.add_memory.call_args_list
         ]
         assert "User prefers bedroom temperature at 68°F" in stored_contents[0]
         assert "sensitive to bright lights" in stored_contents[1]
@@ -377,9 +365,7 @@ class TestMemoryValidationEdgeCases:
         home_agent.memory_manager.add_memory = AsyncMock(return_value="mem_123")
 
         extraction_result = json.dumps([])
-        stored_count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        stored_count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         assert stored_count == 0
         assert home_agent.memory_manager.add_memory.call_count == 0
@@ -400,9 +386,7 @@ class TestMemoryValidationEdgeCases:
         ]
 
         extraction_result = json.dumps(short_word_memory)
-        stored_count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        stored_count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         # Should be rejected due to insufficient meaningful words
         assert stored_count == 0
@@ -427,9 +411,7 @@ class TestMemoryValidationEdgeCases:
         ]
 
         extraction_result = json.dumps(boundary_memories)
-        stored_count = await home_agent._parse_and_store_memories(
-            extraction_result, "conv_123"
-        )
+        stored_count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
         # Only the first one (0.4) should be stored
         assert stored_count == 1
