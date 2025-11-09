@@ -32,6 +32,7 @@ from .const import (
     CONF_HISTORY_PERSIST,
     CONF_LLM_API_KEY,
     CONF_LLM_BASE_URL,
+    CONF_LLM_KEEP_ALIVE,
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
     CONF_LLM_TEMPERATURE,
@@ -47,6 +48,7 @@ from .const import (
     CONF_TOOLS_TIMEOUT,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
+    DEFAULT_LLM_KEEP_ALIVE,
     DEFAULT_MEMORY_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_LLM,
@@ -534,6 +536,7 @@ class HomeAgent(AbstractConversationAgent):
             if max_tokens is not None
             else self.config.get(CONF_LLM_MAX_TOKENS, 500),
             "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
+            "keep_alive": self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
         }
 
         if tools:
@@ -589,6 +592,7 @@ class HomeAgent(AbstractConversationAgent):
             "max_tokens": self.config.get(CONF_LLM_MAX_TOKENS, 1000),
             "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
             "stream": True,  # Enable streaming!
+            "keep_alive": self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
         }
 
         # Add tools if available

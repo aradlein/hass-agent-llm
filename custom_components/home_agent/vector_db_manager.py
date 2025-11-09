@@ -19,6 +19,7 @@ from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
+    CONF_EMBEDDING_KEEP_ALIVE,
     CONF_OPENAI_API_KEY,
     CONF_VECTOR_DB_COLLECTION,
     CONF_VECTOR_DB_EMBEDDING_BASE_URL,
@@ -26,6 +27,7 @@ from .const import (
     CONF_VECTOR_DB_EMBEDDING_PROVIDER,
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
+    DEFAULT_EMBEDDING_KEEP_ALIVE,
     DEFAULT_VECTOR_DB_COLLECTION,
     DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
     DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
@@ -539,7 +541,11 @@ class VectorDBManager:
         import aiohttp
 
         url = f"{self.embedding_base_url.rstrip('/')}/api/embeddings"
-        payload = {"model": self.embedding_model, "prompt": text}
+        payload = {
+            "model": self.embedding_model,
+            "prompt": text,
+            "keep_alive": self.config.get(CONF_EMBEDDING_KEEP_ALIVE, DEFAULT_EMBEDDING_KEEP_ALIVE),
+        }
 
         try:
             async with aiohttp.ClientSession() as session:
