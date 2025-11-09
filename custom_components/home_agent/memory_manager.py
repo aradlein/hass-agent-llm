@@ -599,15 +599,18 @@ class MemoryManager:
         return float(current_time + ttl)
 
     def _is_transient_state(self, content: str) -> bool:
-        """Detect if content represents a transient state.
+        """Detect if content represents a transient state or low-quality content.
+
+        This includes both device state patterns and conversational meta-information
+        that should not be stored as memories.
 
         Args:
             content: Memory content to check
 
         Returns:
-            True if content appears to be transient state
+            True if content appears to be transient state or low-quality
         """
-        # Patterns that indicate transient state
+        # Patterns that indicate transient device state
         transient_patterns = [
             "is on",
             "is off",
@@ -627,8 +630,35 @@ class MemoryManager:
             "is unlocked",
         ]
 
+        # Patterns that indicate low-value conversational meta-information
+        low_value_patterns = [
+            "conversation occurred",
+            "conversation took place",
+            "we discussed",
+            "we talked about",
+            "user asked about",
+            "i mentioned",
+            "there is no",
+            "there are no",
+            "no specific",
+            "does not have",
+            "doesn't have",
+            "do not have",
+            "don't have",
+            "at the time",
+            "during the conversation",
+            "in the conversation",
+            "during our conversation",
+            "we were discussing",
+        ]
+
         content_lower = content.lower()
-        return any(pattern in content_lower for pattern in transient_patterns)
+
+        # Check both transient state and low-value patterns
+        return (
+            any(pattern in content_lower for pattern in transient_patterns) or
+            any(pattern in content_lower for pattern in low_value_patterns)
+        )
 
     async def _find_duplicate(self, content: str) -> str | None:
         """Find duplicate memory using semantic similarity.

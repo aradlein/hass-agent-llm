@@ -72,6 +72,7 @@
 - ✅ Core memory manager with persistent storage
 - ✅ ChromaDB indexing for semantic search
 - ✅ Automatic memory extraction from conversations
+- ✅ **Memory quality validation** - Multi-layer filtering to reject low-value content
 - ✅ Manual memory tools (`store_memory`, `recall_memory`)
 - ✅ Memory context provider for enhanced responses
 - ✅ Memory management UI and services
@@ -80,7 +81,7 @@
 **Key Files:** `memory_manager.py`, `context_providers/memory.py`, `tools/memory_tools.py`
 **Services:** `list_memories`, `delete_memory`, `clear_memories`, `search_memories`, `add_memory`
 **Storage:** `.storage/home_agent.memories`
-**Tests:** 6+ memory test files
+**Tests:** 7 memory test files (includes quality validation tests)
 
 ---
 
@@ -1075,16 +1076,30 @@ home_agent:
   - Importance scoring with access boost and optional decay (`CONF_MEMORY_IMPORTANCE_DECAY`)
   - Memory retention policies with per-type TTL settings
   - Periodic cleanup task for expired memories (`CONF_MEMORY_CLEANUP_INTERVAL`)
-  - **Implementation**: `memory_manager.py` (887 lines)
+  - **Enhanced quality detection** (`_is_transient_state()` method):
+    - Detects transient device states: "is on", "is off", "temperature is", etc.
+    - Detects low-value conversational patterns: "conversation occurred", "we discussed", "there is no", etc.
+    - 12+ low-value patterns for filtering meta-information and negative existence statements
+  - **Implementation**: `memory_manager.py` (887 lines), quality detection at lines 595-655
 - [x] **Automatic Memory Extraction**
   - Post-conversation hook triggered by conversation completion in `agent.py`
   - **Configurable LLM selection**: Use external LLM OR local LLM for extraction (`CONF_MEMORY_EXTRACTION_LLM`)
   - Extraction prompt builder (`_build_extraction_prompt()`) with conversation context
+  - **Enhanced extraction prompt** with explicit quality guidance:
+    - DO NOT extract: meta-information, timestamps, negative existence statements, questions without answers
+    - DO extract: actionable facts, specific preferences, important context, patterns/routines
+    - Minimum information density requirement (10+ meaningful words)
   - Parse structured JSON response from LLM with markdown code block handling
+  - **Multi-layer quality validation** before storing memories:
+    1. **Word count validation**: Reject memories with < 10 meaningful words (>2 chars)
+    2. **Low-value prefix detection**: Reject content starting with phrases like "there is no", "we discussed"
+    3. **Importance threshold**: Reject memories with importance < 0.4
+    4. **Pattern-based filtering**: Detect and reject transient states and conversational meta-information
   - Store extracted memories in MemoryManager + ChromaDB indexing
   - Error handling for extraction failures with event firing
   - Event: `EVENT_MEMORY_EXTRACTED` with extraction details
-  - **Implementation**: `agent.py` lines 1226-1587
+  - Debug logging for all memory rejections with specific reasons
+  - **Implementation**: `agent.py` lines 1226-1587, 1469-1520 (validation)
 - [x] **Manual Memory Tools**
   - `store_memory` tool: Explicitly save a fact/preference during conversation
   - `recall_memory` tool: Search and retrieve relevant memories semantically
@@ -1123,7 +1138,8 @@ home_agent:
 - [x] **Configuration & Testing**
   - Memory-related constants added to `const.py`
   - Default values for all memory settings
-  - Unit tests: `test_memory_manager.py`, `test_memory_extraction.py`, `test_memory_tools.py`
+  - Unit tests: `test_memory_manager.py`, `test_memory_extraction.py`, `test_memory_tools.py`, `test_memory_quality_validation.py`
+  - Quality validation tests: 10+ test cases covering positive/negative/edge cases for memory filtering
   - Service tests: `test_memory_services.py`
   - Context provider tests: `test_memory_context_provider.py`
   - Integration tests for memory + conversation flows

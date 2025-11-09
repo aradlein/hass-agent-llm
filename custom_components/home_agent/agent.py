@@ -1416,6 +1416,20 @@ Extract memories as a JSON array. Each memory should have:
 - DO extract patterns and preferences (e.g., "user prefers bedroom at 68°F")
 - If nothing worth remembering, return empty array: []
 
+**DO NOT extract:**
+- Meta-information about the conversation itself (e.g., "conversation occurred at 3pm", "we discussed")
+- Timestamps or temporal references about when the conversation happened
+- Negative existence statements (e.g., "there is no X", "no specific Y sensor", "does not have")
+- Questions without concrete answers (e.g., "user asked about temperature")
+- Content with low information density (minimum 10 meaningful words required)
+- Vague or generic statements without actionable details
+
+**DO extract:**
+- Actionable facts and concrete information
+- Specific user preferences with values
+- Important context that will be useful in future conversations
+- Patterns and routines the user follows
+
 Return ONLY valid JSON, no other text:
 
 ```json
@@ -1538,12 +1552,53 @@ Return ONLY valid JSON, no other text:
 
                     content = memory_data["content"]
                     memory_type = memory_data.get("type", "fact")
+                    importance = memory_data.get("importance", 0.5)
 
-                    # Validate: reject transient state stored as facts
-                    if memory_type == "fact" and self.memory_manager._is_transient_state(content):
-                        _LOGGER.warning(
-                            "Rejecting transient state stored as fact: %s. "
-                            "Transient states should use 'event' type.",
+                    # Quality validation checks
+
+                    # 1. Reject if too short (less than 10 meaningful words)
+                    word_count = len([w for w in content.split() if len(w) > 2])
+                    if word_count < 10:
+                        _LOGGER.debug(
+                            "Rejecting short memory (%d words): %s",
+                            word_count,
+                            content[:50],
+                        )
+                        continue
+
+                    # 2. Reject if starts with low-value patterns
+                    low_value_starts = (
+                        "there is no",
+                        "there are no",
+                        "no specific",
+                        "the conversation",
+                        "we discussed",
+                        "we talked about",
+                        "user asked about",
+                        "during the conversation",
+                        "at the time",
+                    )
+                    if content.lower().startswith(low_value_starts):
+                        _LOGGER.debug(
+                            "Rejecting low-value memory starting with '%s': %s",
+                            content.split()[0:3],
+                            content[:50],
+                        )
+                        continue
+
+                    # 3. Reject if importance is too low
+                    if importance < 0.4:
+                        _LOGGER.debug(
+                            "Rejecting low-importance memory (%.2f): %s",
+                            importance,
+                            content[:50],
+                        )
+                        continue
+
+                    # 4. Reject transient state or low-quality content (all types)
+                    if self.memory_manager._is_transient_state(content):
+                        _LOGGER.debug(
+                            "Rejecting transient/low-quality content: %s",
                             content[:50],
                         )
                         continue
