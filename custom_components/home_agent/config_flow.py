@@ -116,32 +116,8 @@ _LOGGER = logging.getLogger(__name__)
 # OpenAI default base URL
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 
-
-def validate_keep_alive(value: str) -> str:
-    """Validate keep_alive parameter format.
-
-    Args:
-        value: Keep alive value (e.g., "5m", "1h", "-1")
-
-    Returns:
-        The validated value
-
-    Raises:
-        vol.Invalid: If format is invalid
-    """
-    import re
-
-    if value == "-1":
-        return value
-
-    # Check format: number + unit (s, m, h)
-    if not re.match(r'^\d+[smh]$', value):
-        raise vol.Invalid(
-            f"Invalid keep_alive format: '{value}'. "
-            "Use format like '5m', '1h', '30s', or '-1' for indefinite."
-        )
-
-    return value
+# Regex pattern for keep_alive: accepts duration strings (5m, 1h, 30s) or -1 for indefinite
+KEEP_ALIVE_PATTERN = r"^(-1|\d+[smh])$"
 
 
 class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -228,7 +204,7 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(
                         CONF_LLM_KEEP_ALIVE,
                         default=DEFAULT_LLM_KEEP_ALIVE,
-                    ): validate_keep_alive,
+                    ): vol.Match(KEEP_ALIVE_PATTERN),
                 }
             ),
             errors=errors,
@@ -488,7 +464,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_LLM_KEEP_ALIVE,
                         default=current_data.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
-                    ): validate_keep_alive,
+                    ): vol.Match(KEEP_ALIVE_PATTERN),
                 }
             ),
             errors=errors,
@@ -617,7 +593,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                             CONF_EMBEDDING_KEEP_ALIVE,
                             DEFAULT_EMBEDDING_KEEP_ALIVE,
                         ),
-                    ): validate_keep_alive,
+                    ): vol.Match(KEEP_ALIVE_PATTERN),
                     vol.Optional(
                         CONF_OPENAI_API_KEY,
                         default=current_options.get(CONF_OPENAI_API_KEY, ""),
@@ -857,7 +833,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         CONF_EXTERNAL_LLM_KEEP_ALIVE,
                         DEFAULT_EXTERNAL_LLM_KEEP_ALIVE,
                     ),
-                ): validate_keep_alive,
+                ): vol.Match(KEEP_ALIVE_PATTERN),
                 vol.Optional(
                     CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
                     description={
