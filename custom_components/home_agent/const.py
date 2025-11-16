@@ -72,7 +72,6 @@ CONF_EXTERNAL_LLM_ENABLED: Final = "external_llm_enabled"
 CONF_EXTERNAL_LLM_BASE_URL: Final = "external_llm_base_url"
 CONF_EXTERNAL_LLM_API_KEY: Final = "external_llm_api_key"
 CONF_EXTERNAL_LLM_MODEL: Final = "external_llm_model"
-CONF_EXTERNAL_LLM_BACKEND: Final = "external_llm_backend"
 CONF_EXTERNAL_LLM_TEMPERATURE: Final = "external_llm_temperature"
 CONF_EXTERNAL_LLM_MAX_TOKENS: Final = "external_llm_max_tokens"
 CONF_EXTERNAL_LLM_TOOL_DESCRIPTION: Final = "external_llm_tool_description"
@@ -176,7 +175,6 @@ DEFAULT_TOOLS_TIMEOUT: Final = 30
 # Default values - External LLM Tool
 DEFAULT_EXTERNAL_LLM_ENABLED: Final = False
 DEFAULT_EXTERNAL_LLM_MODEL: Final = "gpt-4o"
-DEFAULT_EXTERNAL_LLM_BACKEND: Final = LLM_BACKEND_DEFAULT
 DEFAULT_EXTERNAL_LLM_TEMPERATURE: Final = 0.8
 DEFAULT_EXTERNAL_LLM_MAX_TOKENS: Final = 1000
 DEFAULT_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT: Final = True

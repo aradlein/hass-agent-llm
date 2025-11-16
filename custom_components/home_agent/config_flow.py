@@ -27,7 +27,6 @@ from .const import (
     CONF_EMBEDDING_KEEP_ALIVE,
     CONF_EXTERNAL_LLM_API_KEY,
     CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
-    CONF_EXTERNAL_LLM_BACKEND,
     CONF_EXTERNAL_LLM_BASE_URL,
     CONF_EXTERNAL_LLM_ENABLED,
     CONF_EXTERNAL_LLM_KEEP_ALIVE,
@@ -79,7 +78,6 @@ from .const import (
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_EMBEDDING_KEEP_ALIVE,
     DEFAULT_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
-    DEFAULT_EXTERNAL_LLM_BACKEND,
     DEFAULT_EXTERNAL_LLM_ENABLED,
     DEFAULT_EXTERNAL_LLM_KEEP_ALIVE,
     DEFAULT_EXTERNAL_LLM_MAX_TOKENS,
@@ -964,23 +962,6 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         current_data.get(CONF_EXTERNAL_LLM_MODEL, DEFAULT_EXTERNAL_LLM_MODEL),
                     ),
                 ): str,
-                vol.Optional(
-                    CONF_EXTERNAL_LLM_BACKEND,
-                    default=current_options.get(
-                        CONF_EXTERNAL_LLM_BACKEND,
-                        current_data.get(CONF_EXTERNAL_LLM_BACKEND, DEFAULT_EXTERNAL_LLM_BACKEND),
-                    ),
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            LLM_BACKEND_DEFAULT,
-                            LLM_BACKEND_LLAMA_CPP,
-                            LLM_BACKEND_VLLM,
-                            LLM_BACKEND_OLLAMA_GPU,
-                        ],
-                        translation_key="llm_backend",
-                    )
-                ),
                 vol.Optional(
                     CONF_EXTERNAL_LLM_TEMPERATURE,
                     default=current_options.get(
