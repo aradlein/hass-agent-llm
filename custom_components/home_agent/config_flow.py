@@ -27,6 +27,7 @@ from .const import (
     CONF_EMBEDDING_KEEP_ALIVE,
     CONF_EXTERNAL_LLM_API_KEY,
     CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
+    CONF_EXTERNAL_LLM_BACKEND,
     CONF_EXTERNAL_LLM_BASE_URL,
     CONF_EXTERNAL_LLM_ENABLED,
     CONF_EXTERNAL_LLM_KEEP_ALIVE,
@@ -38,6 +39,7 @@ from .const import (
     CONF_HISTORY_MAX_MESSAGES,
     CONF_HISTORY_MAX_TOKENS,
     CONF_LLM_API_KEY,
+    CONF_LLM_BACKEND,
     CONF_LLM_BASE_URL,
     CONF_LLM_KEEP_ALIVE,
     CONF_LLM_MAX_TOKENS,
@@ -77,6 +79,7 @@ from .const import (
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_EMBEDDING_KEEP_ALIVE,
     DEFAULT_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
+    DEFAULT_EXTERNAL_LLM_BACKEND,
     DEFAULT_EXTERNAL_LLM_ENABLED,
     DEFAULT_EXTERNAL_LLM_KEEP_ALIVE,
     DEFAULT_EXTERNAL_LLM_MAX_TOKENS,
@@ -86,6 +89,7 @@ from .const import (
     DEFAULT_HISTORY_ENABLED,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
+    DEFAULT_LLM_BACKEND,
     DEFAULT_LLM_KEEP_ALIVE,
     DEFAULT_LLM_MODEL,
     DEFAULT_MAX_TOKENS,
@@ -113,6 +117,10 @@ from .const import (
     DOMAIN,
     EMBEDDING_PROVIDER_OLLAMA,
     EMBEDDING_PROVIDER_OPENAI,
+    LLM_BACKEND_DEFAULT,
+    LLM_BACKEND_LLAMA_CPP,
+    LLM_BACKEND_OLLAMA_GPU,
+    LLM_BACKEND_VLLM,
 )
 from .exceptions import AuthenticationError, ValidationError
 
@@ -197,6 +205,20 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                         CONF_LLM_MODEL,
                         default=DEFAULT_LLM_MODEL,
                     ): str,
+                    vol.Optional(
+                        CONF_LLM_BACKEND,
+                        default=DEFAULT_LLM_BACKEND,
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                LLM_BACKEND_DEFAULT,
+                                LLM_BACKEND_LLAMA_CPP,
+                                LLM_BACKEND_VLLM,
+                                LLM_BACKEND_OLLAMA_GPU,
+                            ],
+                            translation_key="llm_backend",
+                        )
+                    ),
                     vol.Optional(
                         CONF_LLM_TEMPERATURE,
                         default=DEFAULT_TEMPERATURE,
@@ -461,6 +483,20 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         CONF_LLM_MODEL,
                         default=current_data.get(CONF_LLM_MODEL, DEFAULT_LLM_MODEL),
                     ): str,
+                    vol.Optional(
+                        CONF_LLM_BACKEND,
+                        default=current_data.get(CONF_LLM_BACKEND, DEFAULT_LLM_BACKEND),
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                LLM_BACKEND_DEFAULT,
+                                LLM_BACKEND_LLAMA_CPP,
+                                LLM_BACKEND_VLLM,
+                                LLM_BACKEND_OLLAMA_GPU,
+                            ],
+                            translation_key="llm_backend",
+                        )
+                    ),
                     vol.Optional(
                         CONF_LLM_TEMPERATURE,
                         default=current_data.get(CONF_LLM_TEMPERATURE, DEFAULT_TEMPERATURE),
@@ -928,6 +964,23 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         current_data.get(CONF_EXTERNAL_LLM_MODEL, DEFAULT_EXTERNAL_LLM_MODEL),
                     ),
                 ): str,
+                vol.Optional(
+                    CONF_EXTERNAL_LLM_BACKEND,
+                    default=current_options.get(
+                        CONF_EXTERNAL_LLM_BACKEND,
+                        current_data.get(CONF_EXTERNAL_LLM_BACKEND, DEFAULT_EXTERNAL_LLM_BACKEND),
+                    ),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            LLM_BACKEND_DEFAULT,
+                            LLM_BACKEND_LLAMA_CPP,
+                            LLM_BACKEND_VLLM,
+                            LLM_BACKEND_OLLAMA_GPU,
+                        ],
+                        translation_key="llm_backend",
+                    )
+                ),
                 vol.Optional(
                     CONF_EXTERNAL_LLM_TEMPERATURE,
                     default=current_options.get(

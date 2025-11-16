@@ -9,6 +9,7 @@
           "base_url": "LLM API Base URL",
           "api_key": "API Key",
           "model": "Model Name",
+          "llm_backend": "Backend",
           "temperature": "Temperature",
           "max_tokens": "Max Tokens",
           "top_p": "Top P"
@@ -18,6 +19,7 @@
           "base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
           "api_key": "API key for authentication (leave empty if not required)",
           "model": "The model to use (e.g., gpt-4o-mini, llama3.1, etc.)",
+          "llm_backend": "Specify which backend to use for Ollama (Default for standard behavior, or select a specific backend like llama-cpp, vllm-server, or ollama-gpu)",
           "temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
           "max_tokens": "Maximum tokens per response",
           "top_p": "Nucleus sampling parameter (0.0-1.0)"
@@ -190,6 +192,7 @@
           "llm_base_url": "LLM Base URL",
           "llm_api_key": "API Key",
           "llm_model": "Model Name",
+          "llm_backend": "Backend",
           "llm_temperature": "Temperature",
           "llm_max_tokens": "Max Tokens"
         },
@@ -197,6 +200,7 @@
           "llm_base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
           "llm_api_key": "API key for authentication",
           "llm_model": "Model to use (e.g., gpt-4o-mini, llama3.1)",
+          "llm_backend": "Specify which backend to use for Ollama (Default for standard behavior, or select a specific backend like llama-cpp, vllm-server, or ollama-gpu)",
           "llm_temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
           "llm_max_tokens": "Maximum tokens per response"
         }
@@ -287,6 +291,7 @@
           "external_llm_base_url": "External LLM Base URL",
           "external_llm_api_key": "External LLM API Key",
           "external_llm_model": "External LLM Model",
+          "external_llm_backend": "External LLM Backend",
           "external_llm_temperature": "External LLM Temperature",
           "external_llm_max_tokens": "External LLM Max Tokens",
           "external_llm_tool_description": "Tool Description",
@@ -297,6 +302,7 @@
           "external_llm_base_url": "OpenAI-compatible API endpoint for external LLM",
           "external_llm_api_key": "API key for external LLM authentication",
           "external_llm_model": "External model name",
+          "external_llm_backend": "Specify which backend to use for external Ollama LLM (Default for standard behavior, or select a specific backend like llama-cpp, vllm-server, or ollama-gpu)",
           "external_llm_temperature": "Temperature for external LLM responses",
           "external_llm_max_tokens": "Maximum tokens for external LLM responses",
           "external_llm_tool_description": "Description of when to use the external LLM",
@@ -378,6 +384,14 @@
       "options": {
         "openai": "OpenAI (Cloud)",
         "ollama": "Ollama (Local)"
+      }
+    },
+    "llm_backend": {
+      "options": {
+        "default": "Default",
+        "llama-cpp": "Llama.cpp",
+        "vllm-server": "vLLM Server",
+        "ollama-gpu": "Ollama GPU"
       }
     }
   },

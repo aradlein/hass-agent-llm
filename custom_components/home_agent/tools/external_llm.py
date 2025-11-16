@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant
 
 from ..const import (
     CONF_EXTERNAL_LLM_API_KEY,
+    CONF_EXTERNAL_LLM_BACKEND,
     CONF_EXTERNAL_LLM_BASE_URL,
     CONF_EXTERNAL_LLM_KEEP_ALIVE,
     CONF_EXTERNAL_LLM_MAX_TOKENS,
@@ -24,12 +25,14 @@ from ..const import (
     CONF_EXTERNAL_LLM_TEMPERATURE,
     CONF_EXTERNAL_LLM_TOOL_DESCRIPTION,
     CONF_TOOLS_TIMEOUT,
+    DEFAULT_EXTERNAL_LLM_BACKEND,
     DEFAULT_EXTERNAL_LLM_KEEP_ALIVE,
     DEFAULT_EXTERNAL_LLM_MAX_TOKENS,
     DEFAULT_EXTERNAL_LLM_MODEL,
     DEFAULT_EXTERNAL_LLM_TEMPERATURE,
     DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION,
     DEFAULT_TOOLS_TIMEOUT,
+    LLM_BACKEND_DEFAULT,
     TOOL_QUERY_EXTERNAL_LLM,
 )
 from ..exceptions import ToolExecutionError, ValidationError
@@ -314,6 +317,11 @@ class ExternalLLMTool(BaseTool):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
         }
+
+        # Add X-Ollama-Backend header if backend is specified and not default
+        backend = self._config.get(CONF_EXTERNAL_LLM_BACKEND, DEFAULT_EXTERNAL_LLM_BACKEND)
+        if backend != LLM_BACKEND_DEFAULT:
+            headers["X-Ollama-Backend"] = backend
 
         payload = {
             "model": model,

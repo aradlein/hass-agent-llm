@@ -31,6 +31,7 @@ from .const import (
     CONF_HISTORY_MAX_TOKENS,
     CONF_HISTORY_PERSIST,
     CONF_LLM_API_KEY,
+    CONF_LLM_BACKEND,
     CONF_LLM_BASE_URL,
     CONF_LLM_KEEP_ALIVE,
     CONF_LLM_MAX_TOKENS,
@@ -62,6 +63,7 @@ from .const import (
     EVENT_MEMORY_EXTRACTED,
     EVENT_STREAMING_ERROR,
     HTTP_TIMEOUT,
+    LLM_BACKEND_DEFAULT,
     TOOL_QUERY_EXTERNAL_LLM,
 )
 from .context_manager import ContextManager
@@ -528,6 +530,11 @@ class HomeAgent(AbstractConversationAgent):
             "Authorization": f"Bearer {self.config[CONF_LLM_API_KEY]}",
         }
 
+        # Add X-Ollama-Backend header if backend is specified and not default
+        backend = self.config.get(CONF_LLM_BACKEND, LLM_BACKEND_DEFAULT)
+        if backend != LLM_BACKEND_DEFAULT:
+            headers["X-Ollama-Backend"] = backend
+
         payload: dict[str, Any] = {
             "model": self.config[CONF_LLM_MODEL],
             "messages": messages,
@@ -586,6 +593,11 @@ class HomeAgent(AbstractConversationAgent):
             "Authorization": f"Bearer {self.config[CONF_LLM_API_KEY]}",
             "Content-Type": "application/json",
         }
+
+        # Add X-Ollama-Backend header if backend is specified and not default
+        backend = self.config.get(CONF_LLM_BACKEND, LLM_BACKEND_DEFAULT)
+        if backend != LLM_BACKEND_DEFAULT:
+            headers["X-Ollama-Backend"] = backend
 
         payload: dict[str, Any] = {
             "model": self.config[CONF_LLM_MODEL],

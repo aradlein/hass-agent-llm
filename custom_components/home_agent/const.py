@@ -15,6 +15,7 @@ CONF_LLM_TEMPERATURE: Final = "llm_temperature"
 CONF_LLM_MAX_TOKENS: Final = "llm_max_tokens"
 CONF_LLM_TOP_P: Final = "llm_top_p"
 CONF_LLM_KEEP_ALIVE: Final = "llm_keep_alive"
+CONF_LLM_BACKEND: Final = "llm_backend"
 
 # Configuration keys - Context Injection
 CONF_CONTEXT_MODE: Final = "context_mode"
@@ -71,6 +72,7 @@ CONF_EXTERNAL_LLM_ENABLED: Final = "external_llm_enabled"
 CONF_EXTERNAL_LLM_BASE_URL: Final = "external_llm_base_url"
 CONF_EXTERNAL_LLM_API_KEY: Final = "external_llm_api_key"
 CONF_EXTERNAL_LLM_MODEL: Final = "external_llm_model"
+CONF_EXTERNAL_LLM_BACKEND: Final = "external_llm_backend"
 CONF_EXTERNAL_LLM_TEMPERATURE: Final = "external_llm_temperature"
 CONF_EXTERNAL_LLM_MAX_TOKENS: Final = "external_llm_max_tokens"
 CONF_EXTERNAL_LLM_TOOL_DESCRIPTION: Final = "external_llm_tool_description"
@@ -118,12 +120,19 @@ COMPRESSION_LEVEL_HIGH: Final = "high"
 EMBEDDING_PROVIDER_OPENAI: Final = "openai"
 EMBEDDING_PROVIDER_OLLAMA: Final = "ollama"
 
+# LLM Backend options
+LLM_BACKEND_DEFAULT: Final = "default"
+LLM_BACKEND_LLAMA_CPP: Final = "llama-cpp"
+LLM_BACKEND_VLLM: Final = "vllm-server"
+LLM_BACKEND_OLLAMA_GPU: Final = "ollama-gpu"
+
 # Default values - LLM Configuration
 DEFAULT_LLM_MODEL: Final = "gpt-4o-mini"
 DEFAULT_TEMPERATURE: Final = 0.7
 DEFAULT_MAX_TOKENS: Final = 500
 DEFAULT_TOP_P: Final = 1.0
 DEFAULT_LLM_KEEP_ALIVE: Final = "5m"
+DEFAULT_LLM_BACKEND: Final = LLM_BACKEND_DEFAULT
 
 # Default values - Context Injection
 DEFAULT_CONTEXT_MODE: Final = CONTEXT_MODE_DIRECT
@@ -167,6 +176,7 @@ DEFAULT_TOOLS_TIMEOUT: Final = 30
 # Default values - External LLM Tool
 DEFAULT_EXTERNAL_LLM_ENABLED: Final = False
 DEFAULT_EXTERNAL_LLM_MODEL: Final = "gpt-4o"
+DEFAULT_EXTERNAL_LLM_BACKEND: Final = LLM_BACKEND_DEFAULT
 DEFAULT_EXTERNAL_LLM_TEMPERATURE: Final = 0.8
 DEFAULT_EXTERNAL_LLM_MAX_TOKENS: Final = 1000
 DEFAULT_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT: Final = True
