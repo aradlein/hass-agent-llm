@@ -450,7 +450,8 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     self._config_entry, data={**self._config_entry.data, **user_input}
                 )
 
-                return self.async_create_entry(title="", data={})
+                # Return current options to preserve them
+                return self.async_create_entry(title="", data=self._config_entry.options)
 
             except ValidationError as err:
                 _LOGGER.error("LLM validation error: %s", err)

@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import (
+    CONF_CONTEXT_MODE,
     CONF_MEMORY_CLEANUP_INTERVAL,
     CONF_MEMORY_COLLECTION_NAME,
     CONF_MEMORY_DEDUP_THRESHOLD,
@@ -25,6 +26,8 @@ from .const import (
     CONF_MEMORY_MAX_MEMORIES,
     CONF_MEMORY_MIN_IMPORTANCE,
     CONF_MEMORY_PREFERENCE_TTL,
+    CONTEXT_MODE_VECTOR_DB,
+    DEFAULT_CONTEXT_MODE,
     DEFAULT_MEMORY_CLEANUP_INTERVAL,
     DEFAULT_MEMORY_COLLECTION_NAME,
     DEFAULT_MEMORY_DEDUP_THRESHOLD,
@@ -366,9 +369,142 @@ class MemoryManager:
         Returns:
             List of memories sorted by relevance
         """
-        # Early return if no memories exist
+        # Check context mode to determine search strategy
+        context_mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
+
+        if context_mode == CONTEXT_MODE_VECTOR_DB:
+            # Vector DB mode: Query ChromaDB directly
+            return await self._search_memories_chromadb(
+                query, top_k, min_importance, memory_types
+            )
+        else:
+            # Direct mode: Use local memory storage
+            return await self._search_memories_local(
+                query, top_k, min_importance, memory_types
+            )
+
+    async def _search_memories_chromadb(
+        self,
+        query: str,
+        top_k: int,
+        min_importance: float,
+        memory_types: list[str] | None,
+    ) -> list[dict]:
+        """Search memories directly from ChromaDB.
+
+        Used when context mode is set to vector_db.
+
+        Args:
+            query: Search query text
+            top_k: Number of results to return
+            min_importance: Minimum importance threshold
+            memory_types: Optional list of memory types to filter by
+
+        Returns:
+            List of memories sorted by relevance
+        """
+        if not self._chromadb_available:
+            _LOGGER.warning("ChromaDB not available for memory search")
+            return []
+
+        if self._collection is None:
+            _LOGGER.warning("ChromaDB collection not initialized")
+            return []
+
+        try:
+            # Generate embedding for query
+            embedding = await self.vector_db_manager._embed_text(query)
+
+            # Query ChromaDB with include for documents and metadata
+            results = await self.hass.async_add_executor_job(
+                lambda: self._collection.query(
+                    query_embeddings=[embedding],
+                    n_results=top_k * 2,  # Get more to filter
+                    include=["documents", "metadatas"],
+                )
+            )
+
+            if not results or "ids" not in results or not results["ids"][0]:
+                return []
+
+            # Build memories from ChromaDB results
+            memories = []
+            ids = results["ids"][0]
+            documents = results.get("documents", [[]])[0]
+            metadatas = results.get("metadatas", [[]])[0]
+
+            for i, memory_id in enumerate(ids):
+                # Get metadata for this memory
+                metadata = metadatas[i] if i < len(metadatas) else {}
+                document = documents[i] if i < len(documents) else ""
+
+                # Extract importance from metadata
+                importance = float(metadata.get("importance", 0.5))
+                if importance < min_importance:
+                    continue
+
+                # Extract type from metadata
+                memory_type = metadata.get("type", MEMORY_TYPE_FACT)
+                if memory_types and memory_type not in memory_types:
+                    continue
+
+                # Build memory object from ChromaDB data
+                memory = {
+                    "id": memory_id,
+                    "content": document,
+                    "type": memory_type,
+                    "importance": importance,
+                    "last_accessed": float(metadata.get("last_accessed", time.time())),
+                    "extracted_at": float(metadata.get("extracted_at", time.time())),
+                }
+
+                # Also update local cache if available
+                if memory_id in self._memories:
+                    self._memories[memory_id]["last_accessed"] = time.time()
+                    self._memories[memory_id]["importance"] = min(
+                        1.0, importance + IMPORTANCE_ACCESS_BOOST
+                    )
+
+                memories.append(memory)
+
+            # Limit to top_k
+            memories = memories[:top_k]
+
+            _LOGGER.debug(
+                "ChromaDB memory search returned %d results for query: %s",
+                len(memories),
+                query[:50],
+            )
+
+            return memories
+
+        except Exception as err:
+            _LOGGER.error("ChromaDB memory search failed: %s", err, exc_info=True)
+            return []
+
+    async def _search_memories_local(
+        self,
+        query: str,
+        top_k: int,
+        min_importance: float,
+        memory_types: list[str] | None,
+    ) -> list[dict]:
+        """Search memories from local storage.
+
+        Used when context mode is set to direct.
+
+        Args:
+            query: Search query text
+            top_k: Number of results to return
+            min_importance: Minimum importance threshold
+            memory_types: Optional list of memory types to filter by
+
+        Returns:
+            List of memories sorted by relevance
+        """
+        # Early return if no memories exist in local storage
         if not self._memories:
-            _LOGGER.debug("No memories to search")
+            _LOGGER.debug("No memories in local storage to search")
             return []
 
         if not self._chromadb_available:
@@ -429,7 +565,7 @@ class MemoryManager:
             return memories
 
         except Exception as err:
-            _LOGGER.error("Memory search failed: %s", err, exc_info=True)
+            _LOGGER.error("Local memory search failed: %s", err, exc_info=True)
             return []
 
     async def delete_memory(self, memory_id: str) -> bool:

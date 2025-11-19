@@ -8,6 +8,7 @@ and caching.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -224,20 +225,34 @@ class ContextManager:
                 return cached_context
 
         try:
-            # Get fresh context from provider
-            context = await self._provider.get_context(user_input)
-
-            # Get memory context if memory provider is available
+            # Run entity and memory context retrieval in parallel if memory provider available
             if self._memory_provider is not None:
-                try:
-                    memory_context = await self._memory_provider.get_context(user_input)
-                    if memory_context:
-                        # Combine entity and memory context
-                        context = f"{context}\n{memory_context}"
-                        _LOGGER.debug("Added memory context to entity context")
-                except Exception as mem_err:
-                    _LOGGER.warning("Failed to get memory context: %s", mem_err)
+                # Parallel execution using asyncio.gather
+                results = await asyncio.gather(
+                    self._provider.get_context(user_input),
+                    self._memory_provider.get_context(user_input),
+                    return_exceptions=True,
+                )
+
+                # Handle entity context result
+                if isinstance(results[0], Exception):
+                    _LOGGER.error("Failed to get entity context: %s", results[0])
+                    raise ContextInjectionError(
+                        f"Failed to retrieve entity context: {results[0]}"
+                    ) from results[0]
+                context = results[0]
+
+                # Handle memory context result
+                if isinstance(results[1], Exception):
+                    _LOGGER.warning("Failed to get memory context: %s", results[1])
                     # Continue without memory context
+                elif results[1]:
+                    # Combine entity and memory context
+                    context = f"{context}\n{results[1]}"
+                    _LOGGER.debug("Added memory context to entity context")
+            else:
+                # No memory provider, just get entity context
+                context = await self._provider.get_context(user_input)
 
             # Cache the result
             if self._cache_enabled:
@@ -247,6 +262,8 @@ class ContextManager:
 
             return context
 
+        except ContextInjectionError:
+            raise
         except Exception as error:
             _LOGGER.error("Failed to get context: %s", error, exc_info=True)
             raise ContextInjectionError(f"Failed to retrieve context: {error}") from error
