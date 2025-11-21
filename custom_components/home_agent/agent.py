@@ -778,6 +778,8 @@ class HomeAgent(AbstractConversationAgent):
         from homeassistant.components import conversation
         from homeassistant.components.conversation.chat_log import current_chat_log
 
+        from homeassistant.helpers import llm
+
         from .streaming import OpenAIStreamingHandler
 
         chat_log = current_chat_log.get()
@@ -785,20 +787,47 @@ class HomeAgent(AbstractConversationAgent):
             raise RuntimeError("ChatLog not available in streaming mode")
 
         conversation_id = user_input.conversation_id or "default"
-        user_message = user_input.text
-        device_id = user_input.device_id
-        user_id = user_input.context.user_id if user_input.context else None
 
-        # Track start time for metrics
-        start_time = time.time()
+        # Create a simple APIInstance adapter to handle tool calls
+        # This allows ChatLog to execute tools via our tool_handler
+        class ToolHandlerAPIInstance:
+            """Adapter to make tool_handler compatible with llm.APIInstance interface."""
 
-        # Get context from context manager
+            def __init__(self, tool_handler, metrics, conv_id):
+                self.tool_handler = tool_handler
+                self.metrics = metrics
+                self.conversation_id = conv_id
+
+            async def async_call_tool(self, tool_input: llm.ToolInput) -> dict:
+                """Execute tool via tool_handler."""
+                try:
+                    result = await self.tool_handler.execute_tool(
+                        tool_input.tool_name,
+                        tool_input.tool_args,
+                        self.conversation_id
+                    )
+                    self.metrics["tool_calls"] += 1
+                    return result if isinstance(result, dict) else {"result": str(result)}
+                except Exception as err:
+                    _LOGGER.error("Tool execution failed: %s", err, exc_info=True)
+                    return {"error": str(err)}
+
+        # Initialize metrics that will be passed to the adapter
         metrics: dict[str, Any] = {
             "tokens": {"prompt": 0, "completion": 0, "total": 0},
             "performance": {"llm_latency_ms": 0, "tool_latency_ms": 0, "context_latency_ms": 0},
             "context": {},
             "tool_calls": 0,
         }
+
+        # Set the llm_api so ChatLog can execute tools
+        chat_log.llm_api = ToolHandlerAPIInstance(self.tool_handler, metrics, conversation_id)
+        user_message = user_input.text
+        device_id = user_input.device_id
+        user_id = user_input.context.user_id if user_input.context else None
+
+        # Track start time for metrics
+        start_time = time.time()
 
         context_start = time.time()
         context = await self.context_manager.get_formatted_context(
