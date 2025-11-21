@@ -1,19 +1,20 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.4.4--beta-blue.svg)](https://github.com/yourusername/home-agent/releases)
+[![Version](https://img.shields.io/badge/version-0.6.4--beta-blue.svg)](https://github.com/aradlein/home-agent/releases)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1.0+-blue.svg)](https://www.home-assistant.io/)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.4.4-beta
+## What's New in v0.6.4-beta
 
-🎨 **New Integration Icon** - Professional icon now displays in Home Assistant UI
-🔒 **Entity Privacy Fix** - Vector DB now only indexes exposed entities (respects voice assistant settings)
-📦 **HACS Support** - Easy installation via HACS custom repositories
-🚀 **Automated Releases** - GitHub Actions for version management and releases
+🔧 **Streaming Tool Execution Fix** - Fixed "No LLM API configured" error during streaming with tool calls
+🎯 **Improved Reliability** - Tools now execute seamlessly when LLM returns tool calls in streaming mode
+⚡ **Backend Selection** - Support for Ollama backend selection (llama.cpp, vLLM, Ollama GPU)
+🧠 **Memory System Enhancements** - Optimized memory search and extraction quality
+📝 **Context Optimization** - Parallel entity and memory context retrieval for reduced latency
 
-[View Full Changelog](https://github.com/yourusername/home-agent/releases)
+[View Full Changelog](https://github.com/aradlein/home-agent/releases)
 
 ## Overview
 
@@ -251,29 +252,43 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.4.2-beta (Latest)
-- Streaming response support for voice assistants
-- Tool progress indicators
-- Automatic fallback to synchronous mode
-- ~10x latency improvement for TTS integration
+### v0.6.4-beta (Latest)
+- **Fix**: Streaming tool execution error - "No LLM API configured"
+- **Enhancement**: Register agent as llm_api with ChatLog for seamless tool execution
+- **Feature**: Ollama backend selection support (llama.cpp, vLLM, Ollama GPU)
+- **Enhancement**: Preserve options on LLM settings update
+- **Enhancement**: Optimize memory search based on context mode
+- **Enhancement**: Parallelize entity and memory context retrieval
 
-### v0.4.0
-- Long-term memory system with automatic extraction
-- Memory management services
-- Memory context provider for enhanced responses
+### v0.6.0-beta
+- **Feature**: Memory extraction quality improvements with content filtering
+- **Feature**: Support for additional ChromaDB collections
+- **Enhancement**: Improved token usage tracking in streaming mode
+- **Fix**: Comprehensive type checking and linting fixes
 
-### v0.3.0
-- Custom tool framework (REST + Service handlers)
-- External LLM delegation tool
-- Comprehensive error handling
+### v0.5.0-beta
+- **Feature**: Streaming response support for voice assistants
+- **Feature**: Tool progress indicators
+- **Feature**: Automatic fallback to synchronous mode
+- **Enhancement**: ~10x latency improvement for TTS integration
 
-### v0.2.0
-- Vector DB (ChromaDB) integration
-- History persistence across restarts
-- Context optimization and compression
-- Enhanced event system
+### v0.4.0-beta
+- **Feature**: Long-term memory system with automatic extraction
+- **Feature**: Memory management services
+- **Feature**: Memory context provider for enhanced responses
 
-### v0.1.0 (MVP)
+### v0.3.0-beta
+- **Feature**: Custom tool framework (REST + Service handlers)
+- **Feature**: External LLM delegation tool
+- **Enhancement**: Comprehensive error handling
+
+### v0.2.0-beta
+- **Feature**: Vector DB (ChromaDB) integration
+- **Feature**: History persistence across restarts
+- **Enhancement**: Context optimization and compression
+- **Enhancement**: Enhanced event system
+
+### v0.1.0-beta (MVP)
 - Initial release
 - OpenAI-compatible LLM integration
 - Core tools (ha_control, ha_query)
