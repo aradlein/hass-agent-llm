@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions / Help
+    url: https://github.com/aradlein/hass-agent-llm/discussions
+    about: Ask questions, share ideas, and get help from the community
+  - name: Home Assistant Community
+    url: https://community.home-assistant.io
+    about: Discuss Home Agent with the broader Home Assistant community
+  - name: Documentation
+    url: https://github.com/aradlein/hass-agent-llm
+    about: Check out the project documentation and guides

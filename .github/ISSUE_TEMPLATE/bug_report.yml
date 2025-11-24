@@ -1,0 +1,153 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[BUG] "
+labels: ["bug", "needs-triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in the details below to help us understand the issue.
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Home Assistant Version
+      description: What version of Home Assistant are you running?
+      options:
+        - "2024.12+"
+        - "2024.11"
+        - "2024.10"
+        - "2024.9"
+        - "2024.8"
+        - "Earlier than 2024.8"
+    validations:
+      required: true
+
+  - type: input
+    id: integration_version
+    attributes:
+      label: Home Agent Version
+      description: What version of Home Agent are you using? (Check YAML config or Integration details)
+      placeholder: "e.g., 0.7.0-beta"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: llm_provider
+    attributes:
+      label: LLM Provider
+      description: Which LLM provider are you using?
+      options:
+        - "Ollama (local)"
+        - "OpenAI (API)"
+        - "LocalAI"
+        - "LM Studio"
+        - "Other OpenAI-compatible"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: input
+    id: llm_model
+    attributes:
+      label: LLM Model
+      description: Which model are you using?
+      placeholder: "e.g., llama2:13b, gpt-4, mistral, etc."
+
+  - type: dropdown
+    id: config_mode
+    attributes:
+      label: Configuration Mode
+      description: How is Home Agent configured?
+      options:
+        - "Direct LLM (no vector DB)"
+        - "With Vector DB (ChromaDB)"
+        - "With External LLM tool"
+        - "Multiple LLMs"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: |
+        What's the problem? Be as specific as possible.
+        - What did you expect to happen?
+        - What actually happened?
+        - Is it reproducible?
+      placeholder: |
+        I expected [X] to happen, but instead [Y] happened.
+        This happens every time I...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this bug?
+      placeholder: |
+        1. Configure Home Agent with...
+        2. Send a conversation message like...
+        3. Observe the error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: error_logs
+    attributes:
+      label: Error Logs
+      description: |
+        Please provide relevant logs from Home Assistant.
+        Go to Settings > System > Logs > Load Full Logs
+        Look for "home_agent" entries
+      render: shell
+      placeholder: |
+        2024-11-24 10:15:32.123 ERROR (MainThread) [custom_components.home_agent.agent] Error message here
+        Traceback (most recent call last):
+          File "custom_components/home_agent/agent.py", line X, in method_name
+    validations:
+      required: false
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Relevant Configuration
+      description: |
+        Please share your configuration (remove sensitive data like API keys).
+        Configuration can be in `configuration.yaml` or set via UI.
+      render: yaml
+      placeholder: |
+        # Home Assistant UI configuration (redact API keys/passwords)
+        home_agent:
+          llm:
+            base_url: "http://localhost:11434/v1"
+            model: "llama2"
+          # ... rest of config
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context
+      description: Any other information that might help?
+      placeholder: |
+        - Recently updated something?
+        - Works on a different machine/setup?
+        - Related to specific entities or services?
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: "I've checked existing issues and discussions"
+          required: true
+        - label: "I've included error logs from Home Assistant"
+          required: false
+        - label: "I've tested with the latest version"
+          required: false

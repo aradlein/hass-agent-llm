@@ -1,0 +1,119 @@
+name: Question / Help
+description: Ask a question or get help with Home Agent
+title: "[QUESTION] "
+labels: ["question"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about using Home Agent? This is the place to ask!
+        For issues or bugs, please use the Bug Report template instead.
+
+  - type: textarea
+    id: what_trying_to_do
+    attributes:
+      label: What Are You Trying to Do?
+      description: |
+        Describe your goal or what you're trying to accomplish.
+        What's the end result you're hoping for?
+      placeholder: |
+        I'm trying to...
+        My goal is to...
+        I want Home Agent to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_tried
+    attributes:
+      label: What Have You Tried?
+      description: |
+        What have you already attempted?
+        Include configurations you've tried, steps you've taken, etc.
+      placeholder: |
+        I've tried:
+        1. Setting configuration to...
+        2. Using a conversation message like...
+        3. Checking documentation at...
+
+        The result was...
+    validations:
+      required: true
+
+  - type: textarea
+    id: relevant_configuration
+    attributes:
+      label: Relevant Configuration
+      description: |
+        Share your Home Agent configuration (remove API keys and sensitive data).
+        This helps us understand your setup and provide better help.
+      render: yaml
+      placeholder: |
+        # Configuration via UI or configuration.yaml
+        home_agent:
+          llm:
+            base_url: "http://localhost:11434/v1"
+            model: "llama2"
+          # other settings...
+    validations:
+      required: false
+
+  - type: input
+    id: home_assistant_version
+    attributes:
+      label: Home Assistant Version
+      description: What version of Home Assistant are you running?
+      placeholder: "e.g., 2024.11.1"
+
+  - type: input
+    id: integration_version
+    attributes:
+      label: Home Agent Version
+      description: What version of Home Agent are you using?
+      placeholder: "e.g., 0.7.0-beta"
+
+  - type: input
+    id: llm_provider
+    attributes:
+      label: LLM Provider / Model
+      description: Which LLM provider and model are you using?
+      placeholder: "e.g., Ollama with llama2:13b"
+
+  - type: textarea
+    id: error_logs
+    attributes:
+      label: Error Logs or Output (if applicable)
+      description: |
+        If you're seeing errors or unexpected output, share the relevant logs.
+        Go to Settings > System > Logs > Load Full Logs
+      render: shell
+      placeholder: |
+        2024-11-24 10:15:32.123 ERROR (MainThread) [custom_components.home_agent]...
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_info
+    attributes:
+      label: Additional Information
+      description: Any other details that might help us assist you?
+      placeholder: |
+        - Are you using Home Assistant OS, Container, Supervised, or Core?
+        - Do you have any custom integrations that might interact with Home Agent?
+        - Have you checked the documentation or examples?
+
+  - type: dropdown
+    id: documentation_checked
+    attributes:
+      label: Have You Checked the Documentation?
+      description: This can often answer common questions!
+      options:
+        - "Not yet"
+        - "Checked README"
+        - "Checked configuration docs"
+        - "Checked FAQ"
+        - "Checked troubleshooting guide"
+        - "Checked all available docs"
+    validations:
+      required: false
