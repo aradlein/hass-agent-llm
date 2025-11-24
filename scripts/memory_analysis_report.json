@@ -1,0 +1,144 @@
+{
+  "timestamp": "2025-11-24T02:07:13.323923",
+  "total_memories": 8,
+  "type_counts": {
+    "fact": 6,
+    "preference": 2
+  },
+  "importance_distribution": {
+    "0.7+ (high)": 8
+  },
+  "problematic_count": 5,
+  "problematic_percentage": 62.5,
+  "all_memories": [
+    {
+      "id": "7c493c51-0cd5-413e-948a-730aadc97520",
+      "type": "fact",
+      "importance": 1.0,
+      "content": "anton's birthday is september 28th, 1982",
+      "metadata": {
+        "type": "fact",
+        "last_accessed": 1762666879.7560053,
+        "importance": 1.0,
+        "extracted_at": 1762020115.0601888,
+        "memory_id": "7c493c51-0cd5-413e-948a-730aadc97520"
+      },
+      "issues": [
+        "Low word count: 5"
+      ]
+    },
+    {
+      "id": "e3f1f935-744b-4b8f-9f26-6e3c71f977c6",
+      "type": "fact",
+      "importance": 1.0,
+      "content": "Candace's birthday is May 4th, 1989.",
+      "metadata": {
+        "type": "fact",
+        "last_accessed": 1762666879.7560084,
+        "memory_id": "e3f1f935-744b-4b8f-9f26-6e3c71f977c6",
+        "importance": 1.0,
+        "extracted_at": 1762020317.0458052
+      },
+      "issues": [
+        "Low word count: 5"
+      ]
+    },
+    {
+      "id": "476b251c-dfef-476c-b292-c240ef6349c8",
+      "type": "preference",
+      "importance": 1.0,
+      "content": "User prefers kitchen lights at 50% brightness during the day",
+      "metadata": {
+        "importance": 1.0,
+        "type": "preference",
+        "last_accessed": 1762666879.7560031,
+        "extracted_at": 1762020826.5125234,
+        "memory_id": "476b251c-dfef-476c-b292-c240ef6349c8",
+        "conversation_id": "01K909ZDSNDP0JGW6ZSZQTB2RB"
+      },
+      "issues": [
+        "Low word count: 9"
+      ]
+    },
+    {
+      "id": "395e5456-4425-45e5-90d6-98afac26f5c4",
+      "type": "fact",
+      "importance": 1.0,
+      "content": "Anton's birthday is on September 28th.",
+      "metadata": {
+        "last_accessed": 1762666879.756004,
+        "importance": 1.0,
+        "extracted_at": 1762024274.1933584,
+        "memory_id": "395e5456-4425-45e5-90d6-98afac26f5c4",
+        "type": "fact",
+        "conversation_id": "01K90D8WYKB32VH3BME5SNPP0G"
+      },
+      "issues": [
+        "Transient state: 'is on'",
+        "Low word count: 4"
+      ]
+    },
+    {
+      "id": "2ed1ce05-0223-4a5a-82ee-6a19bbaedd73",
+      "type": "preference",
+      "importance": 1.0,
+      "content": "User prefers kitchen lights to be on at sunrise",
+      "metadata": {
+        "memory_id": "2ed1ce05-0223-4a5a-82ee-6a19bbaedd73",
+        "last_accessed": 1762666879.7559977,
+        "extracted_at": 1762024303.3527236,
+        "type": "preference",
+        "importance": 1.0,
+        "conversation_id": "01K90D8WYKB32VH3BME5SNPP0G"
+      },
+      "issues": [
+        "Low word count: 5"
+      ]
+    },
+    {
+      "id": "50713f2a-74c1-47dd-93da-c7999f477c5e",
+      "type": "fact",
+      "importance": 0.8,
+      "content": "The Kitchen Main Lights have an adjustable brightness level that can be controlled through the system.",
+      "metadata": {
+        "type": "fact",
+        "extracted_at": 1762135261.0112824,
+        "memory_id": "50713f2a-74c1-47dd-93da-c7999f477c5e",
+        "last_accessed": 1762642637.3053725,
+        "conversation_id": "01K93PVQ43N9R8SC4RHQR85TAQ",
+        "importance": 0.8
+      },
+      "issues": []
+    },
+    {
+      "id": "a906e83b-5f29-46f1-af18-87673a80b054",
+      "type": "fact",
+      "importance": 1.0,
+      "content": "Tomorrow's weather forecast is partly cloudy with a temperature of around 11.3\u00b0C (52.3\u00b0F)",
+      "metadata": {
+        "conversation_id": "01K9JKT3CFCADW73JA1RSAGT27",
+        "extracted_at": 1762635126.372304,
+        "importance": 1.0,
+        "last_accessed": 1762650182.022226,
+        "type": "fact",
+        "memory_id": "a906e83b-5f29-46f1-af18-87673a80b054"
+      },
+      "issues": []
+    },
+    {
+      "id": "5fe7eb71-f84b-49c3-bfd0-7eaba9a1c779",
+      "type": "fact",
+      "importance": 0.95,
+      "content": "Hummingbirds exhibit vibrant and varied iridescent colors, appearing in shades of green, blue, purple, red, or orange depending on the species and lighting conditions.",
+      "metadata": {
+        "memory_id": "5fe7eb71-f84b-49c3-bfd0-7eaba9a1c779",
+        "conversation_id": "01K9JTZ9N4XTZYZ6FPVEC0VB8F",
+        "importance": 0.95,
+        "type": "fact",
+        "extracted_at": 1762642666.0743032,
+        "last_accessed": 1762650182.0222273
+      },
+      "issues": []
+    }
+  ]
+}
