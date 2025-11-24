@@ -1450,26 +1450,39 @@ Extract memories as a JSON array. Each memory should have:
 - "entities": List of Home Assistant entity IDs mentioned (if any)
 - "topics": List of topic tags (e.g., ["temperature", "bedroom"])
 
-**Important:**
-- Only extract genuinely useful information
-- Be specific and concrete
-- Avoid extracting temporary states (e.g., "light is on" - too transient)
-- DO extract patterns and preferences (e.g., "user prefers bedroom at 68°F")
+**Critical Rules:**
+- Only extract genuinely useful, long-term information
+- Each memory must be at least 7 words long
+- Be specific and concrete with actionable details
 - If nothing worth remembering, return empty array: []
 
-**DO NOT extract:**
-- Meta-information about the conversation itself (e.g., "conversation occurred at 3pm", "we discussed")
-- Timestamps or temporal references about when the conversation happened
-- Negative existence statements (e.g., "there is no X", "no specific Y sensor", "does not have")
-- Questions without concrete answers (e.g., "user asked about temperature")
-- Content with low information density (minimum 10 meaningful words required)
-- Vague or generic statements without actionable details
+**NEVER extract (these will be automatically rejected):**
+- ❌ Current device states: "light is on", "temperature is 72°F", "door is closed", "lights are currently on"
+- ❌ Transient states: "is currently", "are now", "was on", "were off"
+- ❌ Conversation meta-data: "conversation occurred at 3pm", "we discussed X", "user asked about Y"
+- ❌ Negative statements: "there is no X", "no specific Y sensor", "does not have Z"
+- ❌ Timestamps of conversation: "at 8:59 PM on November 4", "during the conversation"
+- ❌ Generic statements: "the lights can be controlled", "temperature can be adjusted"
+- ❌ Questions without answers: "user asked about temperature" (unless you provide the answer)
+- ❌ Very brief statements under 7 words
 
-**DO extract:**
-- Actionable facts and concrete information
-- Specific user preferences with values
-- Important context that will be useful in future conversations
-- Patterns and routines the user follows
+**ALWAYS extract (these are valuable):**
+- ✅ User preferences with values: "user prefers bedroom temperature at 68°F for sleeping"
+- ✅ Permanent facts: "user's birthday is September 28th, 1982", "kitchen has 3 ceiling lights"
+- ✅ Patterns and routines: "user wants kitchen lights at 50% brightness during daytime"
+- ✅ Device capabilities (not states): "bedroom thermostat supports heating and cooling modes"
+- ✅ Important context: "user works night shifts and sleeps during the day"
+
+**Examples of REJECTED memories:**
+- "The kitchen lights are currently on" → REJECT: transient state
+- "Conversation occurred at 20:59 PM" → REJECT: conversation metadata
+- "There is no bed sensor for Candace" → REJECT: negative statement
+- "User asked about lights" → REJECT: question without answer, too brief
+
+**Examples of GOOD memories:**
+- "User prefers kitchen lights at 50% brightness during daytime hours" → GOOD: preference with value
+- "Anton's birthday is September 28th, 1982" → GOOD: permanent fact
+- "User works night shifts from Monday to Friday and sleeps during daytime" → GOOD: important routine
 
 Return ONLY valid JSON, no other text:
 
@@ -1597,9 +1610,11 @@ Return ONLY valid JSON, no other text:
 
                     # Quality validation checks
 
-                    # 1. Reject if too short (less than 10 meaningful words)
-                    word_count = len([w for w in content.split() if len(w) > 2])
-                    if word_count < 10:
+                    # 1. Reject if too short (less than 7 words total)
+                    # Count all words, not just long ones, to catch brief statements
+                    words = content.split()
+                    word_count = len(words)
+                    if word_count < 7:
                         _LOGGER.debug(
                             "Rejecting short memory (%d words): %s",
                             word_count,
@@ -1607,24 +1622,49 @@ Return ONLY valid JSON, no other text:
                         )
                         continue
 
-                    # 2. Reject if starts with low-value patterns
-                    low_value_starts = (
-                        "there is no",
-                        "there are no",
-                        "no specific",
-                        "the conversation",
-                        "we discussed",
-                        "we talked about",
-                        "user asked about",
-                        "during the conversation",
-                        "at the time",
-                    )
-                    if content.lower().startswith(low_value_starts):
-                        _LOGGER.debug(
-                            "Rejecting low-value memory starting with '%s': %s",
-                            content.split()[0:3],
-                            content[:50],
-                        )
+                    # 2. Reject if contains low-value patterns
+                    content_lower = content.lower()
+                    low_value_patterns = [
+                        # Negative existence statements
+                        ("there is no", "starts"),
+                        ("there are no", "starts"),
+                        ("no specific", "contains"),
+                        ("does not have", "contains"),
+                        # Conversation meta-information
+                        ("the conversation occurred", "contains"),
+                        ("conversation occurred", "contains"),
+                        ("we discussed", "contains"),
+                        ("we talked about", "contains"),
+                        ("user asked about", "contains"),
+                        ("during the conversation", "contains"),
+                        ("at the time", "contains"),
+                        ("in the conversation", "contains"),
+                        # Temporal references without context
+                        ("at ", "starts") if content_lower.startswith("at ") and ":" in content else (None, None),
+                    ]
+
+                    rejected = False
+                    for pattern, match_type in low_value_patterns:
+                        if pattern is None:
+                            continue
+                        if match_type == "starts" and content_lower.startswith(pattern):
+                            _LOGGER.debug(
+                                "Rejecting low-value memory (starts with '%s'): %s",
+                                pattern,
+                                content[:50],
+                            )
+                            rejected = True
+                            break
+                        elif match_type == "contains" and pattern in content_lower:
+                            _LOGGER.debug(
+                                "Rejecting low-value memory (contains '%s'): %s",
+                                pattern,
+                                content[:50],
+                            )
+                            rejected = True
+                            break
+
+                    if rejected:
                         continue
 
                     # 3. Reject if importance is too low

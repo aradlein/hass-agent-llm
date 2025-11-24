@@ -756,6 +756,10 @@ class MemoryManager:
             "are currently",
             "is now",
             "are now",
+            "was on",
+            "was off",
+            "were on",
+            "were off",
             "temperature is",
             "humidity is",
             "status is",
@@ -764,6 +768,12 @@ class MemoryManager:
             "is closed",
             "is locked",
             "is unlocked",
+            "lights are",
+            "light is",
+            "is playing",
+            "is paused",
+            "is stopped",
+            "is running",
         ]
 
         # Patterns that indicate low-value conversational meta-information
@@ -790,11 +800,29 @@ class MemoryManager:
 
         content_lower = content.lower()
 
-        # Check both transient state and low-value patterns
-        return (
-            any(pattern in content_lower for pattern in transient_patterns) or
-            any(pattern in content_lower for pattern in low_value_patterns)
-        )
+        # Check low-value patterns first (always reject these)
+        if any(pattern in content_lower for pattern in low_value_patterns):
+            return True
+
+        # Check transient state patterns with context awareness
+        # Avoid false positives like "birthday is on"
+        for pattern in transient_patterns:
+            if pattern in content_lower:
+                # Check if this is a false positive (e.g., "is on" in "birthday is on")
+                # by looking at what comes before the pattern
+                idx = content_lower.find(pattern)
+                if idx > 0:
+                    # Get the word before the pattern
+                    before = content_lower[:idx].strip().split()
+                    if before:
+                        last_word = before[-1]
+                        # "birthday is on", "event is on", etc. are temporal, not state
+                        if last_word in ["birthday", "event", "date", "day", "anniversary"]:
+                            continue
+                # This appears to be a genuine transient state pattern
+                return True
+
+        return False
 
     async def _find_duplicate(self, content: str) -> str | None:
         """Find duplicate memory using semantic similarity.
