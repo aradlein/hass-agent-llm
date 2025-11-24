@@ -1,6 +1,6 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.6.4--beta-blue.svg)](https://github.com/aradlein/home-agent/releases)
+[![Version](https://img.shields.io/badge/version-0.6.4--beta-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1.0+-blue.svg)](https://www.home-assistant.io/)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
 
@@ -14,7 +14,7 @@ A highly customizable Home Assistant custom component that provides intelligent 
 🧠 **Memory System Enhancements** - Optimized memory search and extraction quality
 📝 **Context Optimization** - Parallel entity and memory context retrieval for reduced latency
 
-[View Full Changelog](https://github.com/aradlein/home-agent/releases)
+[View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
 ## Overview
 
@@ -72,7 +72,7 @@ Home Agent extends Home Assistant's native conversation platform to enable natur
 
 1. Generate a GitHub Personal Access Token with `repo` scope
 2. In HACS, go to **Integrations** → **⋮** → **Custom repositories**
-3. Add repository: `https://YOUR_TOKEN@github.com/YOUR_USERNAME/home-agent`
+3. Add repository: `https://YOUR_TOKEN@github.com/YOUR_USERNAME/hass-agent-llm`
 4. Category: **Integration**
 5. Click **Add**
 6. Search for "Home Agent" in HACS
@@ -238,8 +238,8 @@ pytest tests/ --cov=custom_components.home_agent --cov-report=html
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/aradlein/home-agent/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/aradlein/home-agent/discussions)
+- **Issues**: [GitHub Issues](https://github.com/aradlein/hass-agent-llm/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/aradlein/hass-agent-llm/discussions)
 - **Documentation**: See [docs/](docs/) directory
 
 ## License
