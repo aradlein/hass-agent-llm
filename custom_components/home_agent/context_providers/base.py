@@ -7,6 +7,7 @@ entity and state information to be injected into LLM prompts.
 
 import logging
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -26,6 +27,26 @@ BLOAT_ATTRIBUTES = {
     "restore",  # Restart behavior flag
     "editable",  # UI editability flag
 }
+
+
+def _make_json_serializable(value: Any) -> Any:
+    """Convert a value to a JSON-serializable format.
+
+    Handles datetime objects and other non-serializable types.
+    """
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, (list, tuple)):
+        return [_make_json_serializable(item) for item in value]
+    if isinstance(value, dict):
+        return {k: _make_json_serializable(v) for k, v in value.items()}
+    # For other types, try to convert to string if not already serializable
+    try:
+        import json
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError):
+        return str(value)
 
 
 class ContextProvider(ABC):
@@ -130,15 +151,17 @@ class ContextProvider(ABC):
 
         result["aliases"] = aliases
 
-        # Include filtered attributes or all attributes
+        # Include filtered attributes or all attributes, ensuring JSON serializability
         if attribute_filter is not None:
             result["attributes"] = {
-                key: value for key, value in state_obj.attributes.items() if key in attribute_filter
+                key: _make_json_serializable(value)
+                for key, value in state_obj.attributes.items()
+                if key in attribute_filter
             }
         else:
             # Filter out bloat attributes and internal attributes (starting with _)
             result["attributes"] = {
-                key: value
+                key: _make_json_serializable(value)
                 for key, value in state_obj.attributes.items()
                 if key not in BLOAT_ATTRIBUTES and not key.startswith("_")
             }
