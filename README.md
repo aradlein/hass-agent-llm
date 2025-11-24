@@ -244,7 +244,7 @@ pytest tests/ --cov=custom_components.home_agent --cov-report=html
 
 ## License
 
-[Add your license here]
+MIT License
 
 ## Credits
 
