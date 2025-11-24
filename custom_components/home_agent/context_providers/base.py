@@ -10,8 +10,22 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 _LOGGER = logging.getLogger(__name__)
+
+# Bloat attributes to filter out from entity context
+BLOAT_ATTRIBUTES = {
+    "supported_features",  # Internal bitmask
+    "icon",  # UI metadata
+    "entity_picture",  # Image URL
+    "entity_picture_local",  # Local image path
+    "context_id",  # Internal HA tracking ID
+    "attribution",  # Data source attribution
+    "assumed_state",  # UI flag
+    "restore",  # Restart behavior flag
+    "editable",  # UI editability flag
+}
 
 
 class ContextProvider(ABC):
@@ -103,13 +117,31 @@ class ContextProvider(ABC):
             "attributes": {},
         }
 
+        # Get aliases from entity registry
+        aliases = []
+        try:
+            entity_registry = er.async_get(self.hass)
+            entity_entry = entity_registry.async_get(entity_id)
+            if entity_entry and entity_entry.aliases:
+                aliases = list(entity_entry.aliases)
+        except (AttributeError, RuntimeError):
+            # Entity registry not available (e.g., in tests or early startup)
+            pass
+
+        result["aliases"] = aliases
+
         # Include filtered attributes or all attributes
         if attribute_filter is not None:
             result["attributes"] = {
                 key: value for key, value in state_obj.attributes.items() if key in attribute_filter
             }
         else:
-            result["attributes"] = dict(state_obj.attributes)
+            # Filter out bloat attributes and internal attributes (starting with _)
+            result["attributes"] = {
+                key: value
+                for key, value in state_obj.attributes.items()
+                if key not in BLOAT_ATTRIBUTES and not key.startswith("_")
+            }
 
         return result
 
