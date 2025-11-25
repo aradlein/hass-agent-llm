@@ -18,6 +18,9 @@ from typing import Any, AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 from homeassistant.components import conversation
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
@@ -67,7 +70,8 @@ def mock_hass_for_streaming():
 
     # Mock bus for event tracking
     mock.bus = MagicMock()
-    mock.bus.async_fire = MagicMock()
+    # async_fire is actually sync in HA (returns None, not a coroutine)
+    mock.bus.async_fire = MagicMock(return_value=None)
 
     return mock
 

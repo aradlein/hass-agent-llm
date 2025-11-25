@@ -67,6 +67,12 @@ timeout = 30
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+markers = [
+    "integration: Integration tests requiring external services (ChromaDB, LLM, etc.)",
+    "e2e: End-to-end tests covering complete workflows",
+    "smoke: Quick smoke tests for basic functionality verification",
+    "performance: Performance benchmark tests",
+]
 
 [tool.coverage.run]
 source = ["custom_components/home_agent"]

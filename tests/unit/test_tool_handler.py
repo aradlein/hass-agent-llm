@@ -275,8 +275,12 @@ class TestValidateToolCall:
         tool = MockTool("test_tool")
         tool_handler.register_tool(tool)
 
-        # Should not raise exception
-        tool_handler.validate_tool_call("test_tool", {"test_param": "value"})
+        # Should not raise exception and return None on success
+        result = tool_handler.validate_tool_call("test_tool", {"test_param": "value"})
+        assert result is None
+
+        # Verify the tool was found and parameters were validated
+        assert "test_tool" in tool_handler.tools
 
     def test_validate_tool_call_nonexistent_tool(self, tool_handler):
         """Test validating call to non-existent tool."""
@@ -310,8 +314,12 @@ class TestValidateToolCall:
 
         tool_handler.tools["test_tool"] = tool
 
-        # Should not raise exception
-        tool_handler.validate_tool_call("test_tool", {})
+        # Should not raise exception and return None when validation method missing
+        result = tool_handler.validate_tool_call("test_tool", {})
+        assert result is None
+
+        # Verify tool was found
+        assert "test_tool" in tool_handler.tools
 
 
 @pytest.mark.asyncio
@@ -330,6 +338,7 @@ class TestExecuteTool:
         assert result["result"]["result"] == "Success from test_tool"
         assert "duration_ms" in result
         assert tool.execute_called
+        assert tool.execute_params == {"test_param": "value"}
         assert tool_handler._execution_count == 1
         assert tool_handler._success_count == 1
         assert tool_handler._failure_count == 0
@@ -378,8 +387,17 @@ class TestExecuteTool:
 
         await tool_handler.execute_tool("test_tool", {"test_param": "value"}, "conv_123")
 
-        # Should have fired multiple events (started, completed, executed)
-        assert mock_hass.bus.async_fire.call_count >= 1
+        # Verify exact event count and types
+        calls = mock_hass.bus.async_fire.call_args_list
+        assert len(calls) == 3  # started, completed, executed
+
+        # Verify EVENT_TOOL_PROGRESS events
+        progress_events = [call for call in calls if call[0][0] == EVENT_TOOL_PROGRESS]
+        assert len(progress_events) == 2
+        assert progress_events[0][0][1]["status"] == "started"
+        assert progress_events[0][0][1]["tool_name"] == "test_tool"
+        assert progress_events[1][0][1]["status"] == "completed"
+        assert progress_events[1][0][1]["success"] is True
 
         # Find the EVENT_TOOL_EXECUTED event
         executed_events = [
@@ -390,9 +408,11 @@ class TestExecuteTool:
 
         assert len(executed_events) == 1
         event_data = executed_events[0][0][1]
-        assert "tool_name" in event_data
         assert event_data["tool_name"] == "test_tool"
+        assert event_data["conversation_id"] == "conv_123"
         assert event_data["success"] is True
+        assert "result" in event_data
+        assert "duration_ms" in event_data
 
     async def test_execute_tool_no_event_firing(self, tool_handler, mock_hass):
         """Test tool execution without event firing."""
@@ -416,8 +436,25 @@ class TestExecuteTool:
 
         await tool_handler.execute_tool("test_tool", {"test_param": "value"})
 
-        # Event should be fired (multiple events due to progress tracking)
-        assert mock_hass.bus.async_fire.call_count >= 1
+        # Verify events were fired with appropriate data
+        calls = mock_hass.bus.async_fire.call_args_list
+        assert len(calls) == 3  # started, completed, executed
+
+        # Find the EVENT_TOOL_EXECUTED event and verify result handling
+        executed_events = [
+            call
+            for call in calls
+            if call[0][0] == EVENT_TOOL_EXECUTED
+        ]
+
+        assert len(executed_events) == 1
+        event_data = executed_events[0][0][1]
+        assert event_data["success"] is True
+        assert "result" in event_data
+        # Large results get converted to string and truncated
+        assert isinstance(event_data["result"], str)
+        assert len(event_data["result"]) <= 1024  # Verify truncation occurred
+        assert "result" in event_data["result"]  # Should contain part of the original data
 
 
 @pytest.mark.asyncio
@@ -579,8 +616,15 @@ class TestEventFiring:
 
         await tool_handler.execute_tool("test_tool", {"test_param": "value"}, "conv_123")
 
-        # Should have multiple events fired (progress + executed)
-        assert mock_hass.bus.async_fire.call_count >= 1
+        # Verify exact event count
+        calls = mock_hass.bus.async_fire.call_args_list
+        assert len(calls) == 3  # started, completed, executed
+
+        # Verify EVENT_TOOL_PROGRESS events
+        progress_events = [call[0] for call in calls if call[0][0] == EVENT_TOOL_PROGRESS]
+        assert len(progress_events) == 2
+        assert progress_events[0][1]["status"] == "started"
+        assert progress_events[1][1]["status"] == "completed"
 
         # Find the EVENT_TOOL_EXECUTED event
         executed_events = [
@@ -597,7 +641,10 @@ class TestEventFiring:
         assert event_data["conversation_id"] == "conv_123"
         assert event_data["success"] is True
         assert "result" in event_data
+        assert event_data["result"]["result"] == "Success from test_tool"
         assert "duration_ms" in event_data
+        assert isinstance(event_data["duration_ms"], (int, float))
+        assert event_data["duration_ms"] >= 0
 
     @pytest.mark.asyncio
     async def test_fire_tool_executed_event_failure(self, tool_handler, mock_hass):
@@ -610,8 +657,16 @@ class TestEventFiring:
         except ToolExecutionError:
             pass
 
-        # Should have multiple events fired (progress + executed)
-        assert mock_hass.bus.async_fire.call_count >= 1
+        # Verify exact event count
+        calls = mock_hass.bus.async_fire.call_args_list
+        assert len(calls) == 3  # started, failed, executed
+
+        # Verify EVENT_TOOL_PROGRESS events
+        progress_events = [call[0] for call in calls if call[0][0] == EVENT_TOOL_PROGRESS]
+        assert len(progress_events) == 2
+        assert progress_events[0][1]["status"] == "started"
+        assert progress_events[1][1]["status"] == "failed"
+        assert progress_events[1][1]["success"] is False
 
         # Find the EVENT_TOOL_EXECUTED event
         executed_events = [
@@ -624,8 +679,12 @@ class TestEventFiring:
         event_name, event_data = executed_events[0]
 
         assert event_name == EVENT_TOOL_EXECUTED
+        assert event_data["tool_name"] == "test_tool"
+        assert event_data["conversation_id"] == "conv_123"
         assert event_data["success"] is False
         assert "error" in event_data
+        assert "Tool test_tool failed" in event_data["error"]
+        assert "duration_ms" in event_data
 
     @pytest.mark.asyncio
     async def test_fire_tool_executed_event_without_conversation_id(self, tool_handler, mock_hass):

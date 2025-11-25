@@ -1610,14 +1610,15 @@ Return ONLY valid JSON, no other text:
 
                     # Quality validation checks
 
-                    # 1. Reject if too short (less than 7 words total)
-                    # Count all words, not just long ones, to catch brief statements
+                    # 1. Reject if too short (less than 10 meaningful words)
+                    # Count only meaningful words (>2 chars) to filter out filler words
                     words = content.split()
-                    word_count = len(words)
-                    if word_count < 7:
+                    meaningful_words = [w for w in words if len(w) > 2]
+                    meaningful_word_count = len(meaningful_words)
+                    if meaningful_word_count < 10:
                         _LOGGER.debug(
-                            "Rejecting short memory (%d words): %s",
-                            word_count,
+                            "Rejecting short memory (%d meaningful words): %s",
+                            meaningful_word_count,
                             content[:50],
                         )
                         continue

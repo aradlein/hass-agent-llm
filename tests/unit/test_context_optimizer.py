@@ -110,7 +110,6 @@ class TestContextOptimizerInitialization:
         assert optimizer.compression_level == "high"
         assert optimizer.preserve_recent_messages == 5
 
-    @pytest.mark.skip(reason="Feature not yet implemented")
     def test_access_counts_initialized_empty(self):
         """Test access counts are initialized as empty."""
         optimizer = ContextOptimizer()

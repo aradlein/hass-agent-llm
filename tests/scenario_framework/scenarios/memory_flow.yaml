@@ -1,0 +1,37 @@
+name: "Memory Flow"
+description: "Test memory extraction and recall across conversation turns"
+
+setup:
+  entities:
+    - entity_id: "climate.thermostat"
+      state: "heat"
+      attributes:
+        temperature: 72
+        current_temperature: 68
+        friendly_name: "Thermostat"
+  history_enabled: true
+  conversation_id: "memory_test_001"
+
+steps:
+  - user: "I prefer the temperature to be 72 degrees"
+    mock_response: "I'll remember that you prefer 72 degrees. I've set the thermostat accordingly."
+    tools_used:
+      - "ha_control"
+    expected_response_contains: "72 degrees"
+    timeout: 10
+
+  - user: "What temperature do I like?"
+    mock_response: "You mentioned you prefer the temperature to be 72 degrees."
+    expected_response_contains: "72 degrees"
+    timeout: 10
+
+  - user: "Set the temperature to my preferred setting"
+    mock_response: "Setting the temperature to your preferred 72 degrees."
+    tools_used:
+      - "ha_control"
+    expected_response_contains: "72 degrees"
+    timeout: 10
+
+assertions:
+  - conversation_history_length: 6
+  - response_contains: "72 degrees"

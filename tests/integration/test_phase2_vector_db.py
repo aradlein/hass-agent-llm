@@ -10,6 +10,9 @@ This test suite validates the complete vector DB integration flow:
 from unittest.mock import Mock, patch
 
 import pytest
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 from homeassistant.core import State
 
 from custom_components.home_agent.const import (
@@ -23,7 +26,6 @@ from custom_components.home_agent.const import (
     EMBEDDING_PROVIDER_OLLAMA,
 )
 from custom_components.home_agent.context_providers.vector_db import (
-    CHROMADB_AVAILABLE,
     VectorDBContextProvider,
 )
 
@@ -116,12 +118,10 @@ def mock_entity_states(mock_hass):
 class TestPhase2VectorDBIntegration:
     """Integration tests for Phase 2 vector DB functionality."""
 
+    @pytest.mark.requires_chromadb
     @pytest.mark.asyncio
     async def test_vector_db_provider_initialization(self, mock_hass, vector_db_config):
         """Test that vector DB provider initializes with correct configuration."""
-        if not CHROMADB_AVAILABLE:
-            pytest.skip("ChromaDB not available")
-
         provider = VectorDBContextProvider(mock_hass, vector_db_config)
 
         assert provider.host == "db.inorganic.me"
@@ -132,6 +132,8 @@ class TestPhase2VectorDBIntegration:
         assert provider.top_k == 10
         assert provider.similarity_threshold == 250.0
 
+    @pytest.mark.requires_chromadb
+    @pytest.mark.requires_embedding
     @pytest.mark.asyncio
     async def test_semantic_search_returns_relevant_entities(
         self, mock_entity_states, vector_db_config, mock_chroma_results
@@ -140,9 +142,6 @@ class TestPhase2VectorDBIntegration:
 
         This validates Bug #5 fix: ensures _get_entity_state is called without await.
         """
-        if not CHROMADB_AVAILABLE:
-            pytest.skip("ChromaDB not available")
-
         provider = VectorDBContextProvider(mock_entity_states, vector_db_config)
 
         # Mock ChromaDB connection
@@ -185,12 +184,11 @@ class TestPhase2VectorDBIntegration:
         assert "turn_on" in entity["available_services"]
         assert "set_percentage" in entity["available_services"]
 
+    @pytest.mark.requires_chromadb
+    @pytest.mark.requires_embedding
     @pytest.mark.asyncio
     async def test_l2_distance_filtering(self, mock_entity_states, vector_db_config):
         """Test that L2 distance threshold filtering works correctly (Bug #1 fix)."""
-        if not CHROMADB_AVAILABLE:
-            pytest.skip("ChromaDB not available")
-
         # Set threshold to allow first two results but not third
         config = {**vector_db_config, CONF_VECTOR_DB_SIMILARITY_THRESHOLD: 200.0}
         provider = VectorDBContextProvider(mock_entity_states, config)
@@ -237,12 +235,11 @@ class TestPhase2VectorDBIntegration:
         assert "sensor.temperature" in entity_ids
         assert "light.bedroom" not in entity_ids
 
+    @pytest.mark.requires_chromadb
+    @pytest.mark.requires_embedding
     @pytest.mark.asyncio
     async def test_no_results_below_threshold(self, mock_entity_states, vector_db_config):
         """Test graceful handling when no results meet similarity threshold."""
-        if not CHROMADB_AVAILABLE:
-            pytest.skip("ChromaDB not available")
-
         provider = VectorDBContextProvider(mock_entity_states, vector_db_config)
 
         # All distances above threshold
@@ -263,14 +260,13 @@ class TestPhase2VectorDBIntegration:
 
         assert context == "No relevant context found."
 
+    @pytest.mark.requires_chromadb
+    @pytest.mark.requires_embedding
     @pytest.mark.asyncio
     async def test_entity_services_included(
         self, mock_entity_states, vector_db_config, mock_chroma_results
     ):
         """Test that available_services are correctly added to each entity."""
-        if not CHROMADB_AVAILABLE:
-            pytest.skip("ChromaDB not available")
-
         provider = VectorDBContextProvider(mock_entity_states, vector_db_config)
 
         mock_collection = Mock()
@@ -300,24 +296,3 @@ class TestPhase2VectorDBIntegration:
             elif domain == "light":
                 assert "turn_on" in entity["available_services"]
                 assert "toggle" in entity["available_services"]
-
-
-@pytest.mark.asyncio
-async def test_phase2_success_criteria():
-    """Validation test for Phase 2 success criteria.
-
-    This test documents what has been verified:
-    ✅ Vector DB mode activates without errors
-    ✅ Entity indexing completes successfully
-    ✅ Semantic search returns relevant results
-    ✅ Entity context includes available_services
-    ✅ LLM can answer questions using vector search context
-
-    These were verified through manual testing and logs showing:
-    - ChromaDB client connected
-    - Retrieved context: 4408 characters
-    - Entity context injected: 3068 chars, contains 5 entities
-    """
-    # This is a documentation test that always passes
-    # It serves as a record of what was verified
-    assert True, "Phase 2 core functionality verified through manual testing"

@@ -59,6 +59,7 @@ home-assistant_v2.db
 secrets.yaml
 *.key
 *.pem
+.env.test
 
 # Logs
 *.log

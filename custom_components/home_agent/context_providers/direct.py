@@ -78,6 +78,8 @@ class DirectContextProvider(ContextProvider):
             return self._format_as_json(entity_states)
         elif self.format_type == "natural_language":
             return self._format_as_natural_language(entity_states)
+        elif self.format_type == "hybrid":
+            return self._format_as_hybrid(entity_states)
         else:
             raise ValueError(f"Invalid format type: {self.format_type}")
 
@@ -102,12 +104,19 @@ class DirectContextProvider(ContextProvider):
             return entity_states
 
         for entity_config in self.entities_config:
-            entity_id = entity_config.get("entity_id")
+            # Handle both dict format {"entity_id": "...", "attributes": [...]}
+            # and simple string format "entity_id"
+            if isinstance(entity_config, dict):
+                entity_id = entity_config.get("entity_id")
+                attributes_filter = entity_config.get("attributes")
+            else:
+                # Simple string format - just the entity_id
+                entity_id = str(entity_config)
+                attributes_filter = None
+
             if not entity_id:
                 self._logger.warning("Entity configuration missing entity_id")
                 continue
-
-            attributes_filter = entity_config.get("attributes")
 
             # Handle wildcard patterns
             matching_entities = self._get_entities_matching_pattern(entity_id)
@@ -288,3 +297,26 @@ class DirectContextProvider(ContextProvider):
     def _format_lock(self, name: str, state: str, attributes: dict[str, Any]) -> str:
         """Format lock entity in natural language."""
         return f"{name} is {state}"
+
+    def _format_as_hybrid(self, entity_states: list[dict[str, Any]]) -> str:
+        """Format entity states as hybrid (JSON structure + natural language summary).
+
+        Combines structured JSON data with a natural language summary for optimal
+        LLM understanding.
+
+        Args:
+            entity_states: List of entity state dictionaries
+
+        Returns:
+            Hybrid formatted string with both JSON and natural language
+        """
+        if not entity_states:
+            return "No entities currently configured for context."
+
+        # Start with natural language summary
+        nl_summary = self._format_as_natural_language(entity_states)
+
+        # Add JSON structure for precise data
+        json_data = self._format_as_json(entity_states)
+
+        return f"{nl_summary}\n\n--- Detailed Entity Data ---\n{json_data}"

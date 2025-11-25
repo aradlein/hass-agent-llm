@@ -1,0 +1,33 @@
+name: "Tool Execution Flow"
+description: "Test tool calling flow with ha_query and ha_control"
+
+setup:
+  entities:
+    - entity_id: "light.kitchen"
+      state: "off"
+      attributes:
+        brightness: 0
+        friendly_name: "Kitchen Light"
+    - entity_id: "switch.coffee_maker"
+      state: "off"
+      attributes:
+        friendly_name: "Coffee Maker"
+
+steps:
+  - user: "Turn on the kitchen light"
+    mock_response: "I've turned on the kitchen light for you."
+    tools_used:
+      - "ha_control"
+    expected_response_contains: "kitchen light"
+    timeout: 10
+
+  - user: "What is the status of the coffee maker?"
+    mock_response: "The coffee maker is currently off."
+    tools_used:
+      - "ha_query"
+    expected_response_contains: "coffee maker"
+    timeout: 10
+
+assertions:
+  - conversation_history_length: 4
+  - total_tool_calls: 2

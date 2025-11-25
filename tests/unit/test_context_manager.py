@@ -82,6 +82,8 @@ class TestContextManagerInitialization:
         assert manager._max_context_tokens == MAX_CONTEXT_TOKENS
         assert manager._provider is not None
         assert isinstance(manager._provider, DirectContextProvider)
+        assert hasattr(manager._provider, 'get_context')
+        assert callable(manager._provider.get_context)
 
     def test_init_with_defaults(self, mock_hass):
         """Test initialization with default values."""
@@ -92,6 +94,9 @@ class TestContextManagerInitialization:
         assert manager._emit_events is True
         assert manager._max_context_tokens == MAX_CONTEXT_TOKENS
         assert manager._provider is not None
+        assert isinstance(manager._provider, ContextProvider)
+        assert hasattr(manager._provider, 'get_context')
+        assert callable(manager._provider.get_context)
 
     def test_init_with_cache_enabled(self, mock_hass):
         """Test initialization with cache enabled."""
@@ -149,8 +154,12 @@ class TestSetProvider:
         context_manager.set_provider(custom_provider)
 
         assert context_manager._provider == custom_provider
+        assert isinstance(context_manager._provider, MockContextProvider)
+        assert hasattr(context_manager._provider, 'get_context')
         assert len(context_manager._cache) == 0
         assert len(context_manager._cache_timestamps) == 0
+        assert isinstance(context_manager._cache, dict)
+        assert isinstance(context_manager._cache_timestamps, dict)
 
     def test_set_provider_clears_cache(self, context_manager, mock_hass):
         """Test that setting provider clears cache."""
@@ -277,8 +286,12 @@ class TestGetFormattedContext:
 
         context = await context_manager.get_formatted_context("test input", "conv_123")
 
-        assert "Test" in context
+        assert context is not None
+        assert isinstance(context, str)
+        assert len(context) > 0
+        assert "Test context" in context or "Test" in context
         assert provider.get_context_called
+        assert provider.last_user_input == "test input"
 
     async def test_get_formatted_context_optimizes_size(self, context_manager):
         """Test that get_formatted_context optimizes size."""
@@ -292,6 +305,9 @@ class TestGetFormattedContext:
 
         # Should have normalized whitespace
         assert "  " not in context
+        assert isinstance(context, str)
+        assert len(context) > 0
+        assert "Test" in context and "context" in context and "with" in context
 
     async def test_get_formatted_context_fires_event(self, context_manager, mock_hass):
         """Test that get_formatted_context fires event."""
@@ -303,7 +319,10 @@ class TestGetFormattedContext:
         mock_hass.bus.async_fire.assert_called_once()
         event_name, event_data = mock_hass.bus.async_fire.call_args[0]
         assert event_name == EVENT_CONTEXT_INJECTED
+        assert isinstance(event_data, dict)
         assert event_data["conversation_id"] == "conv_123"
+        assert "mode" in event_data
+        assert "token_count" in event_data
 
     async def test_get_formatted_context_no_event_when_disabled(self, context_manager, mock_hass):
         """Test that no event is fired when disabled."""
@@ -336,6 +355,10 @@ class TestGetFormattedContext:
         # Should succeed but log warning
         context = await context_manager.get_formatted_context("test input")
         assert context is not None
+        assert isinstance(context, str)
+        assert len(context) > 0
+        # Should contain the original content (possibly truncated)
+        assert "x" in context
 
     async def test_get_formatted_context_truncates_if_needed(self, context_manager):
         """Test that context is truncated if too large."""
@@ -414,7 +437,10 @@ class TestCacheBehavior:
         cache_key = context_manager._generate_cache_key("test input")
         assert cache_key in context_manager._cache
         assert context_manager._cache[cache_key] == "test context"
+        assert isinstance(context_manager._cache[cache_key], str)
         assert cache_key in context_manager._cache_timestamps
+        assert isinstance(context_manager._cache_timestamps[cache_key], (int, float))
+        assert context_manager._cache_timestamps[cache_key] > 0
 
     def test_get_cached_context_hit(self, context_manager):
         """Test getting cached context when available."""
@@ -442,7 +468,9 @@ class TestCacheBehavior:
         result = context_manager._get_cached_context("test input")
 
         assert result is None
+        # Cache should be cleaned up after expiration
         assert cache_key not in context_manager._cache
+        assert cache_key not in context_manager._cache_timestamps
 
     def test_clear_cache(self, context_manager):
         """Test clearing cache."""
@@ -484,6 +512,9 @@ class TestUpdateConfig:
 
         # Provider should be reinitialized
         assert context_manager._provider != original_provider
+        assert context_manager._provider is not None
+        assert isinstance(context_manager._provider, ContextProvider)
+        assert context_manager.config["mode"] == CONTEXT_MODE_VECTOR_DB
 
     async def test_update_config_clears_cache(self, context_manager):
         """Test that updating config clears cache."""
@@ -493,6 +524,9 @@ class TestUpdateConfig:
         await context_manager.update_config({"cache_ttl": 120})
 
         assert len(context_manager._cache) == 0
+        assert len(context_manager._cache_timestamps) == 0
+        assert isinstance(context_manager._cache, dict)
+        assert isinstance(context_manager._cache_timestamps, dict)
 
     async def test_update_config_same_mode_no_reinit(self, context_manager):
         """Test updating config without mode change."""
@@ -512,6 +546,9 @@ class TestUpdateConfig:
         await context_manager.update_config(new_config)
 
         assert context_manager._max_context_tokens == 16000
+        assert isinstance(context_manager._max_context_tokens, int)
+        assert context_manager._max_context_tokens > 0
+        assert context_manager.config["max_context_tokens"] == 16000
 
 
 class TestGetCurrentMode:
@@ -522,6 +559,9 @@ class TestGetCurrentMode:
         mode = context_manager.get_current_mode()
 
         assert mode == CONTEXT_MODE_DIRECT
+        assert isinstance(mode, str)
+        assert len(mode) > 0
+        assert mode in [CONTEXT_MODE_DIRECT, CONTEXT_MODE_VECTOR_DB]
 
     def test_get_current_mode_default(self, mock_hass):
         """Test getting current mode with no mode in config."""
@@ -530,6 +570,9 @@ class TestGetCurrentMode:
         mode = manager.get_current_mode()
 
         assert mode == DEFAULT_CONTEXT_MODE
+        assert isinstance(mode, str)
+        assert len(mode) > 0
+        assert mode in [CONTEXT_MODE_DIRECT, CONTEXT_MODE_VECTOR_DB]
 
 
 class TestGetProviderInfo:
@@ -539,13 +582,17 @@ class TestGetProviderInfo:
         """Test getting provider info for direct provider."""
         info = context_manager.get_provider_info()
 
+        assert isinstance(info, dict)
         assert info["provider_class"] == "DirectContextProvider"
         assert info["mode"] == CONTEXT_MODE_DIRECT
         assert info["cache_enabled"] is False
         assert info["cache_ttl"] == 60
         assert info["max_context_tokens"] == MAX_CONTEXT_TOKENS
         assert "format" in info
+        assert isinstance(info["format"], str)
         assert "entity_count" in info
+        assert isinstance(info["entity_count"], int)
+        assert info["entity_count"] >= 0
 
     def test_get_provider_info_no_provider(self, context_manager):
         """Test getting provider info when no provider set."""
@@ -553,8 +600,11 @@ class TestGetProviderInfo:
 
         info = context_manager.get_provider_info()
 
+        assert isinstance(info, dict)
         assert info["provider_class"] is None
         assert "mode" in info
+        assert isinstance(info["mode"], str)
+        assert info["mode"] in [CONTEXT_MODE_DIRECT, CONTEXT_MODE_VECTOR_DB, DEFAULT_CONTEXT_MODE]
 
     def test_get_provider_info_custom_provider(self, context_manager, mock_hass):
         """Test getting provider info for custom provider."""
@@ -563,7 +613,10 @@ class TestGetProviderInfo:
 
         info = context_manager.get_provider_info()
 
+        assert isinstance(info, dict)
         assert info["provider_class"] == "MockContextProvider"
+        assert isinstance(info["provider_class"], str)
+        assert len(info["provider_class"]) > 0
 
 
 @pytest.mark.asyncio
@@ -581,9 +634,12 @@ class TestEventFiring:
         event_name, event_data = mock_hass.bus.async_fire.call_args[0]
 
         assert event_name == EVENT_CONTEXT_INJECTED
+        assert isinstance(event_data, dict)
         assert event_data["conversation_id"] == "conv_123"
         assert event_data["mode"] == CONTEXT_MODE_DIRECT
         assert "token_count" in event_data
+        assert isinstance(event_data["token_count"], int)
+        assert event_data["token_count"] > 0
 
     async def test_fire_context_injected_event_with_entities(self, context_manager, mock_hass):
         """Test firing event includes entity information."""
@@ -603,8 +659,12 @@ class TestEventFiring:
         await context_manager.get_formatted_context("test input", "conv_123")
 
         event_data = mock_hass.bus.async_fire.call_args[0][1]
+        assert isinstance(event_data, dict)
         assert "entities_included" in event_data
+        assert isinstance(event_data["entities_included"], list)
         assert "entity_count" in event_data
+        assert isinstance(event_data["entity_count"], int)
+        assert event_data["entity_count"] >= 0
 
     async def test_fire_context_injected_event_vector_db_mode(self, context_manager, mock_hass):
         """Test firing event in vector DB mode includes query."""
@@ -615,8 +675,11 @@ class TestEventFiring:
         await context_manager.get_formatted_context("test input", "conv_123")
 
         event_data = mock_hass.bus.async_fire.call_args[0][1]
+        assert isinstance(event_data, dict)
         assert "vector_db_query" in event_data
+        assert isinstance(event_data["vector_db_query"], str)
         assert event_data["vector_db_query"] == "test input"
+        assert len(event_data["vector_db_query"]) > 0
 
 
 class TestEdgeCases:
@@ -631,7 +694,11 @@ class TestEdgeCases:
         context = await context_manager.get_context("")
 
         assert context == "Context"
+        assert isinstance(context, str)
+        assert len(context) > 0
+        assert provider.get_context_called
         assert provider.last_user_input == ""
+        assert isinstance(provider.last_user_input, str)
 
     @pytest.mark.asyncio
     async def test_get_formatted_context_with_empty_context(self, context_manager):
@@ -642,12 +709,18 @@ class TestEdgeCases:
         context = await context_manager.get_formatted_context("test")
 
         assert context == ""
+        assert isinstance(context, str)
+        assert len(context) == 0
+        assert provider.get_context_called
+        assert provider.last_user_input == "test"
 
     def test_optimize_context_size_with_empty_string(self, context_manager):
         """Test optimizing empty context."""
         optimized = context_manager._optimize_context_size("")
 
         assert optimized == ""
+        assert isinstance(optimized, str)
+        assert len(optimized) == 0
 
     @pytest.mark.asyncio
     async def test_concurrent_cache_access(self, context_manager):
@@ -664,3 +737,7 @@ class TestEdgeCases:
 
         assert len(results) == 10
         assert all(r == "Test context" for r in results)
+        assert all(isinstance(r, str) for r in results)
+        assert all(len(r) > 0 for r in results)
+        # Verify provider was actually called
+        assert provider.get_context_called

@@ -1,0 +1,32 @@
+name: "Error Recovery"
+description: "Test service failure handling and graceful error recovery"
+
+setup:
+  entities:
+    - entity_id: "light.unavailable_light"
+      state: "unavailable"
+      attributes:
+        friendly_name: "Unavailable Light"
+    - entity_id: "light.working_light"
+      state: "off"
+      attributes:
+        friendly_name: "Working Light"
+
+steps:
+  - user: "Turn on the unavailable light"
+    mock_response: "I'm sorry, but the unavailable light is currently unavailable and cannot be controlled."
+    tools_used:
+      - "ha_control"
+    expected_response_contains: "unavailable"
+    timeout: 10
+
+  - user: "Turn on the working light instead"
+    mock_response: "I've turned on the working light for you."
+    tools_used:
+      - "ha_control"
+    expected_response_contains: "working light"
+    timeout: 10
+
+assertions:
+  - conversation_history_length: 4
+  - total_tool_calls: 2

@@ -12,6 +12,9 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 from homeassistant.core import HomeAssistant
 
 from custom_components.home_agent.agent import HomeAgent
@@ -77,7 +80,8 @@ def mock_hass_for_integration():
 
     # Mock bus
     mock.bus = MagicMock()
-    mock.bus.async_fire = AsyncMock()
+    # async_fire is sync in HA, not actually async
+    mock.bus.async_fire = MagicMock(return_value=None)
 
     return mock
 
