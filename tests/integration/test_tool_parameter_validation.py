@@ -64,7 +64,7 @@ def mock_hass():
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_wrong_type_string_instead_of_number(mock_hass):
+async def test_tool_parameter_wrong_type_string_instead_of_number(mock_hass, session_manager):
     """Test tool with wrong parameter type - string when number expected.
 
     Note: The current implementation uses template rendering which coerces types.
@@ -126,7 +126,7 @@ async def test_tool_parameter_wrong_type_string_instead_of_number(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_invalid_parameters_not_dict(mock_hass):
+async def test_tool_parameter_invalid_parameters_not_dict(mock_hass, session_manager):
     """Test tool call with parameters that aren't a dictionary.
 
     This should raise ValidationError because tool_handler.validate_tool_call()
@@ -165,7 +165,7 @@ async def test_tool_parameter_invalid_parameters_not_dict(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_parameters_is_list(mock_hass):
+async def test_tool_parameter_parameters_is_list(mock_hass, session_manager):
     """Test tool call with parameters as list instead of dict."""
     config = {
         CONF_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -200,7 +200,7 @@ async def test_tool_parameter_parameters_is_list(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_missing_required_parameter(mock_hass):
+async def test_tool_parameter_missing_required_parameter(mock_hass, session_manager):
     """Test tool execution when required parameter is missing at call time.
 
     Note: The current implementation doesn't enforce JSON schema validation
@@ -256,7 +256,7 @@ async def test_tool_parameter_missing_required_parameter(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_service_tool_parameter_missing_required(mock_hass):
+async def test_service_tool_parameter_missing_required(mock_hass, session_manager):
     """Test service tool with missing required parameter at call time."""
     config = {
         CONF_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -309,7 +309,7 @@ async def test_service_tool_parameter_missing_required(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_empty_string_when_non_empty_required(mock_hass):
+async def test_tool_parameter_empty_string_when_non_empty_required(mock_hass, session_manager):
     """Test tool parameter with empty string when non-empty required.
 
     Note: The current implementation doesn't validate JSON schema constraints
@@ -367,7 +367,7 @@ async def test_tool_parameter_empty_string_when_non_empty_required(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_execution_with_none_parameter_value(mock_hass):
+async def test_tool_execution_with_none_parameter_value(mock_hass, session_manager):
     """Test tool execution when parameter value is None."""
     config = {
         CONF_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -426,7 +426,7 @@ async def test_tool_execution_with_none_parameter_value(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_nested_object_invalid_structure(mock_hass):
+async def test_tool_parameter_nested_object_invalid_structure(mock_hass, session_manager):
     """Test tool with nested object that has invalid structure.
 
     This tests what happens when a parameter expects an object but receives
@@ -500,7 +500,7 @@ async def test_tool_parameter_nested_object_invalid_structure(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_validation_with_additional_properties(mock_hass):
+async def test_tool_parameter_validation_with_additional_properties(mock_hass, session_manager):
     """Test tool called with extra parameters not in schema.
 
     The system currently allows additional properties and doesn't validate
@@ -561,7 +561,7 @@ async def test_tool_parameter_validation_with_additional_properties(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_rest_tool_template_rendering_failure(mock_hass):
+async def test_rest_tool_template_rendering_failure(mock_hass, session_manager):
     """Test REST tool when template rendering fails due to invalid template syntax.
 
     When template rendering fails, the tool's execute() method catches the exception
@@ -612,7 +612,7 @@ async def test_rest_tool_template_rendering_failure(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_service_tool_template_rendering_failure(mock_hass):
+async def test_service_tool_template_rendering_failure(mock_hass, session_manager):
     """Test service tool when template rendering fails.
 
     Similar to REST tools, service tools catch template rendering errors
@@ -668,7 +668,7 @@ async def test_service_tool_template_rendering_failure(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_nonexistent_tool_call(mock_hass):
+async def test_tool_nonexistent_tool_call(mock_hass, session_manager):
     """Test calling a tool that doesn't exist.
 
     This should raise ToolExecutionError with a helpful message listing
@@ -699,7 +699,7 @@ async def test_tool_nonexistent_tool_call(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_call_empty_tool_name(mock_hass):
+async def test_tool_call_empty_tool_name(mock_hass, session_manager):
     """Test calling a tool with empty string as name."""
     config = {
         CONF_LLM_BASE_URL: "https://api.openai.com/v1",

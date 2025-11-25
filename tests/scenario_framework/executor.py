@@ -23,6 +23,7 @@ from custom_components.home_agent.const import (
     CONF_STREAMING_ENABLED,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
 )
+from custom_components.home_agent.conversation_session import ConversationSessionManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -160,10 +161,14 @@ class ScenarioExecutor:
             CONF_TOOLS_MAX_CALLS_PER_TURN: setup.get("max_tool_calls", 5),
         }
 
+        # Create session manager
+        session_manager = ConversationSessionManager(self.hass)
+        await session_manager.async_load()
+
         # Create agent
         with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
             mock_expose.return_value = False
-            self.agent = HomeAgent(self.hass, config)
+            self.agent = HomeAgent(self.hass, config, session_manager)
 
         # Generate conversation ID
         self.conversation_id = setup.get("conversation_id", "test_scenario")

@@ -34,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_basic_conversation(test_hass, llm_config):
+async def test_basic_conversation(test_hass, llm_config, session_manager):
     """Test simple Q&A with real LLM.
 
     This test verifies that:
@@ -60,7 +60,7 @@ async def test_basic_conversation(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Process a simple message
         response = await agent.process_message(
@@ -90,7 +90,7 @@ async def test_basic_conversation(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_tool_calling(test_hass, llm_config, sample_entity_states):
+async def test_tool_calling(test_hass, llm_config, sample_entity_states, session_manager):
     """Test that LLM triggers tools correctly.
 
     This test verifies that:
@@ -139,7 +139,7 @@ async def test_tool_calling(test_hass, llm_config, sample_entity_states):
 
         test_hass.services.async_call = AsyncMock(side_effect=mock_service_call)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the get_exposed_entities method to return test entities
         def mock_exposed_entities():
@@ -199,7 +199,7 @@ async def test_tool_calling(test_hass, llm_config, sample_entity_states):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_multi_turn_context(test_hass, llm_config):
+async def test_multi_turn_context(test_hass, llm_config, session_manager):
     """Test conversation memory across multiple turns.
 
     This test verifies that:
@@ -223,7 +223,7 @@ async def test_multi_turn_context(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         conversation_id = "test_multi_turn"
 
@@ -275,7 +275,7 @@ async def test_multi_turn_context(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_streaming_response(test_hass, llm_config):
+async def test_streaming_response(test_hass, llm_config, session_manager):
     """Test SSE streaming works with real LLM.
 
     This test verifies that:
@@ -298,7 +298,7 @@ async def test_streaming_response(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Collect streaming chunks
         chunks = []
@@ -351,7 +351,7 @@ async def test_streaming_response(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_error_handling(test_hass, llm_config):
+async def test_error_handling(test_hass, llm_config, session_manager):
     """Test LLM error handling (invalid model, connection issues, etc).
 
     This test verifies that:
@@ -374,7 +374,7 @@ async def test_error_handling(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Try to process a message with invalid model
         response = None
@@ -420,7 +420,7 @@ async def test_error_handling(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_llm_with_complex_tools(test_hass, llm_config, sample_entity_states):
+async def test_llm_with_complex_tools(test_hass, llm_config, sample_entity_states, session_manager):
     """Test LLM handling of complex multi-step tool interactions.
 
     This test verifies that:
@@ -467,7 +467,7 @@ async def test_llm_with_complex_tools(test_hass, llm_config, sample_entity_state
 
         test_hass.services.async_call = AsyncMock(side_effect=mock_service_call)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the get_exposed_entities method to return test entities
         def mock_exposed_entities():
@@ -509,7 +509,7 @@ async def test_llm_with_complex_tools(test_hass, llm_config, sample_entity_state
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_tool_execution_with_correct_entity(test_hass, llm_config, sample_entity_states):
+async def test_tool_execution_with_correct_entity(test_hass, llm_config, sample_entity_states, session_manager):
     """Test that tool calls target the correct entity_id.
 
     This test verifies that:
@@ -568,7 +568,7 @@ async def test_tool_execution_with_correct_entity(test_hass, llm_config, sample_
 
         test_hass.services.async_call = AsyncMock(side_effect=mock_service_call)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the get_exposed_entities method to return test entities
         def mock_exposed_entities():

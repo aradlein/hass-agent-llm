@@ -110,7 +110,7 @@ def mock_hass_for_custom_tools():
 
 
 @pytest.mark.asyncio
-async def test_custom_tools_registration(mock_hass_for_custom_tools, custom_tools_config):
+async def test_custom_tools_registration(mock_hass_for_custom_tools, custom_tools_config, session_manager):
     """Test that custom tools are registered from configuration."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -128,7 +128,7 @@ async def test_custom_tools_registration(mock_hass_for_custom_tools, custom_tool
 
 
 @pytest.mark.asyncio
-async def test_custom_tool_has_correct_properties(mock_hass_for_custom_tools, custom_tools_config):
+async def test_custom_tool_has_correct_properties(mock_hass_for_custom_tools, custom_tools_config, session_manager):
     """Test that registered custom tools have correct properties."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -147,7 +147,7 @@ async def test_custom_tool_has_correct_properties(mock_hass_for_custom_tools, cu
 
 
 @pytest.mark.asyncio
-async def test_custom_tool_appears_in_llm_tools_list(
+async def test_custom_tool_appears_in_llm_tools_list(session_manager,
     mock_hass_for_custom_tools, custom_tools_config
 ):
     """Test that custom tools appear in the tools list for LLM."""
@@ -168,7 +168,7 @@ async def test_custom_tool_appears_in_llm_tools_list(
 
 
 @pytest.mark.asyncio
-async def test_custom_rest_tool_execution_success(mock_hass_for_custom_tools, custom_tools_config):
+async def test_custom_rest_tool_execution_success(mock_hass_for_custom_tools, custom_tools_config, session_manager):
     """Test successful execution of a custom REST tool."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -198,7 +198,7 @@ async def test_custom_rest_tool_execution_success(mock_hass_for_custom_tools, cu
 
 
 @pytest.mark.asyncio
-async def test_custom_rest_tool_execution_with_post(
+async def test_custom_rest_tool_execution_with_post(session_manager,
     mock_hass_for_custom_tools, custom_tools_config
 ):
     """Test POST request execution of a custom REST tool."""
@@ -228,7 +228,7 @@ async def test_custom_rest_tool_execution_with_post(
 
 
 @pytest.mark.asyncio
-async def test_custom_tool_registration_with_validation_error(mock_hass_for_custom_tools):
+async def test_custom_tool_registration_with_validation_error(mock_hass_for_custom_tools, session_manager):
     """Test that invalid custom tool configuration is handled gracefully."""
     config_with_invalid_tool = {
         CONF_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -257,7 +257,7 @@ async def test_custom_tool_registration_with_validation_error(mock_hass_for_cust
 
 
 @pytest.mark.asyncio
-async def test_multiple_custom_tools_registration(mock_hass_for_custom_tools, custom_tools_config):
+async def test_multiple_custom_tools_registration(mock_hass_for_custom_tools, custom_tools_config, session_manager):
     """Test that multiple custom tools can be registered simultaneously."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -281,7 +281,7 @@ async def test_multiple_custom_tools_registration(mock_hass_for_custom_tools, cu
 
 
 @pytest.mark.asyncio
-async def test_custom_tool_error_propagation(mock_hass_for_custom_tools, custom_tools_config):
+async def test_custom_tool_error_propagation(mock_hass_for_custom_tools, custom_tools_config, session_manager):
     """Test that custom tool errors are properly propagated."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -363,7 +363,7 @@ def service_tools_config():
 
 
 @pytest.mark.asyncio
-async def test_service_tools_registration(mock_hass_for_custom_tools, service_tools_config):
+async def test_service_tools_registration(mock_hass_for_custom_tools, service_tools_config, session_manager):
     """Test that service-based custom tools are registered from configuration."""
     # Mock has_service to return True for all services
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
@@ -385,7 +385,7 @@ async def test_service_tools_registration(mock_hass_for_custom_tools, service_to
 
 
 @pytest.mark.asyncio
-async def test_service_tool_has_correct_properties(
+async def test_service_tool_has_correct_properties(session_manager,
     mock_hass_for_custom_tools, service_tools_config
 ):
     """Test that registered service tools have correct properties."""
@@ -408,7 +408,7 @@ async def test_service_tool_has_correct_properties(
 
 
 @pytest.mark.asyncio
-async def test_service_tool_appears_in_llm_tools_list(
+async def test_service_tool_appears_in_llm_tools_list(session_manager,
     mock_hass_for_custom_tools, service_tools_config
 ):
     """Test that service tools appear in the tools list for LLM."""
@@ -432,7 +432,7 @@ async def test_service_tool_appears_in_llm_tools_list(
 
 
 @pytest.mark.asyncio
-async def test_service_tool_execution_success(mock_hass_for_custom_tools, service_tools_config):
+async def test_service_tool_execution_success(mock_hass_for_custom_tools, service_tools_config, session_manager):
     """Test successful execution of a custom service tool."""
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
     mock_hass_for_custom_tools.services.async_call = AsyncMock()
@@ -464,7 +464,7 @@ async def test_service_tool_execution_success(mock_hass_for_custom_tools, servic
 
 
 @pytest.mark.asyncio
-async def test_service_tool_execution_with_parameters(
+async def test_service_tool_execution_with_parameters(session_manager,
     mock_hass_for_custom_tools, service_tools_config
 ):
     """Test service tool execution with templated parameters."""
@@ -504,7 +504,7 @@ async def test_service_tool_execution_with_parameters(
 
 
 @pytest.mark.asyncio
-async def test_service_tool_execution_with_target(mock_hass_for_custom_tools, service_tools_config):
+async def test_service_tool_execution_with_target(mock_hass_for_custom_tools, service_tools_config, session_manager):
     """Test service tool execution with target field."""
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
     mock_hass_for_custom_tools.services.async_call = AsyncMock()
@@ -528,7 +528,7 @@ async def test_service_tool_execution_with_target(mock_hass_for_custom_tools, se
 
 
 @pytest.mark.asyncio
-async def test_service_tool_error_propagation(mock_hass_for_custom_tools, service_tools_config):
+async def test_service_tool_error_propagation(mock_hass_for_custom_tools, service_tools_config, session_manager):
     """Test that service tool errors are properly propagated."""
     from homeassistant.core import ServiceNotFound
 
@@ -560,7 +560,7 @@ async def test_service_tool_error_propagation(mock_hass_for_custom_tools, servic
 
 
 @pytest.mark.asyncio
-async def test_mixed_rest_and_service_tools(mock_hass_for_custom_tools):
+async def test_mixed_rest_and_service_tools(mock_hass_for_custom_tools, session_manager):
     """Test that both REST and service tools can be registered together."""
     mixed_config = {
         CONF_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -653,7 +653,7 @@ class SlowTestTool:
 
 
 @pytest.mark.asyncio
-async def test_tool_timeout_is_triggered_when_execution_exceeds_limit(mock_hass_for_custom_tools):
+async def test_tool_timeout_is_triggered_when_execution_exceeds_limit(mock_hass_for_custom_tools, session_manager):
     """Test that tool execution timeout is triggered when tool exceeds max_timeout_seconds.
 
     This test verifies that when a tool takes longer than the configured timeout,
@@ -687,7 +687,7 @@ async def test_tool_timeout_is_triggered_when_execution_exceeds_limit(mock_hass_
 
 
 @pytest.mark.asyncio
-async def test_tool_timeout_does_not_crash_agent(mock_hass_for_custom_tools):
+async def test_tool_timeout_does_not_crash_agent(mock_hass_for_custom_tools, session_manager):
     """Test that tool timeout triggers proper error handling without crashing.
 
     This test verifies that the tool handler gracefully handles timeouts by:
@@ -732,7 +732,7 @@ async def test_tool_timeout_does_not_crash_agent(mock_hass_for_custom_tools):
 
 
 @pytest.mark.asyncio
-async def test_tool_timeout_returns_proper_error_message(mock_hass_for_custom_tools):
+async def test_tool_timeout_returns_proper_error_message(mock_hass_for_custom_tools, session_manager):
     """Test that a proper error message is returned when timeout occurs.
 
     This test verifies that the timeout error message:
@@ -770,7 +770,7 @@ async def test_tool_timeout_returns_proper_error_message(mock_hass_for_custom_to
 
 
 @pytest.mark.asyncio
-async def test_tool_timeout_fires_proper_events(mock_hass_for_custom_tools):
+async def test_tool_timeout_fires_proper_events(mock_hass_for_custom_tools, session_manager):
     """Test that timeout triggers proper event emission.
 
     This test verifies that when a timeout occurs:
@@ -831,7 +831,7 @@ async def test_tool_timeout_fires_proper_events(mock_hass_for_custom_tools):
 
 
 @pytest.mark.asyncio
-async def test_agent_continues_working_after_tool_timeout(mock_hass_for_custom_tools):
+async def test_agent_continues_working_after_tool_timeout(mock_hass_for_custom_tools, session_manager):
     """Test that the agent continues working after a tool timeout.
 
     This test verifies that:
@@ -888,7 +888,7 @@ async def test_agent_continues_working_after_tool_timeout(mock_hass_for_custom_t
 
 
 @pytest.mark.asyncio
-async def test_tool_completes_successfully_within_timeout(mock_hass_for_custom_tools):
+async def test_tool_completes_successfully_within_timeout(mock_hass_for_custom_tools, session_manager):
     """Test that tools completing within timeout work normally.
 
     This test verifies that the timeout mechanism doesn't interfere with
@@ -930,7 +930,7 @@ async def test_tool_completes_successfully_within_timeout(mock_hass_for_custom_t
 
 
 @pytest.mark.asyncio
-async def test_different_timeout_configurations(mock_hass_for_custom_tools):
+async def test_different_timeout_configurations(mock_hass_for_custom_tools, session_manager):
     """Test that different timeout configurations are respected.
 
     This test verifies that:

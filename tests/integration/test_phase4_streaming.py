@@ -252,7 +252,7 @@ def create_multiple_tool_calls_stream(tool_calls: list[tuple[str, dict[str, Any]
 
 
 @pytest.mark.asyncio
-async def test_end_to_end_streaming(
+async def test_end_to_end_streaming(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -335,7 +335,7 @@ async def test_end_to_end_streaming(
 
 
 @pytest.mark.asyncio
-async def test_streaming_with_tool_calls(
+async def test_streaming_with_tool_calls(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -424,7 +424,7 @@ async def test_streaming_with_tool_calls(
 
 
 @pytest.mark.asyncio
-async def test_streaming_with_multiple_tool_calls(
+async def test_streaming_with_multiple_tool_calls(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -518,7 +518,7 @@ async def test_streaming_with_multiple_tool_calls(
 
 
 @pytest.mark.asyncio
-async def test_streaming_fallback_on_error(
+async def test_streaming_fallback_on_error(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_user_input,
@@ -601,7 +601,7 @@ async def test_streaming_fallback_on_error(
 
 
 @pytest.mark.asyncio
-async def test_streaming_disabled_uses_synchronous(
+async def test_streaming_disabled_uses_synchronous(session_manager,
     mock_hass_for_streaming,
     non_streaming_config,
     mock_user_input,
@@ -658,7 +658,7 @@ async def test_streaming_disabled_uses_synchronous(
 
 
 @pytest.mark.asyncio
-async def test_streaming_no_chatlog_uses_synchronous(
+async def test_streaming_no_chatlog_uses_synchronous(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_user_input,
@@ -710,7 +710,7 @@ async def test_streaming_no_chatlog_uses_synchronous(
 
 
 @pytest.mark.asyncio
-async def test_streaming_no_delta_listener_uses_synchronous(
+async def test_streaming_no_delta_listener_uses_synchronous(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_user_input,
@@ -765,7 +765,7 @@ async def test_streaming_no_delta_listener_uses_synchronous(
 
 
 @pytest.mark.asyncio
-async def test_streaming_conversation_history_integration(
+async def test_streaming_conversation_history_integration(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -844,7 +844,7 @@ async def test_streaming_conversation_history_integration(
 
 
 @pytest.mark.asyncio
-async def test_streaming_tool_iteration_loop(
+async def test_streaming_tool_iteration_loop(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,

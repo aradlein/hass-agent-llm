@@ -43,7 +43,9 @@ def agent_config():
 @pytest.fixture
 def agent(mock_hass, agent_config):
     """Create HomeAgent instance."""
-    return HomeAgent(mock_hass, agent_config)
+    from custom_components.home_agent.conversation_session import ConversationSessionManager
+    session_manager = ConversationSessionManager(mock_hass)
+    return HomeAgent(mock_hass, agent_config, session_manager)
 
 
 class TestStreamingDetection:

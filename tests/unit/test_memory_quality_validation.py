@@ -71,7 +71,9 @@ def home_agent(mock_hass, agent_config, memory_manager):
     with patch("custom_components.home_agent.agent.ContextManager"):
         with patch("custom_components.home_agent.agent.ConversationHistoryManager"):
             with patch("custom_components.home_agent.agent.ToolHandler"):
-                agent = HomeAgent(mock_hass, agent_config)
+                from custom_components.home_agent.conversation_session import ConversationSessionManager
+                session_manager = ConversationSessionManager(mock_hass)
+                agent = HomeAgent(mock_hass, agent_config, session_manager)
                 agent._memory_manager = memory_manager
                 return agent
 

@@ -206,7 +206,7 @@ async def create_http_503_stream() -> AsyncGenerator[bytes, None]:
 
 
 @pytest.mark.asyncio
-async def test_partial_sse_stream_connection_drop(
+async def test_partial_sse_stream_connection_drop(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -300,7 +300,7 @@ async def test_partial_sse_stream_connection_drop(
 
 
 @pytest.mark.asyncio
-async def test_malformed_sse_data_handling(
+async def test_malformed_sse_data_handling(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -374,7 +374,7 @@ async def test_malformed_sse_data_handling(
 
 
 @pytest.mark.asyncio
-async def test_http_503_during_streaming(
+async def test_http_503_during_streaming(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -472,7 +472,7 @@ async def test_http_503_during_streaming(
 
 
 @pytest.mark.asyncio
-async def test_timeout_during_streaming(
+async def test_timeout_during_streaming(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -556,7 +556,7 @@ async def test_timeout_during_streaming(
 
 
 @pytest.mark.asyncio
-async def test_invalid_json_in_sse_events(
+async def test_invalid_json_in_sse_events(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -629,7 +629,7 @@ async def test_invalid_json_in_sse_events(
 
 
 @pytest.mark.asyncio
-async def test_invalid_tool_call_json_in_stream(
+async def test_invalid_tool_call_json_in_stream(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -716,7 +716,7 @@ async def test_invalid_tool_call_json_in_stream(
 
 
 @pytest.mark.asyncio
-async def test_empty_stream_response(
+async def test_empty_stream_response(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -790,7 +790,7 @@ async def test_empty_stream_response(
 
 
 @pytest.mark.asyncio
-async def test_network_error_before_streaming_starts(
+async def test_network_error_before_streaming_starts(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -868,7 +868,7 @@ async def test_network_error_before_streaming_starts(
 
 
 @pytest.mark.asyncio
-async def test_stream_with_only_done_marker(
+async def test_stream_with_only_done_marker(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -938,7 +938,7 @@ async def test_stream_with_only_done_marker(
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_exception_propagation(
+async def test_stream_handler_exception_propagation(session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,

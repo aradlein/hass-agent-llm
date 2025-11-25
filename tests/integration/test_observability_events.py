@@ -77,7 +77,7 @@ def event_capture(test_hass: HomeAssistant) -> EventCapture:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_conversation_started_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture):
+async def test_conversation_started_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
     """Test that EVENT_CONVERSATION_STARTED fires when process_message is called.
 
     Verifies:
@@ -120,7 +120,7 @@ async def test_conversation_started_event(test_hass: HomeAssistant, llm_config: 
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Process message with all optional parameters
         conversation_id = "test_conv_started"
@@ -174,7 +174,7 @@ async def test_conversation_started_event(test_hass: HomeAssistant, llm_config: 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_conversation_finished_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture):
+async def test_conversation_finished_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
     """Test that EVENT_CONVERSATION_FINISHED fires with correct metrics.
 
     Verifies:
@@ -220,7 +220,7 @@ async def test_conversation_finished_event(test_hass: HomeAssistant, llm_config:
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         conversation_id = "test_conv_finished"
         user_id = "test_user_789"
@@ -334,7 +334,7 @@ async def test_conversation_finished_event(test_hass: HomeAssistant, llm_config:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_error_event_on_exception(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture):
+async def test_error_event_on_exception(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
     """Test that EVENT_ERROR fires when exceptions occur.
 
     Verifies:
@@ -363,7 +363,7 @@ async def test_error_event_on_exception(test_hass: HomeAssistant, llm_config: di
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         conversation_id = "test_error_event"
 
@@ -426,7 +426,7 @@ async def test_error_event_on_exception(test_hass: HomeAssistant, llm_config: di
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_events_disabled_when_config_false(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture):
+async def test_events_disabled_when_config_false(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
     """Test that events DON'T fire when CONF_EMIT_EVENTS is False.
 
     Verifies:
@@ -528,7 +528,7 @@ async def test_events_disabled_when_config_false(test_hass: HomeAssistant, llm_c
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_context_injected_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, sample_entity_states: list[State]):
+async def test_context_injected_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, sample_entity_states: list[State], session_manager):
     """Test that EVENT_CONTEXT_INJECTED fires when context is retrieved.
 
     Verifies:
@@ -572,7 +572,7 @@ async def test_context_injected_event(test_hass: HomeAssistant, llm_config: dict
         # Setup test states
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         conversation_id = "test_context_injected"
 
@@ -613,7 +613,7 @@ async def test_context_injected_event(test_hass: HomeAssistant, llm_config: dict
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_history_saved_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture):
+async def test_history_saved_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
     """Test that EVENT_HISTORY_SAVED fires when history is saved.
 
     Verifies:
@@ -728,7 +728,7 @@ async def test_history_saved_event(test_hass: HomeAssistant, llm_config: dict[st
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_multiple_events_in_single_conversation(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture):
+async def test_multiple_events_in_single_conversation(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
     """Test that multiple event types fire correctly in a single conversation.
 
     Verifies:
@@ -769,7 +769,7 @@ async def test_multiple_events_in_single_conversation(test_hass: HomeAssistant, 
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         conversation_id = "test_multiple_events"
 
@@ -825,7 +825,7 @@ async def test_multiple_events_in_single_conversation(test_hass: HomeAssistant, 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_conversation_finished_metrics_accuracy(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, sample_entity_states: list[State]):
+async def test_conversation_finished_metrics_accuracy(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, sample_entity_states: list[State], session_manager):
     """Test that EVENT_CONVERSATION_FINISHED metrics are accurate and useful.
 
     Verifies:
@@ -887,7 +887,7 @@ async def test_conversation_finished_metrics_accuracy(test_hass: HomeAssistant, 
 
         test_hass.services.async_call = AsyncMock(side_effect=mock_service_call)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the get_exposed_entities method
         def mock_exposed_entities():

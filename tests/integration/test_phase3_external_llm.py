@@ -87,7 +87,7 @@ def mock_hass_for_integration():
 
 
 @pytest.mark.asyncio
-async def test_external_llm_tool_registration(mock_hass_for_integration, external_llm_config):
+async def test_external_llm_tool_registration(mock_hass_for_integration, external_llm_config, session_manager):
     """Test that external LLM tool is registered when enabled."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -108,7 +108,7 @@ async def test_external_llm_tool_registration(mock_hass_for_integration, externa
 
 
 @pytest.mark.asyncio
-async def test_external_llm_tool_not_registered_when_disabled(mock_hass_for_integration):
+async def test_external_llm_tool_not_registered_when_disabled(mock_hass_for_integration, session_manager):
     """Test that external LLM tool is NOT registered when disabled."""
     config = {
         CONF_LLM_BASE_URL: "https://api.primary.com/v1",
@@ -132,7 +132,7 @@ async def test_external_llm_tool_not_registered_when_disabled(mock_hass_for_inte
 
 
 @pytest.mark.asyncio
-async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_llm_config):
+async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_llm_config, session_manager):
     """Test complete dual-LLM workflow: primary delegates to external LLM."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -265,7 +265,7 @@ async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_
 
 
 @pytest.mark.asyncio
-async def test_external_llm_error_propagation(mock_hass_for_integration, external_llm_config):
+async def test_external_llm_error_propagation(mock_hass_for_integration, external_llm_config, session_manager):
     """Test that external LLM errors are propagated to primary LLM."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -366,7 +366,7 @@ async def test_external_llm_error_propagation(mock_hass_for_integration, externa
 
 
 @pytest.mark.asyncio
-async def test_tool_call_counting_includes_external_llm(
+async def test_tool_call_counting_includes_external_llm(session_manager,
     mock_hass_for_integration, external_llm_config
 ):
     """Test that external LLM calls count toward tool call limit."""
@@ -470,7 +470,7 @@ async def test_tool_call_counting_includes_external_llm(
 
 
 @pytest.mark.asyncio
-async def test_external_llm_context_not_included_automatically(
+async def test_external_llm_context_not_included_automatically(session_manager,
     mock_hass_for_integration, external_llm_config
 ):
     """Test that conversation history is NOT automatically included in external LLM calls."""
@@ -575,7 +575,7 @@ async def test_external_llm_context_not_included_automatically(
 
 
 @pytest.mark.asyncio
-async def test_external_llm_configuration_validation(mock_hass_for_integration):
+async def test_external_llm_configuration_validation(mock_hass_for_integration, session_manager):
     """Test that proper configuration is required for external LLM tool."""
     # Config missing external LLM settings
     incomplete_config = {

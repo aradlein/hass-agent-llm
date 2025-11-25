@@ -26,7 +26,7 @@ from custom_components.home_agent.const import (
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_history_persistence(test_hass, llm_config):
+async def test_history_persistence(test_hass, llm_config, session_manager):
     """Test that conversation history persists and loads correctly.
 
     This test verifies that:
@@ -55,7 +55,7 @@ async def test_history_persistence(test_hass, llm_config):
         return_value=False,
     ):
         # Create first agent and send messages
-        agent1 = HomeAgent(test_hass, config)
+        agent1 = HomeAgent(test_hass, config, session_manager)
 
         # Load any existing history
         await agent1.conversation_manager.load_from_storage()
@@ -104,7 +104,7 @@ async def test_history_persistence(test_hass, llm_config):
         await agent1.close()
 
         # Create second agent (simulating restart)
-        agent2 = HomeAgent(test_hass, config)
+        agent2 = HomeAgent(test_hass, config, session_manager)
 
         # Load history from storage
         await agent2.conversation_manager.load_from_storage()
@@ -135,7 +135,7 @@ async def test_history_persistence(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_history_token_limits(test_hass, llm_config):
+async def test_history_token_limits(test_hass, llm_config, session_manager):
     """Test that history is truncated when token limits are exceeded.
 
     This test verifies that:
@@ -164,7 +164,7 @@ async def test_history_token_limits(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Send several messages to exceed token limit
         messages = [
@@ -213,7 +213,7 @@ async def test_history_token_limits(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_history_message_limits(test_hass, llm_config):
+async def test_history_message_limits(test_hass, llm_config, session_manager):
     """Test that history respects message count limits.
 
     This test verifies that:
@@ -242,7 +242,7 @@ async def test_history_message_limits(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Send more messages than the limit
         messages = [
@@ -293,7 +293,7 @@ async def test_history_message_limits(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_history_disabled(test_hass, llm_config):
+async def test_history_disabled(test_hass, llm_config, session_manager):
     """Test that history is not maintained when disabled.
 
     This test verifies that:
@@ -319,7 +319,7 @@ async def test_history_disabled(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Send first message
         response1 = await agent.process_message(

@@ -39,7 +39,7 @@ from custom_components.home_agent.const import (
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_context_mode_switching_direct(test_hass, llm_config, sample_entity_states):
+async def test_context_mode_switching_direct(test_hass, llm_config, sample_entity_states, session_manager):
     """Test switching to direct context mode.
 
     This test verifies that:
@@ -80,7 +80,7 @@ async def test_context_mode_switching_direct(test_hass, llm_config, sample_entit
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Verify context manager is using direct mode
         assert agent.context_manager is not None, "Context manager should be initialized"
@@ -116,7 +116,7 @@ async def test_context_mode_switching_direct(test_hass, llm_config, sample_entit
 @pytest.mark.requires_chromadb
 @pytest.mark.requires_embedding
 @pytest.mark.asyncio
-async def test_context_mode_switching_vector_db(
+async def test_context_mode_switching_vector_db(session_manager,
     test_hass,
     llm_config,
     chromadb_config,
@@ -168,7 +168,7 @@ async def test_context_mode_switching_vector_db(
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Initialize vector DB if needed
         if hasattr(agent, 'vector_db_manager') and agent.vector_db_manager:
@@ -201,7 +201,7 @@ async def test_context_mode_switching_vector_db(
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_context_format_json(test_hass, llm_config, sample_entity_states):
+async def test_context_format_json(test_hass, llm_config, sample_entity_states, session_manager):
     """Test JSON context formatting.
 
     This test verifies that:
@@ -237,7 +237,7 @@ async def test_context_format_json(test_hass, llm_config, sample_entity_states):
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Get context
         context = await agent.context_manager.get_context(
@@ -260,7 +260,7 @@ async def test_context_format_json(test_hass, llm_config, sample_entity_states):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_context_format_natural_language(test_hass, llm_config, sample_entity_states):
+async def test_context_format_natural_language(test_hass, llm_config, sample_entity_states, session_manager):
     """Test natural language context formatting.
 
     This test verifies that:
@@ -296,7 +296,7 @@ async def test_context_format_natural_language(test_hass, llm_config, sample_ent
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Get context
         context = await agent.context_manager.get_context(
@@ -324,7 +324,7 @@ async def test_context_format_natural_language(test_hass, llm_config, sample_ent
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_context_format_hybrid(test_hass, llm_config, sample_entity_states):
+async def test_context_format_hybrid(test_hass, llm_config, sample_entity_states, session_manager):
     """Test hybrid context formatting.
 
     This test verifies that:
@@ -360,7 +360,7 @@ async def test_context_format_hybrid(test_hass, llm_config, sample_entity_states
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Get context
         context = await agent.context_manager.get_context(
@@ -390,7 +390,7 @@ async def test_context_format_hybrid(test_hass, llm_config, sample_entity_states
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_context_with_no_entities(test_hass, llm_config):
+async def test_context_with_no_entities(test_hass, llm_config, session_manager):
     """Test context manager behavior when no entities are configured.
 
     This test verifies that:
@@ -418,7 +418,7 @@ async def test_context_with_no_entities(test_hass, llm_config):
     ):
         test_hass.states.async_all = MagicMock(return_value=[])
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Get context with no entities
         context = await agent.context_manager.get_context(

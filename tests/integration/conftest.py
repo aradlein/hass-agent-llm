@@ -287,6 +287,15 @@ def _create_test_hass() -> HomeAssistant:
     # Store tasks list for cleanup
     hass._test_tasks = created_tasks
 
+    # Mock entity registry to prevent AttributeError
+    # This is needed for get_exposed_entities() in agent.py
+    mock_entity_registry = MagicMock()
+    mock_entity_registry.async_get = MagicMock(return_value=None)
+
+    # Store the mock in hass.data for er.async_get(hass) to find
+    from homeassistant.helpers import entity_registry as er
+    hass.data[er.DATA_REGISTRY] = mock_entity_registry
+
     return hass
 
 
@@ -381,6 +390,15 @@ def test_hass() -> HomeAssistant:
     # Store tasks list for cleanup
     hass._test_tasks = created_tasks
 
+    # Mock entity registry to prevent AttributeError
+    # This is needed for get_exposed_entities() in agent.py
+    mock_entity_registry = MagicMock()
+    mock_entity_registry.async_get = MagicMock(return_value=None)
+
+    # Store the mock in hass.data for er.async_get(hass) to find
+    from homeassistant.helpers import entity_registry as er
+    hass.data[er.DATA_REGISTRY] = mock_entity_registry
+
     return hass
 
 
@@ -427,6 +445,23 @@ def sample_entity_states() -> list[State]:
             {"friendly_name": "Coffee Maker"},
         ),
     ]
+
+
+@pytest.fixture
+async def session_manager(test_hass: HomeAssistant):
+    """Create a ConversationSessionManager for testing.
+
+    Args:
+        test_hass: Test Home Assistant instance
+
+    Returns:
+        ConversationSessionManager instance
+    """
+    from custom_components.home_agent.conversation_session import ConversationSessionManager
+
+    manager = ConversationSessionManager(test_hass)
+    await manager.async_load()
+    return manager
 
 
 @pytest.fixture(scope="session")
