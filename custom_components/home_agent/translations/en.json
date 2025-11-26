@@ -323,6 +323,7 @@
           "memory_extraction_llm": "LLM for Memory Extraction",
           "memory_max_memories": "Maximum Stored Memories",
           "memory_min_importance": "Minimum Importance (0.0-1.0)",
+          "memory_min_words": "Minimum Words",
           "memory_context_top_k": "Memories to Inject in Context",
           "memory_collection_name": "ChromaDB Collection Name"
         },
@@ -332,6 +333,7 @@
           "memory_extraction_llm": "Choose which LLM to use for extracting memories (external is more accurate but requires External LLM to be enabled)",
           "memory_max_memories": "Maximum number of memories to store (oldest/least important are removed when limit is reached)",
           "memory_min_importance": "Ignore memories below this importance score",
+          "memory_min_words": "Minimum number of meaningful words (>2 characters) required for a memory to be stored. Helps filter out short, low-value memories.",
           "memory_context_top_k": "How many relevant memories to include in each conversation",
           "memory_collection_name": "Name of the ChromaDB collection for memory indexing"
         }

@@ -200,8 +200,10 @@ from ..const import (
     CONF_MEMORY_ENABLED,
     CONF_MEMORY_EXTRACTION_LLM,
     CONF_MEMORY_MIN_IMPORTANCE,
+    CONF_MEMORY_MIN_WORDS,
     DEFAULT_MEMORY_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_LLM,
+    DEFAULT_MEMORY_MIN_WORDS,
     EVENT_MEMORY_EXTRACTED,
 )
 from ..memory.validator import MemoryValidator
@@ -246,8 +248,9 @@ class MemoryExtractionMixin:
             # Note: DEFAULT_MEMORY_MIN_IMPORTANCE (0.3) is for storage, but extraction
             # has historically used 0.4 as a stricter threshold
             min_importance = self.config.get(CONF_MEMORY_MIN_IMPORTANCE, 0.4)
+            min_word_count = self.config.get(CONF_MEMORY_MIN_WORDS, DEFAULT_MEMORY_MIN_WORDS)
             self._memory_validator = MemoryValidator(
-                min_word_count=10,
+                min_word_count=min_word_count,
                 min_importance=min_importance,
             )
         return self._memory_validator
