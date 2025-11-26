@@ -10,7 +10,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.core import Event, HomeAssistant, State
+from homeassistant.core import HomeAssistant, State
 
 from custom_components.home_agent.agent import HomeAgent
 from custom_components.home_agent.const import (

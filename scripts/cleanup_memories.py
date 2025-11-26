@@ -5,7 +5,6 @@ This script removes low-quality memories identified in the analysis.
 """
 
 import chromadb
-from collections import defaultdict
 
 # Configuration
 CHROMADB_HOST = "db.inorganic.me"
@@ -85,7 +84,7 @@ def cleanup_memories(dry_run=True):
                     print(f"Action: {'WOULD DELETE' if dry_run else 'DELETING'}")
                 else:
                     print(f"\nID: {memory_id}")
-                    print(f"Status: NOT FOUND (may have been already deleted)")
+                    print("Status: NOT FOUND (may have been already deleted)")
             except Exception as e:
                 print(f"\nID: {memory_id}")
                 print(f"Error retrieving: {e}")
@@ -109,7 +108,7 @@ def cleanup_memories(dry_run=True):
                     print(f"Type: {mem_type}")
                     print(f"Importance: {importance}")
                     print(f"Content: {content}")
-                    print(f"Issue: Low word count")
+                    print("Issue: Low word count")
                     print()
             except Exception as e:
                 print(f"ID: {memory_id}")
@@ -151,7 +150,7 @@ def cleanup_memories(dry_run=True):
             print("\n" + "="*80)
             print("DRY RUN COMPLETE - No changes made")
             print("="*80)
-            print(f"\nTo actually delete these memories, run:")
+            print("\nTo actually delete these memories, run:")
             print(f"  python3 {__file__} --execute")
 
     except Exception as e:
@@ -176,5 +175,5 @@ if __name__ == "__main__":
     else:
         print("Running in DRY RUN mode (no changes will be made)\n")
         cleanup_memories(dry_run=True)
-        print(f"\nTo execute the cleanup, run with --execute flag:")
+        print("\nTo execute the cleanup, run with --execute flag:")
         print(f"  python3 {__file__} --execute")

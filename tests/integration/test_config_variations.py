@@ -13,11 +13,9 @@ Configuration options tested:
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from homeassistant.core import State
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from custom_components.home_agent.agent import HomeAgent
-from custom_components.home_agent.context_manager import ContextManager
 from custom_components.home_agent.vector_db_manager import VectorDBManager
 from custom_components.home_agent.const import (
     CONF_CONTEXT_FORMAT,

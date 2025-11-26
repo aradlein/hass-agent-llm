@@ -1,6 +1,6 @@
 """Unit tests for Home Agent __init__.py (setup and service handlers)."""
 
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntry
@@ -1177,7 +1177,7 @@ class TestServiceHandlers:
         service_call = MagicMock(spec=ServiceCall)
         service_call.data = {"query": "test"}
 
-        result = await search_handler(service_call)
+        await search_handler(service_call)
 
         mock_memory_manager.search_memories.assert_called_once_with(
             query="test",

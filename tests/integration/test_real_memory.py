@@ -5,15 +5,13 @@ searches memories using real ChromaDB and real LLM for extraction.
 """
 
 import pytest
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from custom_components.home_agent.memory_manager import (
     MemoryManager,
     MEMORY_TYPE_FACT,
     MEMORY_TYPE_PREFERENCE,
     MEMORY_TYPE_EVENT,
-    MEMORY_TYPE_CONTEXT,
 )
 from custom_components.home_agent.vector_db_manager import VectorDBManager
 from custom_components.home_agent.const import (
@@ -562,7 +560,7 @@ async def test_memory_type_filtering(
                 importance=0.6,
             )
 
-            event_id = await memory_manager.add_memory(
+            await memory_manager.add_memory(
                 content="User attended a meeting at 3 PM",
                 memory_type=MEMORY_TYPE_EVENT,
                 importance=0.5,

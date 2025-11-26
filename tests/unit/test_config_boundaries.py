@@ -16,7 +16,7 @@ from unittest.mock import Mock
 import pytest
 import voluptuous as vol
 
-from custom_components.home_agent.config_flow import HomeAgentConfigFlow, HomeAgentOptionsFlow
+from custom_components.home_agent.config_flow import HomeAgentConfigFlow
 from custom_components.home_agent.const import (
     CONF_EXTERNAL_LLM_MAX_TOKENS,
     CONF_EXTERNAL_LLM_TEMPERATURE,
@@ -28,7 +28,6 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_VECTOR_DB_SIMILARITY_THRESHOLD,
 )
-from custom_components.home_agent.exceptions import ValidationError
 
 
 class TestLLMTemperatureBoundaries:

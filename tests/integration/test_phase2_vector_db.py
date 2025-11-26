@@ -10,9 +10,6 @@ This test suite validates the complete vector DB integration flow:
 from unittest.mock import Mock, patch
 
 import pytest
-
-# Mark all tests in this module as integration tests
-pytestmark = pytest.mark.integration
 from homeassistant.core import State
 
 from custom_components.home_agent.const import (
@@ -28,6 +25,9 @@ from custom_components.home_agent.const import (
 from custom_components.home_agent.context_providers.vector_db import (
     VectorDBContextProvider,
 )
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture

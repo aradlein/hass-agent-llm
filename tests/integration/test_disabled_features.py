@@ -7,7 +7,7 @@ operates correctly in minimal mode and that disabled features don't cause side e
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -18,8 +18,6 @@ from custom_components.home_agent.const import (
     CONF_EMIT_EVENTS,
     CONF_EXTERNAL_LLM_ENABLED,
     CONF_HISTORY_ENABLED,
-    CONF_HISTORY_MAX_MESSAGES,
-    CONF_HISTORY_MAX_TOKENS,
     CONF_LLM_API_KEY,
     CONF_LLM_BASE_URL,
     CONF_LLM_MODEL,
@@ -27,8 +25,6 @@ from custom_components.home_agent.const import (
     CONF_MEMORY_EXTRACTION_ENABLED,
     CONF_STREAMING_ENABLED,
     CONTEXT_MODE_DIRECT,
-    DEFAULT_HISTORY_MAX_MESSAGES,
-    DEFAULT_HISTORY_MAX_TOKENS,
 )
 
 
@@ -216,7 +212,7 @@ class TestDisabledFeatures:
             agent, "_extract_and_store_memories", side_effect=mock_extract_noop
         ):
             with patch.object(agent, "_call_llm", return_value=mock_llm_response):
-                response = await agent.process_message(
+                await agent.process_message(
                     text="I like coffee",
                     conversation_id="test_conv_3",
                 )
@@ -289,7 +285,7 @@ class TestDisabledFeatures:
             return mock_llm_response
 
         with patch.object(agent, "_call_llm", side_effect=track_llm_call):
-            response = await agent.process_message(
+            await agent.process_message(
                 text="What's the weather?",
                 conversation_id="test_conv_5",
             )
@@ -417,7 +413,7 @@ class TestDisabledFeatures:
                 agent, "_extract_and_store_memories", side_effect=tracked_extract
             ) as mock_extract:
                 with patch.object(agent, "_call_llm", return_value=mock_llm_response):
-                    response = await agent.process_message(
+                    await agent.process_message(
                         text="I prefer tea",
                         conversation_id="test_conv_7",
                     )
@@ -647,13 +643,13 @@ class TestDisabledFeatures:
         # Verify history is working
         with patch.object(agent, "_call_llm", return_value=mock_llm_response):
             # First message
-            response1 = await agent.process_message(
+            await agent.process_message(
                 text="First message",
                 conversation_id="test_conv_12",
             )
 
             # Second message
-            response2 = await agent.process_message(
+            await agent.process_message(
                 text="Second message",
                 conversation_id="test_conv_12",
             )

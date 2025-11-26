@@ -186,7 +186,7 @@ class ScenarioExecutor:
             Dictionary containing step execution results
         """
         user_input = step.get("user", "")
-        timeout = step.get("timeout", 10)
+        step.get("timeout", 10)
 
         # Create mock user input
         from homeassistant.components import conversation
@@ -247,7 +247,7 @@ class ScenarioExecutor:
 
         # Verify expected response content if specified
         if "expected_response_contains" in step:
-            expected = step["expected_response_contains"]
+            step["expected_response_contains"]
             # Note: In real execution, we'd check result.response.speech.plain.speech
             # For now, we just verify result exists
             assert result is not None, "Expected response but got None"

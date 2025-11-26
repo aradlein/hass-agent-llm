@@ -157,7 +157,7 @@ class TestGracefulDegradation:
                 # Despite context failure, this will raise an error
                 # because context is critical
                 try:
-                    response = await agent.process_message(
+                    await agent.process_message(
                         text="Hello, are you there?",
                         conversation_id="test_conv_1",
                     )
@@ -298,7 +298,7 @@ class TestGracefulDegradation:
 
             # This should raise ContextInjectionError during agent init
             try:
-                agent = HomeAgent(mock_hass, config, session_manager)
+                HomeAgent(mock_hass, config, session_manager)
 
                 # If it doesn't raise, verify error was logged
                 assert any(

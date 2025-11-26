@@ -12,10 +12,9 @@ manager behavior in realistic scenarios.
 import asyncio
 import time
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from homeassistant.components.conversation import ConversationInput
 from homeassistant.core import HomeAssistant
 
 from custom_components.home_agent.agent import HomeAgent

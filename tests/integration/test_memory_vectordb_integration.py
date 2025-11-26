@@ -740,7 +740,7 @@ async def test_memory_vectordb_cross_query_relevance(
             assert fitness_results[0]["id"] == workout_id
 
             # Irrelevant query should not return sleep memory as top result
-            irrelevant_results = await memory_manager.search_memories(
+            await memory_manager.search_memories(
                 query="cooking recipes and food preferences",
                 top_k=3,
             )

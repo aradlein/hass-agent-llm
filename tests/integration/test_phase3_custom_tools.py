@@ -12,9 +12,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
-
-# Mark all tests in this module as integration tests
-pytestmark = pytest.mark.integration
 from homeassistant.core import HomeAssistant
 
 from custom_components.home_agent.agent import HomeAgent
@@ -28,6 +25,9 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_TIMEOUT,
 )
 from custom_components.home_agent.tools.custom import RestCustomTool, ServiceCustomTool
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
@@ -659,7 +659,6 @@ async def test_tool_timeout_is_triggered_when_execution_exceeds_limit(mock_hass_
     This test verifies that when a tool takes longer than the configured timeout,
     a timeout error is raised and properly handled.
     """
-    import asyncio
     from custom_components.home_agent.exceptions import ToolExecutionError
     from custom_components.home_agent.tool_handler import ToolHandler
 
@@ -695,7 +694,6 @@ async def test_tool_timeout_does_not_crash_agent(mock_hass_for_custom_tools, ses
     - Recording failure metrics
     - Raising a proper ToolExecutionError (not crashing)
     """
-    import asyncio
     from custom_components.home_agent.exceptions import ToolExecutionError
     from custom_components.home_agent.tool_handler import ToolHandler
 
@@ -740,7 +738,6 @@ async def test_tool_timeout_returns_proper_error_message(mock_hass_for_custom_to
     - Includes the timeout duration
     - Is informative for debugging
     """
-    import asyncio
     from custom_components.home_agent.exceptions import ToolExecutionError
     from custom_components.home_agent.tool_handler import ToolHandler
 
@@ -778,7 +775,6 @@ async def test_tool_timeout_fires_proper_events(mock_hass_for_custom_tools, sess
     - A "failed" event is fired with timeout information
     - The failed event includes error_type: "TimeoutError"
     """
-    import asyncio
     from custom_components.home_agent.exceptions import ToolExecutionError
     from custom_components.home_agent.const import EVENT_TOOL_PROGRESS
     from custom_components.home_agent.tool_handler import ToolHandler
@@ -839,7 +835,6 @@ async def test_agent_continues_working_after_tool_timeout(mock_hass_for_custom_t
     - Subsequent tool calls can execute successfully
     - Metrics are properly tracked across timeout and success
     """
-    import asyncio
     from custom_components.home_agent.exceptions import ToolExecutionError
     from custom_components.home_agent.tool_handler import ToolHandler
 
@@ -894,7 +889,6 @@ async def test_tool_completes_successfully_within_timeout(mock_hass_for_custom_t
     This test verifies that the timeout mechanism doesn't interfere with
     normal tool execution when the tool completes quickly.
     """
-    import asyncio
     from custom_components.home_agent.tool_handler import ToolHandler
 
     # Configure a reasonable timeout
@@ -938,7 +932,6 @@ async def test_different_timeout_configurations(mock_hass_for_custom_tools, sess
     - The timeout is actually applied during execution
     - Different timeout values work as expected
     """
-    import asyncio
     from custom_components.home_agent.exceptions import ToolExecutionError
     from custom_components.home_agent.tool_handler import ToolHandler
 

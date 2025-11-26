@@ -9,7 +9,10 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any, AsyncGenerator
+
+if TYPE_CHECKING:
+    from .conversation_session import ConversationSessionManager
 
 import aiohttp
 from homeassistant.components import conversation as ha_conversation

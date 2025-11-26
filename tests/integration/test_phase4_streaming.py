@@ -18,9 +18,6 @@ from typing import Any, AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-# Mark all tests in this module as integration tests
-pytestmark = pytest.mark.integration
 from homeassistant.components import conversation
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
@@ -35,6 +32,9 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     EVENT_STREAMING_ERROR,
 )
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 
 # Test constants
 TEST_MODEL = "llama2"

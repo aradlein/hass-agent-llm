@@ -15,9 +15,6 @@ parameter validation rather than tool configuration or execution flow.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-# Mark all tests in this module as integration tests
-pytestmark = pytest.mark.integration
 from homeassistant.core import HomeAssistant
 
 from custom_components.home_agent.agent import HomeAgent
@@ -28,6 +25,9 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_CUSTOM,
 )
 from custom_components.home_agent.exceptions import ToolExecutionError, ValidationError
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
@@ -483,7 +483,7 @@ async def test_tool_parameter_nested_object_invalid_structure(mock_hass, session
         with patch.object(user_tool, "_make_request", side_effect=mock_make_request):
             # profile is not an object (it's a string)
             # This will likely cause issues during template rendering
-            result = await agent.tool_handler.execute_tool(
+            await agent.tool_handler.execute_tool(
                 "create_user",
                 {
                     "username": "john_doe",

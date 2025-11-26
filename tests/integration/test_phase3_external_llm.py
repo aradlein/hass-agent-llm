@@ -12,9 +12,6 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-# Mark all tests in this module as integration tests
-pytestmark = pytest.mark.integration
 from homeassistant.core import HomeAssistant
 
 from custom_components.home_agent.agent import HomeAgent
@@ -34,6 +31,9 @@ from custom_components.home_agent.const import (
     TOOL_QUERY_EXTERNAL_LLM,
 )
 from custom_components.home_agent.tools.external_llm import ExternalLLMTool
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
