@@ -6,13 +6,88 @@ security, and token estimation used throughout the integration.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import re
-from typing import Any
+from collections.abc import Callable, Sequence
+from typing import Any, TypeVar
+
+import aiohttp
 
 from homeassistant.const import ATTR_FRIENDLY_NAME, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import State
 
 from .exceptions import ValidationError
+
+_LOGGER = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+
+async def retry_async(
+    func: Callable[[], Any],
+    max_retries: int = 3,
+    retryable_exceptions: tuple[type[Exception], ...] = (Exception,),
+    non_retryable_exceptions: tuple[type[Exception], ...] = (),
+) -> Any:
+    """Retry an async function on transient failures.
+
+    Args:
+        func: Async callable to retry (no arguments)
+        max_retries: Maximum number of retry attempts (default: 3)
+        retryable_exceptions: Tuple of exception types to catch and retry
+        non_retryable_exceptions: Tuple of exception types to never retry
+
+    Returns:
+        Result of successful function call
+
+    Raises:
+        Last exception if all retries fail, or immediately if non-retryable
+
+    Example:
+        async def make_request():
+            async with session.get(url) as resp:
+                return await resp.json()
+
+        result = await retry_async(
+            make_request,
+            max_retries=3,
+            retryable_exceptions=(aiohttp.ClientError, asyncio.TimeoutError),
+        )
+    """
+    last_exception = None
+
+    for attempt in range(max_retries):
+        try:
+            return await func()
+        except non_retryable_exceptions:
+            # Don't retry these exceptions
+            raise
+        except retryable_exceptions as e:
+            last_exception = e
+            if attempt < max_retries - 1:
+                # Not the last attempt, log and retry
+                delay = 1.0  # Simple fixed delay
+                _LOGGER.debug(
+                    "Attempt %d/%d failed: %s, retrying in %ss",
+                    attempt + 1,
+                    max_retries,
+                    str(e),
+                    delay,
+                )
+                await asyncio.sleep(delay)
+            else:
+                # Last attempt failed
+                _LOGGER.warning(
+                    "All %d attempts failed: %s",
+                    max_retries,
+                    str(e),
+                )
+
+    # All retries exhausted
+    if last_exception:
+        raise last_exception
+    raise RuntimeError("Retry logic failed without capturing exception")
 
 
 def format_entity_state(
@@ -357,3 +432,90 @@ def merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
             result[key] = value
 
     return result
+
+
+async def check_chromadb_health(host: str, port: int, timeout: int = 5) -> tuple[bool, str]:
+    """Check if ChromaDB is reachable and healthy.
+
+    Attempts to connect to ChromaDB's heartbeat endpoint to verify
+    the service is running and responsive.
+
+    Args:
+        host: ChromaDB host address
+        port: ChromaDB port number
+        timeout: Connection timeout in seconds
+
+    Returns:
+        Tuple of (is_healthy: bool, message: str)
+        - (True, "ChromaDB healthy") on success
+        - (False, "error description") on failure
+
+    Example:
+        healthy, msg = await check_chromadb_health("localhost", 8000)
+        if not healthy:
+            _LOGGER.warning("ChromaDB health check failed: %s", msg)
+    """
+    endpoints = [
+        f"http://{host}:{port}/api/v2/heartbeat",
+        f"http://{host}:{port}/api/v1/heartbeat",
+    ]
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            for url in endpoints:
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=timeout),
+                    ) as response:
+                        if response.status == 200:
+                            return True, f"ChromaDB healthy at {host}:{port}"
+                except aiohttp.ClientError:
+                    continue
+
+            return False, f"ChromaDB not responding at {host}:{port}"
+
+    except Exception as err:
+        return False, f"ChromaDB health check error: {err}"
+
+
+async def check_ollama_health(base_url: str, timeout: int = 5) -> tuple[bool, str]:
+    """Check if Ollama embedding service is reachable.
+
+    Attempts to connect to Ollama's API endpoint to verify
+    the service is running and responsive.
+
+    Args:
+        base_url: Ollama base URL (e.g., "http://localhost:11434")
+        timeout: Connection timeout in seconds
+
+    Returns:
+        Tuple of (is_healthy: bool, message: str)
+        - (True, "Ollama healthy") on success
+        - (False, "error description") on failure
+
+    Example:
+        healthy, msg = await check_ollama_health("http://localhost:11434")
+        if not healthy:
+            _LOGGER.warning("Ollama health check failed: %s", msg)
+    """
+    endpoints = ["/api/tags", "/api/version", ""]
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            for endpoint in endpoints:
+                url = f"{base_url.rstrip('/')}{endpoint}"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=timeout),
+                    ) as response:
+                        if response.status == 200:
+                            return True, f"Ollama healthy at {base_url}"
+                except aiohttp.ClientError:
+                    continue
+
+            return False, f"Ollama not responding at {base_url}"
+
+    except Exception as err:
+        return False, f"Ollama health check error: {err}"

@@ -12,6 +12,8 @@ import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Callable, Sequence, cast
 
+import aiohttp
+
 from homeassistant.components import conversation as ha_conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.const import EVENT_STATE_CHANGED
@@ -42,6 +44,7 @@ from .const import (
     EMBEDDING_PROVIDER_OPENAI,
 )
 from .exceptions import ContextInjectionError
+from .helpers import retry_async
 
 # Conditional imports for ChromaDB
 try:
@@ -484,12 +487,20 @@ class VectorDBManager:
                 # ChromaDB's HttpClient does SSL setup and file I/O during init
                 from functools import partial
 
-                create_client = partial(
-                    chromadb.HttpClient,
-                    host=self.host,
-                    port=self.port,
+                async def create_client_func() -> ClientAPI:
+                    """Create ChromaDB client."""
+                    create_client = partial(
+                        chromadb.HttpClient,
+                        host=self.host,
+                        port=self.port,
+                    )
+                    return await self.hass.async_add_executor_job(create_client)
+
+                self._client = await retry_async(
+                    create_client_func,
+                    max_retries=3,
+                    retryable_exceptions=(Exception,),
                 )
-                self._client = await self.hass.async_add_executor_job(create_client)
                 _LOGGER.debug("ChromaDB client connected to %s:%s", self.host, self.port)
             except Exception as err:
                 raise ContextInjectionError(f"Failed to connect to ChromaDB: {err}") from err
@@ -581,8 +592,6 @@ class VectorDBManager:
         Returns:
             Embedding vector
         """
-        import aiohttp
-
         url = f"{self.embedding_base_url.rstrip('/')}/api/embeddings"
         payload = {
             "model": self.embedding_model,
@@ -590,20 +599,28 @@ class VectorDBManager:
             "keep_alive": self.config.get(CONF_EMBEDDING_KEEP_ALIVE, DEFAULT_EMBEDDING_KEEP_ALIVE),
         }
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url, json=payload, timeout=aiohttp.ClientTimeout(total=30)
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        raise ContextInjectionError(
-                            f"Ollama API error {response.status}: {error_text}"
-                        )
-                    result = await response.json()
-                    embedding: list[float] = result["embedding"]
-                    return embedding
-        except aiohttp.ClientError as err:
-            raise ContextInjectionError(
-                f"Failed to connect to Ollama at {self.embedding_base_url}: {err}"
-            ) from err
+        async def make_embedding_request() -> list[float]:
+            """Make the embedding request to Ollama."""
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        url, json=payload, timeout=aiohttp.ClientTimeout(total=30)
+                    ) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            raise ContextInjectionError(
+                                f"Ollama API error {response.status}: {error_text}"
+                            )
+                        result = await response.json()
+                        embedding: list[float] = result["embedding"]
+                        return embedding
+            except aiohttp.ClientError as err:
+                raise ContextInjectionError(
+                    f"Failed to connect to Ollama at {self.embedding_base_url}: {err}"
+                ) from err
+
+        return await retry_async(
+            make_embedding_request,
+            max_retries=3,
+            retryable_exceptions=(aiohttp.ClientError, asyncio.TimeoutError),
+        )

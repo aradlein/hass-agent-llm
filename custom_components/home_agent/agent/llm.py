@@ -143,7 +143,7 @@ from ..const import (
     HTTP_TIMEOUT,
 )
 from ..exceptions import AuthenticationError, HomeAgentError
-from ..helpers import redact_sensitive_data
+from ..helpers import redact_sensitive_data, retry_async
 
 if TYPE_CHECKING:
     pass
@@ -235,17 +235,26 @@ class LLMMixin:
                 len(tools) if tools else 0,
             )
 
-        try:
-            async with session.post(url, headers=headers, json=payload) as response:
-                if response.status == 401:
-                    raise AuthenticationError("LLM API authentication failed. Check your API key.")
+        async def make_llm_request() -> dict[str, Any]:
+            """Make the LLM API request."""
+            try:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status == 401:
+                        raise AuthenticationError("LLM API authentication failed. Check your API key.")
 
-                if response.status != 200:
-                    error_text = await response.text()
-                    raise HomeAgentError(f"LLM API returned status {response.status}: {error_text}")
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise HomeAgentError(f"LLM API returned status {response.status}: {error_text}")
 
-                result: dict[str, Any] = await response.json()
-                return result
+                    result: dict[str, Any] = await response.json()
+                    return result
 
-        except aiohttp.ClientError as err:
-            raise HomeAgentError(f"Failed to connect to LLM API: {err}") from err
+            except aiohttp.ClientError as err:
+                raise HomeAgentError(f"Failed to connect to LLM API: {err}") from err
+
+        return await retry_async(
+            make_llm_request,
+            max_retries=3,
+            retryable_exceptions=(aiohttp.ClientError,),
+            non_retryable_exceptions=(AuthenticationError,),
+        )

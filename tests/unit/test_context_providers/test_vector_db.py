@@ -184,7 +184,7 @@ class TestGetContext:
 
     @pytest.mark.asyncio
     async def test_get_context_error_handling(self, mock_hass):
-        """Test error handling in get_context."""
+        """Test error handling in get_context falls back to direct mode."""
         if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
             pytest.skip("ChromaDB or OpenAI not available")
 
@@ -196,11 +196,12 @@ class TestGetContext:
         provider._collection = Mock()
 
         with patch.object(provider, "_embed_query", side_effect=Exception("Embedding failed")):
-            with pytest.raises(ContextInjectionError) as exc_info:
-                await provider.get_context("test query")
+            # Instead of raising, should fall back to direct context provider
+            result = await provider.get_context("test query")
 
-            assert "Vector DB query failed" in str(exc_info.value)
-            assert "Embedding failed" in str(exc_info.value)
+            # Should return fallback context (may be empty if no entities exposed)
+            # The key is that it doesn't raise an exception
+            assert isinstance(result, str)
 
 
 class TestEmbedQuery:
