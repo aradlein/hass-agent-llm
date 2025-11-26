@@ -15,9 +15,6 @@ parameter validation rather than tool configuration or execution flow.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-# Mark all tests in this module as integration tests
-pytestmark = pytest.mark.integration
 from homeassistant.core import HomeAssistant
 
 from custom_components.home_agent.agent import HomeAgent
@@ -28,6 +25,9 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_CUSTOM,
 )
 from custom_components.home_agent.exceptions import ToolExecutionError, ValidationError
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ def mock_hass():
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_wrong_type_string_instead_of_number(mock_hass):
+async def test_tool_parameter_wrong_type_string_instead_of_number(mock_hass, session_manager):
     """Test tool with wrong parameter type - string when number expected.
 
     Note: The current implementation uses template rendering which coerces types.
@@ -106,7 +106,7 @@ async def test_tool_parameter_wrong_type_string_instead_of_number(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         temp_tool = agent.tool_handler.tools["set_temperature"]
@@ -126,7 +126,7 @@ async def test_tool_parameter_wrong_type_string_instead_of_number(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_invalid_parameters_not_dict(mock_hass):
+async def test_tool_parameter_invalid_parameters_not_dict(mock_hass, session_manager):
     """Test tool call with parameters that aren't a dictionary.
 
     This should raise ValidationError because tool_handler.validate_tool_call()
@@ -153,7 +153,7 @@ async def test_tool_parameter_invalid_parameters_not_dict(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Try to call with non-dict parameters
@@ -165,7 +165,7 @@ async def test_tool_parameter_invalid_parameters_not_dict(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_parameters_is_list(mock_hass):
+async def test_tool_parameter_parameters_is_list(mock_hass, session_manager):
     """Test tool call with parameters as list instead of dict."""
     config = {
         CONF_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -184,7 +184,7 @@ async def test_tool_parameter_parameters_is_list(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Try to call with list parameters
@@ -200,7 +200,7 @@ async def test_tool_parameter_parameters_is_list(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_missing_required_parameter(mock_hass):
+async def test_tool_parameter_missing_required_parameter(mock_hass, session_manager):
     """Test tool execution when required parameter is missing at call time.
 
     Note: The current implementation doesn't enforce JSON schema validation
@@ -236,7 +236,7 @@ async def test_tool_parameter_missing_required_parameter(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         notify_tool = agent.tool_handler.tools["send_notification"]
@@ -256,7 +256,7 @@ async def test_tool_parameter_missing_required_parameter(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_service_tool_parameter_missing_required(mock_hass):
+async def test_service_tool_parameter_missing_required(mock_hass, session_manager):
     """Test service tool with missing required parameter at call time."""
     config = {
         CONF_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -289,7 +289,7 @@ async def test_service_tool_parameter_missing_required(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Call with missing 'message' parameter
@@ -309,7 +309,7 @@ async def test_service_tool_parameter_missing_required(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_empty_string_when_non_empty_required(mock_hass):
+async def test_tool_parameter_empty_string_when_non_empty_required(mock_hass, session_manager):
     """Test tool parameter with empty string when non-empty required.
 
     Note: The current implementation doesn't validate JSON schema constraints
@@ -347,7 +347,7 @@ async def test_tool_parameter_empty_string_when_non_empty_required(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         search_tool = agent.tool_handler.tools["search_query"]
@@ -367,7 +367,7 @@ async def test_tool_parameter_empty_string_when_non_empty_required(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_execution_with_none_parameter_value(mock_hass):
+async def test_tool_execution_with_none_parameter_value(mock_hass, session_manager):
     """Test tool execution when parameter value is None."""
     config = {
         CONF_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -401,7 +401,7 @@ async def test_tool_execution_with_none_parameter_value(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         tool = agent.tool_handler.tools["optional_param_tool"]
@@ -426,7 +426,7 @@ async def test_tool_execution_with_none_parameter_value(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_nested_object_invalid_structure(mock_hass):
+async def test_tool_parameter_nested_object_invalid_structure(mock_hass, session_manager):
     """Test tool with nested object that has invalid structure.
 
     This tests what happens when a parameter expects an object but receives
@@ -472,7 +472,7 @@ async def test_tool_parameter_nested_object_invalid_structure(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         user_tool = agent.tool_handler.tools["create_user"]
@@ -483,7 +483,7 @@ async def test_tool_parameter_nested_object_invalid_structure(mock_hass):
         with patch.object(user_tool, "_make_request", side_effect=mock_make_request):
             # profile is not an object (it's a string)
             # This will likely cause issues during template rendering
-            result = await agent.tool_handler.execute_tool(
+            await agent.tool_handler.execute_tool(
                 "create_user",
                 {
                     "username": "john_doe",
@@ -500,7 +500,7 @@ async def test_tool_parameter_nested_object_invalid_structure(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_validation_with_additional_properties(mock_hass):
+async def test_tool_parameter_validation_with_additional_properties(mock_hass, session_manager):
     """Test tool called with extra parameters not in schema.
 
     The system currently allows additional properties and doesn't validate
@@ -532,7 +532,7 @@ async def test_tool_parameter_validation_with_additional_properties(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         tool = agent.tool_handler.tools["simple_action"]
@@ -561,7 +561,7 @@ async def test_tool_parameter_validation_with_additional_properties(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_rest_tool_template_rendering_failure(mock_hass):
+async def test_rest_tool_template_rendering_failure(mock_hass, session_manager):
     """Test REST tool when template rendering fails due to invalid template syntax.
 
     When template rendering fails, the tool's execute() method catches the exception
@@ -596,7 +596,7 @@ async def test_rest_tool_template_rendering_failure(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Execute tool - should fail during template rendering
@@ -608,11 +608,13 @@ async def test_rest_tool_template_rendering_failure(mock_hass):
         tool_result = result["result"]
         assert tool_result["success"] is False
         assert tool_result["error"] is not None
-        assert "template" in tool_result["error"].lower() or "render" in tool_result["error"].lower()
+        assert (
+            "template" in tool_result["error"].lower() or "render" in tool_result["error"].lower()
+        )
 
 
 @pytest.mark.asyncio
-async def test_service_tool_template_rendering_failure(mock_hass):
+async def test_service_tool_template_rendering_failure(mock_hass, session_manager):
     """Test service tool when template rendering fails.
 
     Similar to REST tools, service tools catch template rendering errors
@@ -645,7 +647,7 @@ async def test_service_tool_template_rendering_failure(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Execute tool - should fail during template rendering
@@ -659,7 +661,9 @@ async def test_service_tool_template_rendering_failure(mock_hass):
         tool_result = result["result"]
         assert tool_result["success"] is False
         assert tool_result["error"] is not None
-        assert "template" in tool_result["error"].lower() or "render" in tool_result["error"].lower()
+        assert (
+            "template" in tool_result["error"].lower() or "render" in tool_result["error"].lower()
+        )
 
 
 # ============================================================================
@@ -668,7 +672,7 @@ async def test_service_tool_template_rendering_failure(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_nonexistent_tool_call(mock_hass):
+async def test_tool_nonexistent_tool_call(mock_hass, session_manager):
     """Test calling a tool that doesn't exist.
 
     This should raise ToolExecutionError with a helpful message listing
@@ -684,7 +688,7 @@ async def test_tool_nonexistent_tool_call(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Try to call non-existent tool
@@ -699,7 +703,7 @@ async def test_tool_nonexistent_tool_call(mock_hass):
 
 
 @pytest.mark.asyncio
-async def test_tool_call_empty_tool_name(mock_hass):
+async def test_tool_call_empty_tool_name(mock_hass, session_manager):
     """Test calling a tool with empty string as name."""
     config = {
         CONF_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -711,7 +715,7 @@ async def test_tool_call_empty_tool_name(mock_hass):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Try to call with empty tool name

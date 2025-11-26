@@ -277,3 +277,29 @@ add_memory:
       advanced: true
       selector:
         text:
+
+clear_conversation:
+  name: Clear conversation
+  description: Clear conversation session and start fresh with no previous context. Allows resetting voice conversations for a specific user or device, or all conversations at once.
+  fields:
+    user_id:
+      name: User ID
+      description: Clear conversation for specific user (leave empty to clear all conversations)
+      required: false
+      example: "a1b2c3d4e5f6"
+      selector:
+        text:
+    device_id:
+      name: Device ID
+      description: Clear conversation for specific device (leave empty to clear all conversations)
+      required: false
+      example: "kitchen_satellite"
+      selector:
+        text:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:

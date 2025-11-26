@@ -1,4 +1,5 @@
 """Unit tests for ServiceCustomTool execution."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -107,9 +108,9 @@ class TestServiceCustomToolExecution:
         with patch("custom_components.home_agent.tools.custom.Template") as mock_template_class:
             mock_template = MagicMock()
             mock_template.async_render = MagicMock(
-                side_effect=lambda x: x.get("person", "John")
-                if "person" in x
-                else x.get("location", "Home")
+                side_effect=lambda x: (
+                    x.get("person", "John") if "person" in x else x.get("location", "Home")
+                )
             )
             mock_template_class.return_value = mock_template
 

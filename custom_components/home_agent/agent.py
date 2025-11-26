@@ -9,7 +9,10 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any, AsyncGenerator
+
+if TYPE_CHECKING:
+    from .conversation_session import ConversationSessionManager
 
 import aiohttp
 from homeassistant.components import conversation as ha_conversation
@@ -86,15 +89,22 @@ class HomeAgent(AbstractConversationAgent):
     and conversation history management.
     """
 
-    def __init__(self, hass: HomeAssistant, config: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config: dict[str, Any],
+        session_manager: "ConversationSessionManager",
+    ) -> None:
         """Initialize the Home Agent.
 
         Args:
             hass: Home Assistant instance
             config: Configuration dictionary containing LLM settings, context config, etc.
+            session_manager: Conversation session manager for persistent voice conversations
         """
         self.hass = hass
         self.config = config
+        self.session_manager = session_manager
 
         # Initialize components
         self.context_manager = ContextManager(hass, config)
@@ -538,12 +548,14 @@ class HomeAgent(AbstractConversationAgent):
         payload: dict[str, Any] = {
             "model": self.config[CONF_LLM_MODEL],
             "messages": messages,
-            "temperature": temperature
-            if temperature is not None
-            else self.config.get(CONF_LLM_TEMPERATURE, 0.7),
-            "max_tokens": max_tokens
-            if max_tokens is not None
-            else self.config.get(CONF_LLM_MAX_TOKENS, 500),
+            "temperature": (
+                temperature
+                if temperature is not None
+                else self.config.get(CONF_LLM_TEMPERATURE, 0.7)
+            ),
+            "max_tokens": (
+                max_tokens if max_tokens is not None else self.config.get(CONF_LLM_MAX_TOKENS, 500)
+            ),
             "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
             "keep_alive": self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
         }
@@ -670,7 +682,47 @@ class HomeAgent(AbstractConversationAgent):
         self._ensure_tools_registered()
 
         start_time = time.time()
-        conversation_id = conversation_id or "default"
+
+        # Get or create persistent conversation ID for voice interactions
+        if conversation_id is None:
+            # Try to get existing conversation for this user/device
+            conversation_id = self.session_manager.get_conversation_id(
+                user_id=user_id,
+                device_id=device_id,
+            )
+
+            if conversation_id:
+                _LOGGER.debug(
+                    "Reusing conversation %s for user=%s device=%s",
+                    conversation_id,
+                    user_id,
+                    device_id,
+                )
+            else:
+                # Generate new conversation ID using Home Assistant's ULID format
+                from homeassistant.util.ulid import ulid_now
+
+                conversation_id = ulid_now()
+
+                _LOGGER.info(
+                    "Created new conversation %s for user=%s device=%s",
+                    conversation_id,
+                    user_id,
+                    device_id,
+                )
+
+                # Store the mapping
+                await self.session_manager.set_conversation_id(
+                    conversation_id,
+                    user_id=user_id,
+                    device_id=device_id,
+                )
+        else:
+            # Update activity for explicitly provided conversation_id
+            await self.session_manager.update_activity(
+                user_id=user_id,
+                device_id=device_id,
+            )
 
         # Initialize metrics tracking
         metrics = {
@@ -739,6 +791,12 @@ class HomeAgent(AbstractConversationAgent):
                 except Exception as event_err:
                     _LOGGER.warning("Failed to fire conversation finished event: %s", event_err)
 
+            # Update session activity to prevent expiration of active conversations
+            await self.session_manager.update_activity(
+                user_id=user_id,
+                device_id=device_id,
+            )
+
             return response
 
         except Exception as err:
@@ -777,7 +835,6 @@ class HomeAgent(AbstractConversationAgent):
         """
         from homeassistant.components import conversation
         from homeassistant.components.conversation.chat_log import current_chat_log
-
         from homeassistant.helpers import llm
 
         from .streaming import OpenAIStreamingHandler
@@ -786,7 +843,51 @@ class HomeAgent(AbstractConversationAgent):
         if chat_log is None:
             raise RuntimeError("ChatLog not available in streaming mode")
 
-        conversation_id = user_input.conversation_id or "default"
+        user_message = user_input.text
+        device_id = user_input.device_id
+        user_id = user_input.context.user_id if user_input.context else None
+
+        # Get or create persistent conversation ID for voice interactions
+        conversation_id = user_input.conversation_id
+        if conversation_id is None:
+            # Try to get existing conversation for this user/device
+            conversation_id = self.session_manager.get_conversation_id(
+                user_id=user_id,
+                device_id=device_id,
+            )
+
+            if conversation_id:
+                _LOGGER.debug(
+                    "Reusing conversation %s for user=%s device=%s (streaming)",
+                    conversation_id,
+                    user_id,
+                    device_id,
+                )
+            else:
+                # Generate new conversation ID using Home Assistant's ULID format
+                from homeassistant.util.ulid import ulid_now
+
+                conversation_id = ulid_now()
+
+                _LOGGER.info(
+                    "Created new conversation %s for user=%s device=%s (streaming)",
+                    conversation_id,
+                    user_id,
+                    device_id,
+                )
+
+                # Store the mapping
+                await self.session_manager.set_conversation_id(
+                    conversation_id,
+                    user_id=user_id,
+                    device_id=device_id,
+                )
+        else:
+            # Update activity for explicitly provided conversation_id
+            await self.session_manager.update_activity(
+                user_id=user_id,
+                device_id=device_id,
+            )
 
         # Create a simple APIInstance adapter to handle tool calls
         # This allows ChatLog to execute tools via our tool_handler
@@ -802,9 +903,7 @@ class HomeAgent(AbstractConversationAgent):
                 """Execute tool via tool_handler."""
                 try:
                     result = await self.tool_handler.execute_tool(
-                        tool_input.tool_name,
-                        tool_input.tool_args,
-                        self.conversation_id
+                        tool_input.tool_name, tool_input.tool_args, self.conversation_id
                     )
                     self.metrics["tool_calls"] += 1
                     return result if isinstance(result, dict) else {"result": str(result)}
@@ -822,9 +921,6 @@ class HomeAgent(AbstractConversationAgent):
 
         # Set the llm_api so ChatLog can execute tools
         chat_log.llm_api = ToolHandlerAPIInstance(self.tool_handler, metrics, conversation_id)
-        user_message = user_input.text
-        device_id = user_input.device_id
-        user_id = user_input.context.user_id if user_input.context else None
 
         # Track start time for metrics
         start_time = time.time()
@@ -1026,6 +1122,12 @@ class HomeAgent(AbstractConversationAgent):
                 self.hass.bus.async_fire(EVENT_CONVERSATION_FINISHED, event_data)
             except Exception as event_err:
                 _LOGGER.warning("Failed to fire conversation finished event: %s", event_err)
+
+        # Update session activity to prevent expiration of active conversations
+        await self.session_manager.update_activity(
+            user_id=user_id,
+            device_id=device_id,
+        )
 
         # Extract result from chat log
         return conversation.async_get_result_from_chat_log(user_input, chat_log)
@@ -1641,7 +1743,11 @@ Return ONLY valid JSON, no other text:
                         ("at the time", "contains"),
                         ("in the conversation", "contains"),
                         # Temporal references without context
-                        ("at ", "starts") if content_lower.startswith("at ") and ":" in content else (None, None),
+                        (
+                            ("at ", "starts")
+                            if content_lower.startswith("at ") and ":" in content
+                            else (None, None)
+                        ),
                     ]
 
                     rejected = False

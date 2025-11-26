@@ -1,4 +1,5 @@
 """Unit tests for the HomeAssistantQueryTool."""
+
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -291,13 +292,15 @@ class TestHomeAssistantQueryTool:
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch(
-            "homeassistant.components.recorder.util.async_migration_in_progress"
-        ) as mock_migration, patch(
-            "homeassistant.components.recorder.get_instance"
-        ) as mock_get_instance, patch(
-            "homeassistant.components.recorder.history.state_changes_during_period"
-        ) as mock_history:
+        with (
+            patch(
+                "homeassistant.components.recorder.util.async_migration_in_progress"
+            ) as mock_migration,
+            patch("homeassistant.components.recorder.get_instance") as mock_get_instance,
+            patch(
+                "homeassistant.components.recorder.history.state_changes_during_period"
+            ) as mock_history,
+        ):
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
@@ -320,13 +323,15 @@ class TestHomeAssistantQueryTool:
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch(
-            "homeassistant.components.recorder.util.async_migration_in_progress"
-        ) as mock_migration, patch(
-            "homeassistant.components.recorder.get_instance"
-        ) as mock_get_instance, patch(
-            "homeassistant.components.recorder.history.state_changes_during_period"
-        ) as mock_history:
+        with (
+            patch(
+                "homeassistant.components.recorder.util.async_migration_in_progress"
+            ) as mock_migration,
+            patch("homeassistant.components.recorder.get_instance") as mock_get_instance,
+            patch(
+                "homeassistant.components.recorder.history.state_changes_during_period"
+            ) as mock_history,
+        ):
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
@@ -351,13 +356,15 @@ class TestHomeAssistantQueryTool:
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch(
-            "homeassistant.components.recorder.util.async_migration_in_progress"
-        ) as mock_migration, patch(
-            "homeassistant.components.recorder.get_instance"
-        ) as mock_get_instance, patch(
-            "homeassistant.components.recorder.history.state_changes_during_period"
-        ) as mock_history:
+        with (
+            patch(
+                "homeassistant.components.recorder.util.async_migration_in_progress"
+            ) as mock_migration,
+            patch("homeassistant.components.recorder.get_instance") as mock_get_instance,
+            patch(
+                "homeassistant.components.recorder.history.state_changes_during_period"
+            ) as mock_history,
+        ):
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
@@ -381,13 +388,15 @@ class TestHomeAssistantQueryTool:
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch(
-            "homeassistant.components.recorder.util.async_migration_in_progress"
-        ) as mock_migration, patch(
-            "homeassistant.components.recorder.get_instance"
-        ) as mock_get_instance, patch(
-            "homeassistant.components.recorder.history.state_changes_during_period"
-        ) as mock_history:
+        with (
+            patch(
+                "homeassistant.components.recorder.util.async_migration_in_progress"
+            ) as mock_migration,
+            patch("homeassistant.components.recorder.get_instance") as mock_get_instance,
+            patch(
+                "homeassistant.components.recorder.history.state_changes_during_period"
+            ) as mock_history,
+        ):
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
@@ -411,13 +420,15 @@ class TestHomeAssistantQueryTool:
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch(
-            "homeassistant.components.recorder.util.async_migration_in_progress"
-        ) as mock_migration, patch(
-            "homeassistant.components.recorder.get_instance"
-        ) as mock_get_instance, patch(
-            "homeassistant.components.recorder.history.state_changes_during_period"
-        ) as mock_history:
+        with (
+            patch(
+                "homeassistant.components.recorder.util.async_migration_in_progress"
+            ) as mock_migration,
+            patch("homeassistant.components.recorder.get_instance") as mock_get_instance,
+            patch(
+                "homeassistant.components.recorder.history.state_changes_during_period"
+            ) as mock_history,
+        ):
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
@@ -440,13 +451,15 @@ class TestHomeAssistantQueryTool:
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.living_room_temperature"]
 
-        with patch(
-            "homeassistant.components.recorder.util.async_migration_in_progress"
-        ) as mock_migration, patch(
-            "homeassistant.components.recorder.get_instance"
-        ) as mock_get_instance, patch(
-            "homeassistant.components.recorder.history.state_changes_during_period"
-        ) as mock_history:
+        with (
+            patch(
+                "homeassistant.components.recorder.util.async_migration_in_progress"
+            ) as mock_migration,
+            patch("homeassistant.components.recorder.get_instance") as mock_get_instance,
+            patch(
+                "homeassistant.components.recorder.history.state_changes_during_period"
+            ) as mock_history,
+        ):
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
             mock_history.return_value = {"sensor.living_room_temperature": mock_history_states}
@@ -592,11 +605,12 @@ class TestHomeAssistantQueryTool:
 
         mock_hass.states.async_entity_ids.return_value = ["sensor.temperature"]
 
-        with patch(
-            "homeassistant.components.recorder.util.async_migration_in_progress"
-        ) as mock_migration, patch(
-            "homeassistant.components.recorder.get_instance"
-        ) as mock_get_instance:
+        with (
+            patch(
+                "homeassistant.components.recorder.util.async_migration_in_progress"
+            ) as mock_migration,
+            patch("homeassistant.components.recorder.get_instance") as mock_get_instance,
+        ):
             mock_migration.return_value = False
             mock_get_instance.return_value = None  # Recorder not available
 
@@ -617,13 +631,15 @@ class TestHomeAssistantQueryTool:
             "sensor.temperature2",
         ]
 
-        with patch(
-            "homeassistant.components.recorder.util.async_migration_in_progress"
-        ) as mock_migration, patch(
-            "homeassistant.components.recorder.get_instance"
-        ) as mock_get_instance, patch(
-            "homeassistant.components.recorder.history.state_changes_during_period"
-        ) as mock_history:
+        with (
+            patch(
+                "homeassistant.components.recorder.util.async_migration_in_progress"
+            ) as mock_migration,
+            patch("homeassistant.components.recorder.get_instance") as mock_get_instance,
+            patch(
+                "homeassistant.components.recorder.history.state_changes_during_period"
+            ) as mock_history,
+        ):
             mock_migration.return_value = False
             mock_get_instance.return_value = mock_recorder_instance
 

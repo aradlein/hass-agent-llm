@@ -205,6 +205,70 @@ home_agent:
 
 **For more examples, see [Examples Documentation](docs/EXAMPLES.md)**
 
+## Voice Conversation Persistence
+
+Home Agent automatically maintains conversation context across multiple voice interactions, enabling natural multi-turn conversations with your voice assistant.
+
+### How It Works
+
+- Each user/device combination maintains a persistent conversation session
+- Sessions automatically expire after 1 hour of inactivity (configurable)
+- Conversation history is preserved within each session
+- Different devices maintain independent conversation contexts
+
+### Example
+
+**Before (without persistence):**
+```
+User: "What's the temperature in the living room?"
+Agent: "The living room is 72°F"
+
+[Later]
+User: "What about the bedroom?"
+Agent: "I don't have context about what you're asking about"
+```
+
+**After (with persistence):**
+```
+User: "What's the temperature in the living room?"
+Agent: "The living room is 72°F"
+
+[Later]
+User: "What about the bedroom?"
+Agent: "The bedroom temperature is 68°F"
+```
+
+### Configuration
+
+Configure the session timeout in integration settings:
+- Minimum: 60 seconds (1 minute)
+- Maximum: 86400 seconds (24 hours)
+- Default: 3600 seconds (1 hour)
+
+### Clearing Conversations
+
+Reset your conversation context using the `clear_conversation` service:
+
+```yaml
+# Clear conversation for current user/device
+service: home_agent.clear_conversation
+
+# Clear conversation for specific device
+service: home_agent.clear_conversation
+data:
+  device_id: "kitchen_satellite"
+
+# Clear all conversations
+service: home_agent.clear_conversation
+```
+
+### Multi-Device Behavior
+
+Each device maintains its own conversation context:
+- Kitchen satellite remembers kitchen-related conversations
+- Bedroom satellite has independent context
+- Same user on different devices = different conversations
+
 ## Contributing
 
 Contributions are welcome! Please:

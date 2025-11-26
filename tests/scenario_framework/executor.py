@@ -23,6 +23,7 @@ from custom_components.home_agent.const import (
     CONF_STREAMING_ENABLED,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
 )
+from custom_components.home_agent.conversation_session import ConversationSessionManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -160,10 +161,14 @@ class ScenarioExecutor:
             CONF_TOOLS_MAX_CALLS_PER_TURN: setup.get("max_tool_calls", 5),
         }
 
+        # Create session manager
+        session_manager = ConversationSessionManager(self.hass)
+        await session_manager.async_load()
+
         # Create agent
         with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
             mock_expose.return_value = False
-            self.agent = HomeAgent(self.hass, config)
+            self.agent = HomeAgent(self.hass, config, session_manager)
 
         # Generate conversation ID
         self.conversation_id = setup.get("conversation_id", "test_scenario")
@@ -181,7 +186,7 @@ class ScenarioExecutor:
             Dictionary containing step execution results
         """
         user_input = step.get("user", "")
-        timeout = step.get("timeout", 10)
+        step.get("timeout", 10)
 
         # Create mock user input
         from homeassistant.components import conversation
@@ -231,6 +236,7 @@ class ScenarioExecutor:
 
         # Track start time for duration calculation
         import time
+
         start_time = time.perf_counter()
 
         # Execute with mocked session
@@ -242,7 +248,7 @@ class ScenarioExecutor:
 
         # Verify expected response content if specified
         if "expected_response_contains" in step:
-            expected = step["expected_response_contains"]
+            step["expected_response_contains"]
             # Note: In real execution, we'd check result.response.speech.plain.speech
             # For now, we just verify result exists
             assert result is not None, "Expected response but got None"
@@ -294,7 +300,9 @@ class ScenarioExecutor:
                     if expected_text in response:
                         found = True
                         break
-                assert found, f"Expected response to contain '{expected_text}', but it was not found in any step response"
+                assert (
+                    found
+                ), f"Expected response to contain '{expected_text}', but it was not found in any step response"
 
             # Check total duration if present
             if "total_duration_ms" in assertion:

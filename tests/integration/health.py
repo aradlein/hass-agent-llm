@@ -44,14 +44,17 @@ async def check_chromadb_health(host: str, port: int, timeout: int = 5) -> bool:
                                 data.get("nanosecond heartbeat"), int
                             )
                             if is_healthy:
-                                _LOGGER.info("ChromaDB health check passed: %s:%s (endpoint: %s)", host, port, url)
+                                _LOGGER.info(
+                                    "ChromaDB health check passed: %s:%s (endpoint: %s)",
+                                    host,
+                                    port,
+                                    url,
+                                )
                                 return True
                 except aiohttp.ClientError:
                     continue
 
-            _LOGGER.warning(
-                "ChromaDB health check failed: %s:%s (tried all endpoints)", host, port
-            )
+            _LOGGER.warning("ChromaDB health check failed: %s:%s (tried all endpoints)", host, port)
             return False
     except aiohttp.ClientError as err:
         _LOGGER.warning("ChromaDB health check failed: %s:%s (%s)", host, port, err)
@@ -89,12 +92,17 @@ async def check_llm_health(base_url: str, timeout: int = 5) -> bool:
                 async with session.get(
                     url, timeout=aiohttp.ClientTimeout(total=timeout)
                 ) as response:
+                    _LOGGER.debug(f"LLM health check: {url} returned status {response.status}")
                     if response.status in (200, 404):  # 404 is ok for root endpoint
-                        _LOGGER.info("LLM health check passed: %s (endpoint: %s)", base_url, endpoint)
+                        _LOGGER.info(
+                            "LLM health check passed: %s (endpoint: %s)", base_url, endpoint
+                        )
                         return True
-            except aiohttp.ClientError:
+            except aiohttp.ClientError as e:
+                _LOGGER.debug(f"LLM health check: {url} failed with ClientError: {e}")
                 continue
-            except Exception:
+            except Exception as e:
+                _LOGGER.debug(f"LLM health check: {url} failed with Exception: {e}")
                 continue
 
     _LOGGER.warning("LLM health check failed: %s (tried all endpoints)", base_url)
@@ -164,9 +172,7 @@ def skip_if_chromadb_unavailable(host: str, port: int) -> Any:
     import asyncio
 
     is_available = asyncio.run(check())
-    return pytest.mark.skipif(
-        not is_available, reason=f"ChromaDB not available at {host}:{port}"
-    )
+    return pytest.mark.skipif(not is_available, reason=f"ChromaDB not available at {host}:{port}")
 
 
 def skip_if_llm_unavailable(base_url: str) -> Any:

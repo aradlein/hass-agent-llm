@@ -1,4 +1,5 @@
 """Streaming response handler for Home Agent (OpenAI/Ollama compatible)."""
+
 from __future__ import annotations
 
 import json

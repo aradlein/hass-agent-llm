@@ -542,9 +542,7 @@ class TestDeleteMemory:
         await memory_manager.delete_memory(memory_id)
 
         # Verify ChromaDB delete was called with correct arguments
-        memory_manager._collection.delete.assert_called_once_with(
-            ids=[memory_id]
-        )
+        memory_manager._collection.delete.assert_called_once_with(ids=[memory_id])
 
 
 class TestListAllMemories:

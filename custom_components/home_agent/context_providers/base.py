@@ -43,6 +43,7 @@ def _make_json_serializable(value: Any) -> Any:
     # For other types, try to convert to string if not already serializable
     try:
         import json
+
         json.dumps(value)
         return value
     except (TypeError, ValueError):

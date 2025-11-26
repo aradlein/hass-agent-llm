@@ -82,7 +82,7 @@ class TestGracefulDegradation:
         }
 
     async def test_vector_db_unavailable_fallback_to_direct(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test that agent works with direct context when Vector DB is unavailable.
 
@@ -109,7 +109,7 @@ class TestGracefulDegradation:
             # Agent should fail to initialize due to context provider error
             # or should handle the error gracefully
             try:
-                agent = HomeAgent(mock_hass, config)
+                agent = HomeAgent(mock_hass, config, session_manager)
 
                 # If it doesn't raise, verify agent initialized but error was logged
                 assert agent is not None
@@ -129,7 +129,7 @@ class TestGracefulDegradation:
                 )
 
     async def test_vector_db_unavailable_during_query(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test that conversation continues when Vector DB fails during a query.
 
@@ -144,7 +144,7 @@ class TestGracefulDegradation:
         # Configure with direct mode (we'll test the context failure specifically)
         config = base_config.copy()
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
 
         # Mock the context manager to fail during get_formatted_context
         with patch.object(
@@ -157,7 +157,7 @@ class TestGracefulDegradation:
                 # Despite context failure, this will raise an error
                 # because context is critical
                 try:
-                    response = await agent.process_message(
+                    await agent.process_message(
                         text="Hello, are you there?",
                         conversation_id="test_conv_1",
                     )
@@ -179,7 +179,7 @@ class TestGracefulDegradation:
                     )
 
     async def test_memory_system_unavailable(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test that conversation continues when memory system is unavailable.
 
@@ -197,7 +197,7 @@ class TestGracefulDegradation:
             CONF_MEMORY_ENABLED: True,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
 
         # Verify memory manager is None (not initialized in test fixture)
         assert agent.memory_manager is None
@@ -219,7 +219,7 @@ class TestGracefulDegradation:
             # Just verify the conversation worked despite no memory system
 
     async def test_external_llm_tool_unavailable(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test that primary LLM still works when external LLM tool is unavailable.
 
@@ -246,7 +246,7 @@ class TestGracefulDegradation:
             # Agent initialization will fail when trying to register tools
             # This demonstrates the need for error handling in _register_tools
             try:
-                agent = HomeAgent(mock_hass, config)
+                agent = HomeAgent(mock_hass, config, session_manager)
 
                 # If we get here, verify the agent is still functional
                 # Force tool registration (will fail with external LLM)
@@ -274,7 +274,7 @@ class TestGracefulDegradation:
                 assert "unavailable" in str(e).lower() or "external" in str(e).lower()
 
     async def test_context_provider_initialization_failure_recovery(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test that agent recovers from context provider initialization failure.
 
@@ -292,13 +292,11 @@ class TestGracefulDegradation:
         with patch(
             "custom_components.home_agent.context_manager.DirectContextProvider"
         ) as mock_direct_provider:
-            mock_direct_provider.side_effect = Exception(
-                "Context provider initialization failed"
-            )
+            mock_direct_provider.side_effect = Exception("Context provider initialization failed")
 
             # This should raise ContextInjectionError during agent init
             try:
-                agent = HomeAgent(mock_hass, config)
+                HomeAgent(mock_hass, config, session_manager)
 
                 # If it doesn't raise, verify error was logged
                 assert any(
@@ -310,7 +308,7 @@ class TestGracefulDegradation:
                 assert "context provider" in str(e).lower()
 
     async def test_tool_registration_partial_failure(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test that some tools fail to register while others work.
 
@@ -340,16 +338,13 @@ class TestGracefulDegradation:
             ],
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
 
         # Force tool registration
         agent._ensure_tools_registered()
 
         # Check that errors were logged for failed tools
-        assert any(
-            "Failed to register custom tool" in record.message
-            for record in caplog.records
-        )
+        assert any("Failed to register custom tool" in record.message for record in caplog.records)
 
         # But core tools should still be registered
         registered_tools = agent.tool_handler.get_registered_tools()
@@ -367,7 +362,7 @@ class TestGracefulDegradation:
             assert len(response) > 0
 
     async def test_conversation_history_persistence_failure(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test that agent works when conversation history persistence fails.
 
@@ -384,7 +379,7 @@ class TestGracefulDegradation:
             CONF_HISTORY_ENABLED: True,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
 
         # Mock the conversation manager's persist method to fail
         # (if it has one - otherwise just verify history works in memory)
@@ -425,7 +420,7 @@ class TestGracefulDegradation:
         assert history is not None
 
     async def test_multiple_component_failures_graceful_degradation(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test agent behavior when multiple optional components fail simultaneously.
 
@@ -446,18 +441,19 @@ class TestGracefulDegradation:
         }
 
         # Mock multiple component failures
-        with patch(
-            "custom_components.home_agent.context_providers.vector_db.VectorDBContextProvider"
-        ) as mock_vector_provider, patch(
-            "custom_components.home_agent.agent.ExternalLLMTool"
-        ) as mock_ext_llm:
+        with (
+            patch(
+                "custom_components.home_agent.context_providers.vector_db.VectorDBContextProvider"
+            ) as mock_vector_provider,
+            patch("custom_components.home_agent.agent.ExternalLLMTool") as mock_ext_llm,
+        ):
 
             # Make vector DB and external LLM fail
             mock_vector_provider.side_effect = Exception("Vector DB unavailable")
             mock_ext_llm.side_effect = Exception("External LLM unavailable")
 
             try:
-                agent = HomeAgent(mock_hass, config)
+                agent = HomeAgent(mock_hass, config, session_manager)
 
                 # If agent created, verify it's in degraded state
                 assert agent is not None
@@ -467,7 +463,8 @@ class TestGracefulDegradation:
 
                 # Verify errors were logged for failures
                 error_messages = [
-                    record.message for record in caplog.records
+                    record.message
+                    for record in caplog.records
                     if record.levelname in ["ERROR", "WARNING"]
                 ]
                 assert len(error_messages) > 0
@@ -481,7 +478,7 @@ class TestGracefulDegradation:
                 )
 
     async def test_llm_api_temporary_failure_retry(
-        self, mock_hass, base_config, caplog
+        self, mock_hass, base_config, session_manager, caplog
     ):
         """Test that temporary LLM API failures are handled gracefully.
 
@@ -495,7 +492,7 @@ class TestGracefulDegradation:
 
         config = base_config.copy()
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
 
         # Mock LLM to fail temporarily
         with patch.object(
@@ -514,13 +511,10 @@ class TestGracefulDegradation:
             assert "LLM API" in str(exc_info.value)
 
             # Verify error was logged
-            assert any(
-                "Error processing message" in record.message
-                for record in caplog.records
-            )
+            assert any("Error processing message" in record.message for record in caplog.records)
 
     async def test_streaming_fallback_to_synchronous(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test that agent falls back to sync mode when streaming fails.
 
@@ -539,7 +533,7 @@ class TestGracefulDegradation:
             CONF_EMIT_EVENTS: True,  # Enable to test fallback event
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
 
         # Mock _can_stream to return True
         with patch.object(agent, "_can_stream", return_value=True):
@@ -576,7 +570,7 @@ class TestGracefulDegradation:
                     )
 
     async def test_memory_extraction_llm_failure(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test that conversation continues when memory extraction LLM fails.
 
@@ -593,13 +587,11 @@ class TestGracefulDegradation:
             CONF_MEMORY_ENABLED: True,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
 
         # Mock a memory manager that will be set
         mock_memory_manager = MagicMock()
-        mock_memory_manager.add_memory = AsyncMock(
-            side_effect=Exception("Memory storage failed")
-        )
+        mock_memory_manager.add_memory = AsyncMock(side_effect=Exception("Memory storage failed"))
         agent._memory_manager = mock_memory_manager
 
         # Mock primary LLM to succeed
@@ -631,7 +623,7 @@ class TestGracefulDegradation:
             # At minimum, the conversation should have succeeded
 
     async def test_tool_execution_timeout_handling(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
         """Test that tool execution timeouts are handled gracefully.
 
@@ -645,7 +637,7 @@ class TestGracefulDegradation:
 
         config = base_config.copy()
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Mock LLM to request a tool call, then handle the error
@@ -679,9 +671,7 @@ class TestGracefulDegradation:
             "execute_tool",
             side_effect=asyncio.TimeoutError("Tool execution timeout"),
         ):
-            with patch.object(
-                agent, "_call_llm", side_effect=[tool_call_response, final_response]
-            ):
+            with patch.object(agent, "_call_llm", side_effect=[tool_call_response, final_response]):
                 # Should handle timeout and continue
                 response = await agent.process_message(
                     text="What's the status of my lights?",
@@ -692,7 +682,4 @@ class TestGracefulDegradation:
                 assert response is not None
 
                 # Tool execution error should be logged
-                assert any(
-                    "Tool execution failed" in record.message
-                    for record in caplog.records
-                )
+                assert any("Tool execution failed" in record.message for record in caplog.records)

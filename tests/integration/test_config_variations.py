@@ -12,13 +12,11 @@ Configuration options tested:
 5. Event Emission: enabled (True) vs. disabled (False)
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from homeassistant.core import State
 
 from custom_components.home_agent.agent import HomeAgent
-from custom_components.home_agent.context_manager import ContextManager
-from custom_components.home_agent.vector_db_manager import VectorDBManager
 from custom_components.home_agent.const import (
     CONF_CONTEXT_FORMAT,
     CONF_CONTEXT_MODE,
@@ -61,7 +59,7 @@ from custom_components.home_agent.const import (
     LLM_BACKEND_OLLAMA_GPU,
     LLM_BACKEND_VLLM,
 )
-
+from custom_components.home_agent.vector_db_manager import VectorDBManager
 
 # =============================================================================
 # LLM Backend Tests
@@ -78,7 +76,9 @@ from custom_components.home_agent.const import (
     ],
 )
 @pytest.mark.asyncio
-async def test_llm_backend_header_sent(test_hass, llm_config, backend_value, sample_entity_states):
+async def test_llm_backend_header_sent(
+    test_hass, llm_config, backend_value, sample_entity_states, session_manager
+):
     """Test that non-default LLM backends set the X-Ollama-Backend header.
 
     This test verifies:
@@ -115,7 +115,7 @@ async def test_llm_backend_header_sent(test_hass, llm_config, backend_value, sam
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the HTTP session to capture headers
         with patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure_session:
@@ -151,17 +151,21 @@ async def test_llm_backend_header_sent(test_hass, llm_config, backend_value, sam
             call_args = mock_session.post.call_args
             headers = call_args.kwargs.get("headers", {})
 
-            assert "X-Ollama-Backend" in headers, \
-                f"X-Ollama-Backend header should be set for backend={backend_value}"
-            assert headers["X-Ollama-Backend"] == backend_value, \
-                f"X-Ollama-Backend header should be '{backend_value}', got '{headers['X-Ollama-Backend']}'"
+            assert (
+                "X-Ollama-Backend" in headers
+            ), f"X-Ollama-Backend header should be set for backend={backend_value}"
+            assert (
+                headers["X-Ollama-Backend"] == backend_value
+            ), f"X-Ollama-Backend header should be '{backend_value}', got '{headers['X-Ollama-Backend']}'"
 
         await agent.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_llm_backend_default_no_header(test_hass, llm_config, sample_entity_states):
+async def test_llm_backend_default_no_header(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test that default LLM backend does NOT set X-Ollama-Backend header.
 
     This test verifies:
@@ -197,7 +201,7 @@ async def test_llm_backend_default_no_header(test_hass, llm_config, sample_entit
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the HTTP session to capture headers
         with patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure_session:
@@ -233,8 +237,9 @@ async def test_llm_backend_default_no_header(test_hass, llm_config, sample_entit
             call_args = mock_session.post.call_args
             headers = call_args.kwargs.get("headers", {})
 
-            assert "X-Ollama-Backend" not in headers, \
-                "X-Ollama-Backend header should NOT be set for default backend"
+            assert (
+                "X-Ollama-Backend" not in headers
+            ), "X-Ollama-Backend header should NOT be set for default backend"
 
         await agent.close()
 
@@ -250,7 +255,9 @@ async def test_llm_backend_default_no_header(test_hass, llm_config, sample_entit
     "temperature_value",
     [0.0, 0.5, 1.0, 1.5, 2.0],  # Test min, mid, and max values
 )
-async def test_llm_temperature_in_payload(test_hass, llm_config, sample_entity_states, temperature_value):
+async def test_llm_temperature_in_payload(
+    test_hass, llm_config, sample_entity_states, temperature_value, session_manager
+):
     """Test that temperature config value is actually sent in the LLM payload.
 
     This test verifies:
@@ -274,7 +281,7 @@ async def test_llm_temperature_in_payload(test_hass, llm_config, sample_entity_s
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the HTTP session to capture the payload
         with patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure_session:
@@ -303,8 +310,9 @@ async def test_llm_temperature_in_payload(test_hass, llm_config, sample_entity_s
             payload = call_args.kwargs.get("json", {})
 
             assert "temperature" in payload, "LLM payload must contain 'temperature'"
-            assert payload["temperature"] == temperature_value, \
-                f"Expected temperature={temperature_value}, got {payload['temperature']}"
+            assert (
+                payload["temperature"] == temperature_value
+            ), f"Expected temperature={temperature_value}, got {payload['temperature']}"
 
         await agent.close()
 
@@ -315,7 +323,9 @@ async def test_llm_temperature_in_payload(test_hass, llm_config, sample_entity_s
     "max_tokens_value",
     [1, 100, 500, 1000, 4096],  # Test min, typical, and larger values
 )
-async def test_llm_max_tokens_in_payload(test_hass, llm_config, sample_entity_states, max_tokens_value):
+async def test_llm_max_tokens_in_payload(
+    test_hass, llm_config, sample_entity_states, max_tokens_value, session_manager
+):
     """Test that max_tokens config value is actually sent in the LLM payload.
 
     This test verifies:
@@ -339,7 +349,7 @@ async def test_llm_max_tokens_in_payload(test_hass, llm_config, sample_entity_st
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the HTTP session to capture the payload
         with patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure_session:
@@ -368,8 +378,9 @@ async def test_llm_max_tokens_in_payload(test_hass, llm_config, sample_entity_st
             payload = call_args.kwargs.get("json", {})
 
             assert "max_tokens" in payload, "LLM payload must contain 'max_tokens'"
-            assert payload["max_tokens"] == max_tokens_value, \
-                f"Expected max_tokens={max_tokens_value}, got {payload['max_tokens']}"
+            assert (
+                payload["max_tokens"] == max_tokens_value
+            ), f"Expected max_tokens={max_tokens_value}, got {payload['max_tokens']}"
 
         await agent.close()
 
@@ -380,7 +391,9 @@ async def test_llm_max_tokens_in_payload(test_hass, llm_config, sample_entity_st
     "keep_alive_value",
     ["1m", "5m", "10m", "30m", "-1"],  # Test various keep-alive durations
 )
-async def test_llm_keep_alive_in_payload(test_hass, llm_config, sample_entity_states, keep_alive_value):
+async def test_llm_keep_alive_in_payload(
+    test_hass, llm_config, sample_entity_states, keep_alive_value, session_manager
+):
     """Test that keep_alive config value is actually sent in the LLM payload.
 
     This test verifies:
@@ -405,7 +418,7 @@ async def test_llm_keep_alive_in_payload(test_hass, llm_config, sample_entity_st
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the HTTP session to capture the payload
         with patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure_session:
@@ -434,8 +447,9 @@ async def test_llm_keep_alive_in_payload(test_hass, llm_config, sample_entity_st
             payload = call_args.kwargs.get("json", {})
 
             assert "keep_alive" in payload, "LLM payload must contain 'keep_alive'"
-            assert payload["keep_alive"] == keep_alive_value, \
-                f"Expected keep_alive={keep_alive_value}, got {payload['keep_alive']}"
+            assert (
+                payload["keep_alive"] == keep_alive_value
+            ), f"Expected keep_alive={keep_alive_value}, got {payload['keep_alive']}"
 
         await agent.close()
 
@@ -446,7 +460,9 @@ async def test_llm_keep_alive_in_payload(test_hass, llm_config, sample_entity_st
     "top_p_value",
     [0.1, 0.5, 0.9, 1.0],  # Test various nucleus sampling values
 )
-async def test_llm_top_p_in_payload(test_hass, llm_config, sample_entity_states, top_p_value):
+async def test_llm_top_p_in_payload(
+    test_hass, llm_config, sample_entity_states, top_p_value, session_manager
+):
     """Test that top_p config value is actually sent in the LLM payload.
 
     This test verifies:
@@ -470,7 +486,7 @@ async def test_llm_top_p_in_payload(test_hass, llm_config, sample_entity_states,
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the HTTP session to capture the payload
         with patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure_session:
@@ -499,15 +515,18 @@ async def test_llm_top_p_in_payload(test_hass, llm_config, sample_entity_states,
             payload = call_args.kwargs.get("json", {})
 
             assert "top_p" in payload, "LLM payload must contain 'top_p'"
-            assert payload["top_p"] == top_p_value, \
-                f"Expected top_p={top_p_value}, got {payload['top_p']}"
+            assert (
+                payload["top_p"] == top_p_value
+            ), f"Expected top_p={top_p_value}, got {payload['top_p']}"
 
         await agent.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_llm_payload_all_parameters_together(test_hass, llm_config, sample_entity_states):
+async def test_llm_payload_all_parameters_together(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test that all LLM config values are correctly sent together in payload.
 
     This test verifies:
@@ -533,7 +552,7 @@ async def test_llm_payload_all_parameters_together(test_hass, llm_config, sample
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the HTTP session to capture the payload
         with patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure_session:
@@ -570,16 +589,21 @@ async def test_llm_payload_all_parameters_together(test_hass, llm_config, sample
             assert "keep_alive" in payload, "LLM payload must contain 'keep_alive'"
 
             # Verify all values match
-            assert payload["model"] == llm_config["model"], \
-                f"Model mismatch: expected {llm_config['model']}, got {payload['model']}"
-            assert payload["temperature"] == 0.3, \
-                f"Temperature mismatch: expected 0.3, got {payload['temperature']}"
-            assert payload["max_tokens"] == 1234, \
-                f"Max tokens mismatch: expected 1234, got {payload['max_tokens']}"
-            assert payload["top_p"] == 0.85, \
-                f"Top_p mismatch: expected 0.85, got {payload['top_p']}"
-            assert payload["keep_alive"] == "15m", \
-                f"Keep_alive mismatch: expected '15m', got {payload['keep_alive']}"
+            assert (
+                payload["model"] == llm_config["model"]
+            ), f"Model mismatch: expected {llm_config['model']}, got {payload['model']}"
+            assert (
+                payload["temperature"] == 0.3
+            ), f"Temperature mismatch: expected 0.3, got {payload['temperature']}"
+            assert (
+                payload["max_tokens"] == 1234
+            ), f"Max tokens mismatch: expected 1234, got {payload['max_tokens']}"
+            assert (
+                payload["top_p"] == 0.85
+            ), f"Top_p mismatch: expected 0.85, got {payload['top_p']}"
+            assert (
+                payload["keep_alive"] == "15m"
+            ), f"Keep_alive mismatch: expected '15m', got {payload['keep_alive']}"
 
             # Verify messages structure
             assert len(payload["messages"]) == 1
@@ -591,7 +615,9 @@ async def test_llm_payload_all_parameters_together(test_hass, llm_config, sample
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_llm_streaming_payload_parameters(test_hass, llm_config, sample_entity_states):
+async def test_llm_streaming_payload_parameters(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test that streaming mode also correctly passes all LLM parameters.
 
     This test verifies:
@@ -620,7 +646,7 @@ async def test_llm_streaming_payload_parameters(test_hass, llm_config, sample_en
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the HTTP session to capture the streaming payload
         with patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure_session:
@@ -629,7 +655,7 @@ async def test_llm_streaming_payload_parameters(test_hass, llm_config, sample_en
             # Create async iterator for streaming response
             async def mock_content_iter():
                 yield b'data: {"choices": [{"delta": {"content": "Test"}}]}\n'
-                yield b'data: [DONE]\n'
+                yield b"data: [DONE]\n"
 
             mock_response = MagicMock()
             mock_response.status = 200
@@ -661,14 +687,18 @@ async def test_llm_streaming_payload_parameters(test_hass, llm_config, sample_en
             assert "stream_options" in payload, "Streaming payload should include stream_options"
 
             # Verify all LLM parameters are present
-            assert payload["temperature"] == 0.8, \
-                f"Temperature mismatch in streaming: expected 0.8, got {payload.get('temperature')}"
-            assert payload["max_tokens"] == 2000, \
-                f"Max tokens mismatch in streaming: expected 2000, got {payload.get('max_tokens')}"
-            assert payload["top_p"] == 0.95, \
-                f"Top_p mismatch in streaming: expected 0.95, got {payload.get('top_p')}"
-            assert payload["keep_alive"] == "20m", \
-                f"Keep_alive mismatch in streaming: expected '20m', got {payload.get('keep_alive')}"
+            assert (
+                payload["temperature"] == 0.8
+            ), f"Temperature mismatch in streaming: expected 0.8, got {payload.get('temperature')}"
+            assert (
+                payload["max_tokens"] == 2000
+            ), f"Max tokens mismatch in streaming: expected 2000, got {payload.get('max_tokens')}"
+            assert (
+                payload["top_p"] == 0.95
+            ), f"Top_p mismatch in streaming: expected 0.95, got {payload.get('top_p')}"
+            assert (
+                payload["keep_alive"] == "20m"
+            ), f"Keep_alive mismatch in streaming: expected '20m', got {payload.get('keep_alive')}"
 
         await agent.close()
 
@@ -702,7 +732,12 @@ async def test_llm_streaming_payload_parameters(test_hass, llm_config, sample_en
 )
 @pytest.mark.asyncio
 async def test_context_format_variations(
-    test_hass, llm_config, sample_entity_states, format_value, expected_characteristics
+    test_hass,
+    llm_config,
+    sample_entity_states,
+    format_value,
+    expected_characteristics,
+    session_manager,
 ):
     """Test that different context formats produce expected output structures.
 
@@ -739,7 +774,7 @@ async def test_context_format_variations(
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Get context
         context = await agent.context_manager.get_context(
@@ -747,35 +782,43 @@ async def test_context_format_variations(
             conversation_id=f"test_{format_value}",
         )
 
-        assert context is not None, f"Context should not be None for {expected_characteristics['description']}"
+        assert (
+            context is not None
+        ), f"Context should not be None for {expected_characteristics['description']}"
         context_str = str(context)
 
         # Check word count
         word_count = len(context_str.split())
-        assert word_count >= expected_characteristics["min_word_count"], \
-            f"{expected_characteristics['description']} should have at least {expected_characteristics['min_word_count']} words, got {word_count}"
+        assert (
+            word_count >= expected_characteristics["min_word_count"]
+        ), f"{expected_characteristics['description']} should have at least {expected_characteristics['min_word_count']} words, got {word_count}"
 
         # Check JSON density (ratio of JSON chars to total chars)
-        json_chars = sum(1 for c in context_str if c in "{[]}\":")
+        json_chars = sum(1 for c in context_str if c in '{[]}":')
         total_chars = len(context_str)
         json_density = json_chars / total_chars if total_chars > 0 else 0
 
-        assert json_density <= expected_characteristics["max_json_density"], \
-            f"{expected_characteristics['description']} has too many JSON chars: {json_density:.2%} (expected <= {expected_characteristics['max_json_density']:.2%})"
+        assert (
+            json_density <= expected_characteristics["max_json_density"]
+        ), f"{expected_characteristics['description']} has too many JSON chars: {json_density:.2%} (expected <= {expected_characteristics['max_json_density']:.2%})"
 
         # Verify the format is configured correctly
         provider = agent.context_manager._provider
-        assert hasattr(provider, "format_type"), \
-            f"Provider should have format_type attribute for {expected_characteristics['description']}"
-        assert provider.format_type == format_value, \
-            f"Provider format should be {format_value}, got {provider.format_type}"
+        assert hasattr(
+            provider, "format_type"
+        ), f"Provider should have format_type attribute for {expected_characteristics['description']}"
+        assert (
+            provider.format_type == format_value
+        ), f"Provider format should be {format_value}, got {provider.format_type}"
 
         await agent.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_context_format_json_baseline(test_hass, llm_config, sample_entity_states):
+async def test_context_format_json_baseline(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test JSON format as a baseline for comparison.
 
     This test verifies:
@@ -810,7 +853,7 @@ async def test_context_format_json_baseline(test_hass, llm_config, sample_entity
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Get context
         context = await agent.context_manager.get_context(
@@ -836,7 +879,12 @@ async def test_context_format_json_baseline(test_hass, llm_config, sample_entity
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_embedding_provider_openai(
-    test_hass, chromadb_config, embedding_config, sample_entity_states, test_collection_name
+    session_manager,
+    test_hass,
+    chromadb_config,
+    embedding_config,
+    sample_entity_states,
+    test_collection_name,
 ):
     """Test OpenAI embedding provider code path.
 
@@ -870,7 +918,9 @@ async def test_embedding_provider_openai(
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
         # Mock ChromaDB client to avoid needing real ChromaDB
-        with patch("custom_components.home_agent.vector_db_manager.chromadb.HttpClient") as mock_chromadb:
+        with patch(
+            "custom_components.home_agent.vector_db_manager.chromadb.HttpClient"
+        ) as mock_chromadb:
             mock_collection = MagicMock()
             mock_client = MagicMock()
             mock_client.get_or_create_collection.return_value = mock_collection
@@ -893,14 +943,20 @@ async def test_embedding_provider_openai(
                 assert len(result) == 1536, "Should return OpenAI-sized embedding"
 
             # Verify provider is set correctly
-            assert vector_db_manager.embedding_provider == EMBEDDING_PROVIDER_OPENAI, \
-                "Embedding provider should be openai"
+            assert (
+                vector_db_manager.embedding_provider == EMBEDDING_PROVIDER_OPENAI
+            ), "Embedding provider should be openai"
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_embedding_provider_ollama(
-    test_hass, chromadb_config, embedding_config, sample_entity_states, test_collection_name
+    session_manager,
+    test_hass,
+    chromadb_config,
+    embedding_config,
+    sample_entity_states,
+    test_collection_name,
 ):
     """Test Ollama embedding provider code path (baseline).
 
@@ -934,7 +990,9 @@ async def test_embedding_provider_ollama(
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
         # Mock ChromaDB client to avoid needing real ChromaDB
-        with patch("custom_components.home_agent.vector_db_manager.chromadb.HttpClient") as mock_chromadb:
+        with patch(
+            "custom_components.home_agent.vector_db_manager.chromadb.HttpClient"
+        ) as mock_chromadb:
             mock_collection = MagicMock()
             mock_client = MagicMock()
             mock_client.get_or_create_collection.return_value = mock_collection
@@ -957,8 +1015,9 @@ async def test_embedding_provider_ollama(
                 assert len(result) == 1024, "Should return Ollama-sized embedding"
 
             # Verify provider is set correctly
-            assert vector_db_manager.embedding_provider == EMBEDDING_PROVIDER_OLLAMA, \
-                "Embedding provider should be ollama"
+            assert (
+                vector_db_manager.embedding_provider == EMBEDDING_PROVIDER_OLLAMA
+            ), "Embedding provider should be ollama"
 
 
 # =============================================================================
@@ -968,7 +1027,9 @@ async def test_embedding_provider_ollama(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_memory_extraction_llm_local(test_hass, llm_config, sample_entity_states):
+async def test_memory_extraction_llm_local(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test local LLM for memory extraction.
 
     This test verifies:
@@ -1007,7 +1068,7 @@ async def test_memory_extraction_llm_local(test_hass, llm_config, sample_entity_
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock memory manager
         mock_memory_manager = MagicMock()
@@ -1039,19 +1100,23 @@ async def test_memory_extraction_llm_local(test_hass, llm_config, sample_entity_
             mock_local_extract.assert_called_once()
             call_args = mock_local_extract.call_args[0]
             extraction_prompt = call_args[0]
-            assert "Turn on the lights" in extraction_prompt, \
-                "Extraction prompt should contain user message"
+            assert (
+                "Turn on the lights" in extraction_prompt
+            ), "Extraction prompt should contain user message"
 
         # Verify configuration
-        assert agent.config.get(CONF_MEMORY_EXTRACTION_LLM) == "local", \
-            "Memory extraction LLM should be configured as 'local'"
+        assert (
+            agent.config.get(CONF_MEMORY_EXTRACTION_LLM) == "local"
+        ), "Memory extraction LLM should be configured as 'local'"
 
         await agent.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_memory_extraction_llm_external(test_hass, llm_config, sample_entity_states):
+async def test_memory_extraction_llm_external(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test external LLM for memory extraction.
 
     This test verifies:
@@ -1094,7 +1159,7 @@ async def test_memory_extraction_llm_external(test_hass, llm_config, sample_enti
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock memory manager
         mock_memory_manager = MagicMock()
@@ -1128,21 +1193,27 @@ async def test_memory_extraction_llm_external(test_hass, llm_config, sample_enti
             # Handle both positional and keyword arguments
             if call_args.args:
                 tool_name = call_args.args[0]
-                parameters = call_args.args[1] if len(call_args.args) > 1 else call_args.kwargs.get("parameters", {})
+                parameters = (
+                    call_args.args[1]
+                    if len(call_args.args) > 1
+                    else call_args.kwargs.get("parameters", {})
+                )
             else:
                 tool_name = call_args.kwargs.get("tool_name")
                 parameters = call_args.kwargs.get("parameters", {})
 
-            assert tool_name == "query_external_llm", \
-                f"Should call query_external_llm tool, got {tool_name}"
-            assert "prompt" in parameters, \
-                "Parameters should contain prompt"
-            assert "Turn on the lights" in parameters["prompt"], \
-                "Extraction prompt should contain user message"
+            assert (
+                tool_name == "query_external_llm"
+            ), f"Should call query_external_llm tool, got {tool_name}"
+            assert "prompt" in parameters, "Parameters should contain prompt"
+            assert (
+                "Turn on the lights" in parameters["prompt"]
+            ), "Extraction prompt should contain user message"
 
         # Verify configuration
-        assert agent.config.get(CONF_MEMORY_EXTRACTION_LLM) == "external", \
-            "Memory extraction LLM should be configured as 'external'"
+        assert (
+            agent.config.get(CONF_MEMORY_EXTRACTION_LLM) == "external"
+        ), "Memory extraction LLM should be configured as 'external'"
 
         await agent.close()
 
@@ -1155,6 +1226,7 @@ async def test_memory_extraction_llm_external(test_hass, llm_config, sample_enti
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_multiple_alternative_configs_together(
+    session_manager,
     test_hass,
     llm_config,
     chromadb_config,
@@ -1209,7 +1281,9 @@ async def test_multiple_alternative_configs_together(
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
         # Mock ChromaDB client to avoid needing real ChromaDB
-        with patch("custom_components.home_agent.context_providers.vector_db.chromadb.HttpClient") as mock_chromadb:
+        with patch(
+            "custom_components.home_agent.context_providers.vector_db.chromadb.HttpClient"
+        ) as mock_chromadb:
             mock_collection = MagicMock()
             mock_collection.query.return_value = {
                 "ids": [["entity1", "entity2"]],
@@ -1220,7 +1294,7 @@ async def test_multiple_alternative_configs_together(
             mock_client.get_or_create_collection.return_value = mock_collection
             mock_chromadb.return_value = mock_client
 
-            agent = HomeAgent(test_hass, config)
+            agent = HomeAgent(test_hass, config, session_manager)
 
             # Mock the embedding call for vector DB context provider
             with patch.object(
@@ -1231,7 +1305,9 @@ async def test_multiple_alternative_configs_together(
                 # Verify all configurations are set
                 assert agent.config.get(CONF_LLM_BACKEND) == LLM_BACKEND_LLAMA_CPP
                 assert agent.config.get(CONF_CONTEXT_FORMAT) == CONTEXT_FORMAT_NATURAL_LANGUAGE
-                assert agent.config.get(CONF_VECTOR_DB_EMBEDDING_PROVIDER) == EMBEDDING_PROVIDER_OLLAMA
+                assert (
+                    agent.config.get(CONF_VECTOR_DB_EMBEDDING_PROVIDER) == EMBEDDING_PROVIDER_OLLAMA
+                )
 
                 # Get context to verify it works
                 context = await agent.context_manager.get_context(
@@ -1251,7 +1327,9 @@ async def test_multiple_alternative_configs_together(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_events_fire_when_enabled(test_hass, llm_config, sample_entity_states):
+async def test_events_fire_when_enabled(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test that all major events fire during a conversation when emit_events=True.
 
     This test verifies:
@@ -1289,7 +1367,7 @@ async def test_events_fire_when_enabled(test_hass, llm_config, sample_entity_sta
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Track events fired
         events_fired = []
@@ -1332,8 +1410,10 @@ async def test_events_fire_when_enabled(test_hass, llm_config, sample_entity_sta
 
             # Check for conversation started event
             from custom_components.home_agent.const import EVENT_CONVERSATION_STARTED
-            assert EVENT_CONVERSATION_STARTED in event_names, \
-                f"EVENT_CONVERSATION_STARTED should be fired, got: {event_names}"
+
+            assert (
+                EVENT_CONVERSATION_STARTED in event_names
+            ), f"EVENT_CONVERSATION_STARTED should be fired, got: {event_names}"
 
             started_event = next(e for e in events_fired if e[0] == EVENT_CONVERSATION_STARTED)
             assert started_event[1]["conversation_id"] == "test_events_enabled"
@@ -1342,8 +1422,10 @@ async def test_events_fire_when_enabled(test_hass, llm_config, sample_entity_sta
 
             # Check for conversation finished event
             from custom_components.home_agent.const import EVENT_CONVERSATION_FINISHED
-            assert EVENT_CONVERSATION_FINISHED in event_names, \
-                f"EVENT_CONVERSATION_FINISHED should be fired, got: {event_names}"
+
+            assert (
+                EVENT_CONVERSATION_FINISHED in event_names
+            ), f"EVENT_CONVERSATION_FINISHED should be fired, got: {event_names}"
 
             finished_event = next(e for e in events_fired if e[0] == EVENT_CONVERSATION_FINISHED)
             assert finished_event[1]["conversation_id"] == "test_events_enabled"
@@ -1359,7 +1441,9 @@ async def test_events_fire_when_enabled(test_hass, llm_config, sample_entity_sta
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_events_do_not_fire_when_disabled(test_hass, llm_config, sample_entity_states):
+async def test_events_do_not_fire_when_disabled(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test that NO custom events fire during a conversation when emit_events=False.
 
     This test verifies:
@@ -1396,7 +1480,7 @@ async def test_events_do_not_fire_when_disabled(test_hass, llm_config, sample_en
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Track events fired
         events_fired = []
@@ -1437,10 +1521,12 @@ async def test_events_do_not_fire_when_disabled(test_hass, llm_config, sample_en
 
             # Filter for our custom events (home_agent.*)
             from custom_components.home_agent.const import DOMAIN
+
             our_events = [e for e in events_fired if e[0].startswith(f"{DOMAIN}.")]
 
-            assert len(our_events) == 0, \
-                f"No home_agent.* events should fire when emit_events=False, got: {[e[0] for e in our_events]}"
+            assert (
+                len(our_events) == 0
+            ), f"No home_agent.* events should fire when emit_events=False, got: {[e[0] for e in our_events]}"
 
         finally:
             # Restore original async_fire
@@ -1450,7 +1536,9 @@ async def test_events_do_not_fire_when_disabled(test_hass, llm_config, sample_en
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_emit_events_runtime_check_in_tool_handler(test_hass, llm_config, sample_entity_states):
+async def test_emit_events_runtime_check_in_tool_handler(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test that emit_events check happens at runtime in ToolHandler.
 
     This test verifies:
@@ -1487,11 +1575,12 @@ async def test_emit_events_runtime_check_in_tool_handler(test_hass, llm_config, 
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config_disabled)
+        agent = HomeAgent(test_hass, config_disabled, session_manager)
 
         # Verify ToolHandler has emit_events set correctly
-        assert agent.tool_handler.emit_events is False, \
-            "ToolHandler should have emit_events=False when configured"
+        assert (
+            agent.tool_handler.emit_events is False
+        ), "ToolHandler should have emit_events=False when configured"
 
         # Track events fired
         events_fired = []
@@ -1515,17 +1604,19 @@ async def test_emit_events_runtime_check_in_tool_handler(test_hass, llm_config, 
 
             # Execute the tool
             await agent.tool_handler.execute_tool(
-                "ha_query",
-                {"entity_id": "light.living_room"},
-                conversation_id="test_tool_events"
+                "ha_query", {"entity_id": "light.living_room"}, conversation_id="test_tool_events"
             )
 
             # Verify NO tool events were fired
             from custom_components.home_agent.const import EVENT_TOOL_EXECUTED, EVENT_TOOL_PROGRESS
-            tool_events = [e for e in events_fired if e[0] in [EVENT_TOOL_EXECUTED, EVENT_TOOL_PROGRESS]]
 
-            assert len(tool_events) == 0, \
-                f"No tool events should fire when emit_events=False, got: {[e[0] for e in tool_events]}"
+            tool_events = [
+                e for e in events_fired if e[0] in [EVENT_TOOL_EXECUTED, EVENT_TOOL_PROGRESS]
+            ]
+
+            assert (
+                len(tool_events) == 0
+            ), f"No tool events should fire when emit_events=False, got: {[e[0] for e in tool_events]}"
 
         finally:
             test_hass.bus.async_fire = original_async_fire
@@ -1534,7 +1625,9 @@ async def test_emit_events_runtime_check_in_tool_handler(test_hass, llm_config, 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_emit_events_dynamic_change(test_hass, llm_config, sample_entity_states):
+async def test_emit_events_dynamic_change(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test that changing emit_events dynamically affects event firing.
 
     This test verifies:
@@ -1570,7 +1663,7 @@ async def test_emit_events_dynamic_change(test_hass, llm_config, sample_entity_s
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Track events fired
         events_fired = []
@@ -1636,10 +1729,12 @@ async def test_emit_events_dynamic_change(test_hass, llm_config, sample_entity_s
                 )
 
             from custom_components.home_agent.const import DOMAIN
+
             our_events = [e for e in events_fired if e[0].startswith(f"{DOMAIN}.")]
 
-            assert len(our_events) == 0, \
-                f"No events should fire after disabling emit_events, got: {[e[0] for e in our_events]}"
+            assert (
+                len(our_events) == 0
+            ), f"No events should fire after disabling emit_events, got: {[e[0] for e in our_events]}"
 
             # Re-enable and verify events fire again
             events_fired.clear()
@@ -1675,7 +1770,7 @@ async def test_emit_events_dynamic_change(test_hass, llm_config, sample_entity_s
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_memory_extraction_event_respects_emit_events(
-    test_hass, llm_config, sample_entity_states
+    session_manager, test_hass, llm_config, sample_entity_states
 ):
     """Test that memory extraction event respects emit_events setting.
 
@@ -1715,7 +1810,7 @@ async def test_memory_extraction_event_respects_emit_events(
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock memory manager
         mock_memory_manager = MagicMock()
@@ -1736,13 +1831,13 @@ async def test_memory_extraction_event_respects_emit_events(
 
         try:
             # Mock extraction to return a valid memory
-            extraction_result = '''[{
+            extraction_result = """[{
                 "type": "preference",
                 "content": "User prefers the living room lights to be turned on automatically during the evening hours",
                 "importance": 0.8,
                 "entities": ["light.living_room"],
                 "topics": ["lighting", "preferences"]
-            }]'''
+            }]"""
 
             with patch.object(
                 agent, "_call_primary_llm_for_extraction", new_callable=AsyncMock
@@ -1766,10 +1861,12 @@ async def test_memory_extraction_event_respects_emit_events(
 
             # Verify EVENT_MEMORY_EXTRACTED was fired
             from custom_components.home_agent.const import EVENT_MEMORY_EXTRACTED
+
             memory_events = [e for e in events_fired if e[0] == EVENT_MEMORY_EXTRACTED]
 
-            assert len(memory_events) == 1, \
-                f"EVENT_MEMORY_EXTRACTED should fire when emit_events=True, got {len(memory_events)} events"
+            assert (
+                len(memory_events) == 1
+            ), f"EVENT_MEMORY_EXTRACTED should fire when emit_events=True, got {len(memory_events)} events"
 
             memory_event = memory_events[0][1]
             assert memory_event["conversation_id"] == "test_memory_events"
@@ -1803,12 +1900,14 @@ async def test_memory_extraction_event_respects_emit_events(
             # Verify EVENT_MEMORY_EXTRACTED was NOT fired
             memory_events = [e for e in events_fired if e[0] == EVENT_MEMORY_EXTRACTED]
 
-            assert len(memory_events) == 0, \
-                f"EVENT_MEMORY_EXTRACTED should NOT fire when emit_events=False, got {len(memory_events)} events"
+            assert (
+                len(memory_events) == 0
+            ), f"EVENT_MEMORY_EXTRACTED should NOT fire when emit_events=False, got {len(memory_events)} events"
 
             # Verify memory was still stored (functionality works)
-            assert mock_memory_manager.add_memory.call_count == 2, \
-                "Memory extraction should work regardless of emit_events"
+            assert (
+                mock_memory_manager.add_memory.call_count == 2
+            ), "Memory extraction should work regardless of emit_events"
 
         finally:
             test_hass.bus.async_fire = original_async_fire

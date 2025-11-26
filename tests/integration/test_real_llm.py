@@ -7,9 +7,9 @@ and streaming responses.
 
 import json
 import logging
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from homeassistant.const import ATTR_ENTITY_ID
 
 from custom_components.home_agent.agent import HomeAgent
@@ -34,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_basic_conversation(test_hass, llm_config):
+async def test_basic_conversation(test_hass, llm_config, session_manager):
     """Test simple Q&A with real LLM.
 
     This test verifies that:
@@ -60,7 +60,7 @@ async def test_basic_conversation(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Process a simple message
         response = await agent.process_message(
@@ -71,7 +71,9 @@ async def test_basic_conversation(test_hass, llm_config):
         # Verify we got a response
         assert response is not None, "Response should not be None"
         assert isinstance(response, str), f"Response should be a string, got {type(response)}"
-        assert len(response) > 20, f"Response should be meaningful (>20 chars), got {len(response)} chars: {response[:100]}"
+        assert (
+            len(response) > 20
+        ), f"Response should be meaningful (>20 chars), got {len(response)} chars: {response[:100]}"
 
         # Response should be conversational
         # (this line removed as redundant with above check)
@@ -81,7 +83,19 @@ async def test_basic_conversation(test_hass, llm_config):
         response_lower = response.lower()
         assert any(
             pattern in response_lower
-            for pattern in ["hello", "hi", "how", "doing", "help", "assist", "good", "great", "thank", "i", "you"]
+            for pattern in [
+                "hello",
+                "hi",
+                "how",
+                "doing",
+                "help",
+                "assist",
+                "good",
+                "great",
+                "thank",
+                "i",
+                "you",
+            ]
         ), f"Response doesn't appear conversational: {response[:200]}"
 
         await agent.close()
@@ -90,7 +104,7 @@ async def test_basic_conversation(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_tool_calling(test_hass, llm_config, sample_entity_states):
+async def test_tool_calling(test_hass, llm_config, sample_entity_states, session_manager):
     """Test that LLM triggers tools correctly.
 
     This test verifies that:
@@ -130,16 +144,18 @@ async def test_tool_calling(test_hass, llm_config, sample_entity_states):
         service_calls = []
 
         async def mock_service_call(domain, service, service_data, **kwargs):
-            service_calls.append({
-                "domain": domain,
-                "service": service,
-                "data": service_data,
-            })
+            service_calls.append(
+                {
+                    "domain": domain,
+                    "service": service,
+                    "data": service_data,
+                }
+            )
             return None
 
         test_hass.services.async_call = AsyncMock(side_effect=mock_service_call)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the get_exposed_entities method to return test entities
         def mock_exposed_entities():
@@ -164,7 +180,9 @@ async def test_tool_calling(test_hass, llm_config, sample_entity_states):
         # Verify we got a response
         assert response is not None, "Response should not be None"
         assert isinstance(response, str), f"Response should be a string, got {type(response)}"
-        assert len(response) > 20, f"Response should be meaningful (>20 chars), got {len(response)} chars: {response[:100]}"
+        assert (
+            len(response) > 20
+        ), f"Response should be meaningful (>20 chars), got {len(response)} chars: {response[:100]}"
 
         # Response should be related to the request
         # Note: LLM behavior is non-deterministic, so we check for relevant content
@@ -180,12 +198,11 @@ async def test_tool_calling(test_hass, llm_config, sample_entity_states):
             )
 
             # Verify turn_on service was called
-            turn_on_called = any(
-                call.get("service") == "turn_on"
-                for call in service_calls
-            )
+            turn_on_called = any(call.get("service") == "turn_on" for call in service_calls)
 
-            assert light_targeted, f"Living room light was not targeted. Calls made: {service_calls}"
+            assert (
+                light_targeted
+            ), f"Living room light was not targeted. Calls made: {service_calls}"
             assert turn_on_called, f"turn_on service was not called. Calls made: {service_calls}"
         else:
             # If no service calls, response should at least acknowledge the request
@@ -199,7 +216,7 @@ async def test_tool_calling(test_hass, llm_config, sample_entity_states):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_multi_turn_context(test_hass, llm_config):
+async def test_multi_turn_context(test_hass, llm_config, session_manager):
     """Test conversation memory across multiple turns.
 
     This test verifies that:
@@ -223,7 +240,7 @@ async def test_multi_turn_context(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         conversation_id = "test_multi_turn"
 
@@ -247,9 +264,7 @@ async def test_multi_turn_context(test_hass, llm_config):
         assert isinstance(response2, str), f"Response should be a string, got {type(response2)}"
         assert len(response2) > 5, f"Response should not be empty, got {len(response2)} chars"
         # Response should mention Alice
-        assert "alice" in response2.lower(), (
-            "Agent didn't remember name from previous turn"
-        )
+        assert "alice" in response2.lower(), "Agent didn't remember name from previous turn"
 
         # Third turn: Reference other context
         response3 = await agent.process_message(
@@ -261,9 +276,7 @@ async def test_multi_turn_context(test_hass, llm_config):
         assert isinstance(response3, str), f"Response should be a string, got {type(response3)}"
         assert len(response3) > 5, f"Response should not be empty, got {len(response3)} chars"
         # Response should mention blue
-        assert "blue" in response3.lower(), (
-            "Agent didn't remember color preference from first turn"
-        )
+        assert "blue" in response3.lower(), "Agent didn't remember color preference from first turn"
 
         # Verify conversation history is populated
         history = agent.conversation_manager.get_history(conversation_id)
@@ -275,7 +288,7 @@ async def test_multi_turn_context(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_streaming_response(test_hass, llm_config):
+async def test_streaming_response(test_hass, llm_config, session_manager):
     """Test SSE streaming works with real LLM.
 
     This test verifies that:
@@ -298,7 +311,7 @@ async def test_streaming_response(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Collect streaming chunks
         chunks = []
@@ -351,7 +364,7 @@ async def test_streaming_response(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_error_handling(test_hass, llm_config):
+async def test_error_handling(test_hass, llm_config, session_manager):
     """Test LLM error handling (invalid model, connection issues, etc).
 
     This test verifies that:
@@ -374,7 +387,7 @@ async def test_error_handling(test_hass, llm_config):
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Try to process a message with invalid model
         response = None
@@ -402,15 +415,14 @@ async def test_error_handling(test_hass, llm_config):
             response_lower = response.lower()
             # Accept either error indication OR valid response (backend handled gracefully)
             has_error_indication = any(
-                word in response_lower
-                for word in ["error", "sorry", "unable", "cannot", "failed"]
+                word in response_lower for word in ["error", "sorry", "unable", "cannot", "failed"]
             )
             # Or it's a valid response (some backends use fallback models)
             is_valid_response = len(response) > 0 and isinstance(response, str)
 
-            assert has_error_indication or is_valid_response, (
-                f"Response should either indicate error or be valid. Got: {response[:200]}"
-            )
+            assert (
+                has_error_indication or is_valid_response
+            ), f"Response should either indicate error or be valid. Got: {response[:200]}"
         else:
             pytest.fail("Neither exception raised nor response returned")
 
@@ -420,7 +432,7 @@ async def test_error_handling(test_hass, llm_config):
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_llm_with_complex_tools(test_hass, llm_config, sample_entity_states):
+async def test_llm_with_complex_tools(test_hass, llm_config, sample_entity_states, session_manager):
     """Test LLM handling of complex multi-step tool interactions.
 
     This test verifies that:
@@ -458,16 +470,18 @@ async def test_llm_with_complex_tools(test_hass, llm_config, sample_entity_state
         service_calls = []
 
         async def mock_service_call(domain, service, service_data, **kwargs):
-            service_calls.append({
-                "domain": domain,
-                "service": service,
-                "data": service_data,
-            })
+            service_calls.append(
+                {
+                    "domain": domain,
+                    "service": service,
+                    "data": service_data,
+                }
+            )
             return None
 
         test_hass.services.async_call = AsyncMock(side_effect=mock_service_call)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the get_exposed_entities method to return test entities
         def mock_exposed_entities():
@@ -492,7 +506,9 @@ async def test_llm_with_complex_tools(test_hass, llm_config, sample_entity_state
         # Verify response
         assert response is not None, "Response should not be None"
         assert isinstance(response, str), f"Response should be a string, got {type(response)}"
-        assert len(response) > 20, f"Response should be meaningful (>20 chars), got {len(response)} chars: {response[:100]}"
+        assert (
+            len(response) > 20
+        ), f"Response should be meaningful (>20 chars), got {len(response)} chars: {response[:100]}"
 
         # Response should mention temperature (the query asked about temperature)
         response_lower = response.lower()
@@ -509,7 +525,9 @@ async def test_llm_with_complex_tools(test_hass, llm_config, sample_entity_state
 @pytest.mark.integration
 @pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_tool_execution_with_correct_entity(test_hass, llm_config, sample_entity_states):
+async def test_tool_execution_with_correct_entity(
+    test_hass, llm_config, sample_entity_states, session_manager
+):
     """Test that tool calls target the correct entity_id.
 
     This test verifies that:
@@ -531,15 +549,20 @@ async def test_tool_execution_with_correct_entity(test_hass, llm_config, sample_
 
     # Mock entity registry to return entries for our test entities
     mock_entity_registry = MagicMock()
-    mock_entity_registry.async_get = MagicMock(side_effect=lambda entity_id: MagicMock(entity_id=entity_id))
+    mock_entity_registry.async_get = MagicMock(
+        side_effect=lambda entity_id: MagicMock(entity_id=entity_id)
+    )
 
     # Mock entity exposure
-    with patch(
-        "custom_components.home_agent.agent.async_should_expose",
-        return_value=False,
-    ), patch(
-        "custom_components.home_agent.tools.ha_control.er.async_get",
-        return_value=mock_entity_registry,
+    with (
+        patch(
+            "custom_components.home_agent.agent.async_should_expose",
+            return_value=False,
+        ),
+        patch(
+            "custom_components.home_agent.tools.ha_control.er.async_get",
+            return_value=mock_entity_registry,
+        ),
     ):
         # Setup test states
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -568,7 +591,7 @@ async def test_tool_execution_with_correct_entity(test_hass, llm_config, sample_
 
         test_hass.services.async_call = AsyncMock(side_effect=mock_service_call)
 
-        agent = HomeAgent(test_hass, config)
+        agent = HomeAgent(test_hass, config, session_manager)
 
         # Mock the get_exposed_entities method to return test entities
         def mock_exposed_entities():
@@ -592,29 +615,30 @@ async def test_tool_execution_with_correct_entity(test_hass, llm_config, sample_
 
         assert response1 is not None, "First response should not be None"
         assert isinstance(response1, str), f"Response should be a string, got {type(response1)}"
-        assert len(response1) > 10, f"Response should be meaningful, got {len(response1)} chars: {response1[:100]}"
+        assert (
+            len(response1) > 10
+        ), f"Response should be meaningful, got {len(response1)} chars: {response1[:100]}"
 
         # Check if service was called (LLM may or may not call the tool)
-        bedroom_calls = [
-            call for call in service_calls
-            if call.get("entity_id") == "light.bedroom"
-        ]
+        bedroom_calls = [call for call in service_calls if call.get("entity_id") == "light.bedroom"]
 
         living_room_calls = [
-            call for call in service_calls
-            if call.get("entity_id") == "light.living_room"
+            call for call in service_calls if call.get("entity_id") == "light.living_room"
         ]
 
         # If tool was called, it should target bedroom, not living room
         if len(service_calls) > 0:
             # Verify no calls to living room light when we asked for bedroom
-            assert len(living_room_calls) == 0, \
-                f"Should not call living_room light when user asked for bedroom. Calls: {service_calls}"
+            assert (
+                len(living_room_calls) == 0
+            ), f"Should not call living_room light when user asked for bedroom. Calls: {service_calls}"
 
             # If bedroom was called, verify it was the right action
             if len(bedroom_calls) > 0:
-                assert bedroom_calls[0]["service"] in ["turn_on", "toggle"], \
-                    f"Should turn on/toggle bedroom light, got: {bedroom_calls[0]['service']}"
+                assert bedroom_calls[0]["service"] in [
+                    "turn_on",
+                    "toggle",
+                ], f"Should turn on/toggle bedroom light, got: {bedroom_calls[0]['service']}"
 
         # Clear service calls for next test
         service_calls.clear()
@@ -631,13 +655,15 @@ async def test_tool_execution_with_correct_entity(test_hass, llm_config, sample_
 
         # Check if coffee maker was targeted (not other switches/lights)
         coffee_maker_calls = [
-            call for call in service_calls
-            if call.get("entity_id") == "switch.coffee_maker"
+            call for call in service_calls if call.get("entity_id") == "switch.coffee_maker"
         ]
 
         wrong_entity_calls = [
-            call for call in service_calls
-            if call.get("entity_id") and call.get("entity_id") not in [
+            call
+            for call in service_calls
+            if call.get("entity_id")
+            and call.get("entity_id")
+            not in [
                 "switch.coffee_maker",
                 None,  # Generic homeassistant service calls might not have entity_id
             ]
@@ -646,13 +672,16 @@ async def test_tool_execution_with_correct_entity(test_hass, llm_config, sample_
         # If tool was called, verify it targeted the right entity
         if len(service_calls) > 0:
             # Should not call wrong entities
-            assert len(wrong_entity_calls) == 0, \
-                f"Should only target coffee_maker, but got: {wrong_entity_calls}"
+            assert (
+                len(wrong_entity_calls) == 0
+            ), f"Should only target coffee_maker, but got: {wrong_entity_calls}"
 
             # If coffee maker was called, verify correct service
             if len(coffee_maker_calls) > 0:
-                assert coffee_maker_calls[0]["service"] in ["turn_on", "toggle"], \
-                    f"Should turn on coffee maker, got: {coffee_maker_calls[0]['service']}"
+                assert coffee_maker_calls[0]["service"] in [
+                    "turn_on",
+                    "toggle",
+                ], f"Should turn on coffee maker, got: {coffee_maker_calls[0]['service']}"
 
         # Clear service calls for next test
         service_calls.clear()
@@ -672,21 +701,33 @@ async def test_tool_execution_with_correct_entity(test_hass, llm_config, sample_
         response_lower = response3.lower()
         # Temperature sensor shows 72.5°F - LLM may mention temp value, acknowledge query, or describe checking
         valid_response_patterns = [
-            "temperature", "72", "sensor", "degrees",  # Direct answer
-            "check", "let me", "look", "see", "finding",  # Acknowledging query
-            "living", "room", "current",  # Context mentions
+            "temperature",
+            "72",
+            "sensor",
+            "degrees",  # Direct answer
+            "check",
+            "let me",
+            "look",
+            "see",
+            "finding",  # Acknowledging query
+            "living",
+            "room",
+            "current",  # Context mentions
         ]
-        assert any(word in response_lower for word in valid_response_patterns), \
-            f"Response should acknowledge temperature query: {response3[:200]}"
+        assert any(
+            word in response_lower for word in valid_response_patterns
+        ), f"Response should acknowledge temperature query: {response3[:200]}"
 
         # Verify no control actions were taken for a query
         control_services = [
-            call for call in service_calls
+            call
+            for call in service_calls
             if call["service"] in ["turn_on", "turn_off", "toggle", "set_temperature"]
         ]
 
         # Query shouldn't trigger control actions
-        assert len(control_services) == 0, \
-            f"Query should not trigger control services, got: {control_services}"
+        assert (
+            len(control_services) == 0
+        ), f"Query should not trigger control services, got: {control_services}"
 
         await agent.close()

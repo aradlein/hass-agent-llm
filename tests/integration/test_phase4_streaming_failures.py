@@ -13,15 +13,11 @@ This test suite validates streaming failure handling:
 from __future__ import annotations
 
 import asyncio
-import json
-from typing import Any, AsyncGenerator
+from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
-
-# Mark all tests in this module as integration tests
-pytestmark = pytest.mark.integration
 from homeassistant.components import conversation
 from homeassistant.core import HomeAssistant
 
@@ -35,6 +31,9 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     EVENT_STREAMING_ERROR,
 )
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 
 # Test constants
 TEST_MODEL = "llama2"
@@ -207,6 +206,7 @@ async def create_http_503_stream() -> AsyncGenerator[bytes, None]:
 
 @pytest.mark.asyncio
 async def test_partial_sse_stream_connection_drop(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -224,7 +224,7 @@ async def test_partial_sse_stream_connection_drop(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []
@@ -301,6 +301,7 @@ async def test_partial_sse_stream_connection_drop(
 
 @pytest.mark.asyncio
 async def test_malformed_sse_data_handling(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -317,7 +318,7 @@ async def test_malformed_sse_data_handling(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Mock response with malformed data
         mock_response = MagicMock()
@@ -339,9 +340,7 @@ async def test_malformed_sse_data_handling(
             async for delta in delta_stream:
                 processed_deltas.append(delta)
             # Return content
-            yield conversation.AssistantContent(
-                agent_id="test_agent", content="recovered"
-            )
+            yield conversation.AssistantContent(agent_id="test_agent", content="recovered")
 
         mock_chat_log.async_add_delta_content_stream = mock_add_delta_stream
 
@@ -375,6 +374,7 @@ async def test_malformed_sse_data_handling(
 
 @pytest.mark.asyncio
 async def test_http_503_during_streaming(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -391,7 +391,7 @@ async def test_http_503_during_streaming(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []
@@ -444,9 +444,7 @@ async def test_http_503_during_streaming(
         mock_chat_log.async_add_delta_content_stream = failing_add_delta_stream
         # Mock chat_log.content to have content (avoiding IndexError in fallback)
         mock_chat_log.content = [
-            conversation.AssistantContent(
-                agent_id="test_agent", content="Fallback after 503"
-            )
+            conversation.AssistantContent(agent_id="test_agent", content="Fallback after 503")
         ]
         mock_chat_log.conversation_id = "test_123"
 
@@ -473,6 +471,7 @@ async def test_http_503_during_streaming(
 
 @pytest.mark.asyncio
 async def test_timeout_during_streaming(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -489,7 +488,7 @@ async def test_timeout_during_streaming(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []
@@ -557,6 +556,7 @@ async def test_timeout_during_streaming(
 
 @pytest.mark.asyncio
 async def test_invalid_json_in_sse_events(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -573,7 +573,7 @@ async def test_invalid_json_in_sse_events(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Mock response with invalid JSON
         mock_response = MagicMock()
@@ -594,9 +594,7 @@ async def test_invalid_json_in_sse_events(
             """Mock that captures deltas."""
             async for delta in delta_stream:
                 processed_deltas.append(delta)
-            yield conversation.AssistantContent(
-                agent_id="test_agent", content="recovered"
-            )
+            yield conversation.AssistantContent(agent_id="test_agent", content="recovered")
 
         mock_chat_log.async_add_delta_content_stream = mock_add_delta_stream
 
@@ -630,6 +628,7 @@ async def test_invalid_json_in_sse_events(
 
 @pytest.mark.asyncio
 async def test_invalid_tool_call_json_in_stream(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -646,7 +645,7 @@ async def test_invalid_tool_call_json_in_stream(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Create stream with tool call containing invalid JSON
         async def invalid_tool_json_stream():
@@ -717,6 +716,7 @@ async def test_invalid_tool_call_json_in_stream(
 
 @pytest.mark.asyncio
 async def test_empty_stream_response(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -732,7 +732,7 @@ async def test_empty_stream_response(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Create empty stream
         async def empty_stream():
@@ -758,9 +758,7 @@ async def test_empty_stream_response(
             async for delta in delta_stream:
                 processed_deltas.append(delta)
             # Return minimal content
-            yield conversation.AssistantContent(
-                agent_id="test_agent", content=""
-            )
+            yield conversation.AssistantContent(agent_id="test_agent", content="")
 
         mock_chat_log.async_add_delta_content_stream = mock_add_delta_stream
 
@@ -791,6 +789,7 @@ async def test_empty_stream_response(
 
 @pytest.mark.asyncio
 async def test_network_error_before_streaming_starts(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -807,7 +806,7 @@ async def test_network_error_before_streaming_starts(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []
@@ -822,9 +821,7 @@ async def test_network_error_before_streaming_starts(
         # Mock response that fails on enter
         mock_response = MagicMock()
         mock_response.status = 200
-        mock_response.__aenter__ = AsyncMock(
-            side_effect=aiohttp.ClientError("Connection refused")
-        )
+        mock_response.__aenter__ = AsyncMock(side_effect=aiohttp.ClientError("Connection refused"))
         mock_response.__aexit__ = AsyncMock(return_value=None)
 
         # Mock synchronous fallback
@@ -869,6 +866,7 @@ async def test_network_error_before_streaming_starts(
 
 @pytest.mark.asyncio
 async def test_stream_with_only_done_marker(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -884,7 +882,7 @@ async def test_stream_with_only_done_marker(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Create stream with only [DONE]
         async def done_only_stream():
@@ -907,9 +905,7 @@ async def test_stream_with_only_done_marker(
             """Mock that captures deltas."""
             async for delta in delta_stream:
                 processed_deltas.append(delta)
-            yield conversation.AssistantContent(
-                agent_id="test_agent", content=""
-            )
+            yield conversation.AssistantContent(agent_id="test_agent", content="")
 
         mock_chat_log.async_add_delta_content_stream = mock_add_delta_stream
 
@@ -939,6 +935,7 @@ async def test_stream_with_only_done_marker(
 
 @pytest.mark.asyncio
 async def test_stream_handler_exception_propagation(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -954,7 +951,7 @@ async def test_stream_handler_exception_propagation(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []
