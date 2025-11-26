@@ -437,6 +437,7 @@ class TestMakeJsonSerializable:
     def test_serialize_datetime(self):
         """Test that datetime objects are converted to ISO format strings."""
         from datetime import datetime
+
         from custom_components.home_agent.context_providers.base import _make_json_serializable
 
         dt = datetime(2025, 11, 24, 13, 18, 7, 730000)
@@ -448,6 +449,7 @@ class TestMakeJsonSerializable:
     def test_serialize_nested_datetime_in_dict(self):
         """Test that datetime in nested dict is serialized."""
         from datetime import datetime
+
         from custom_components.home_agent.context_providers.base import _make_json_serializable
 
         data = {
@@ -463,6 +465,7 @@ class TestMakeJsonSerializable:
     def test_serialize_datetime_in_list(self):
         """Test that datetime in list is serialized."""
         from datetime import datetime
+
         from custom_components.home_agent.context_providers.base import _make_json_serializable
 
         data = [datetime(2025, 1, 1), "string", 123]

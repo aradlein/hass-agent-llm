@@ -12,11 +12,11 @@ Configuration options tested:
 5. Event Emission: enabled (True) vs. disabled (False)
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from custom_components.home_agent.agent import HomeAgent
-from custom_components.home_agent.vector_db_manager import VectorDBManager
 from custom_components.home_agent.const import (
     CONF_CONTEXT_FORMAT,
     CONF_CONTEXT_MODE,
@@ -59,7 +59,7 @@ from custom_components.home_agent.const import (
     LLM_BACKEND_OLLAMA_GPU,
     LLM_BACKEND_VLLM,
 )
-
+from custom_components.home_agent.vector_db_manager import VectorDBManager
 
 # =============================================================================
 # LLM Backend Tests

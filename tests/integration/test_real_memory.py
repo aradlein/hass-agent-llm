@@ -4,16 +4,10 @@ These tests verify that the MemoryManager correctly stores, retrieves, and
 searches memories using real ChromaDB and real LLM for extraction.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from custom_components.home_agent.memory_manager import (
-    MemoryManager,
-    MEMORY_TYPE_FACT,
-    MEMORY_TYPE_PREFERENCE,
-    MEMORY_TYPE_EVENT,
-)
-from custom_components.home_agent.vector_db_manager import VectorDBManager
+import pytest
+
 from custom_components.home_agent.const import (
     CONF_CONTEXT_MODE,
     CONF_VECTOR_DB_COLLECTION,
@@ -25,6 +19,13 @@ from custom_components.home_agent.const import (
     CONTEXT_MODE_VECTOR_DB,
     EMBEDDING_PROVIDER_OLLAMA,
 )
+from custom_components.home_agent.memory_manager import (
+    MEMORY_TYPE_EVENT,
+    MEMORY_TYPE_FACT,
+    MEMORY_TYPE_PREFERENCE,
+    MemoryManager,
+)
+from custom_components.home_agent.vector_db_manager import VectorDBManager
 
 
 @pytest.mark.integration

@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from custom_components.home_agent.conversation_session import (
-    ConversationSessionManager,
     DEFAULT_SESSION_TIMEOUT,
+    ConversationSessionManager,
 )
 
 

@@ -4,8 +4,9 @@ These tests verify that conversation history correctly persists, loads,
 and applies token/message limits.
 """
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from custom_components.home_agent.agent import HomeAgent
 from custom_components.home_agent.const import (

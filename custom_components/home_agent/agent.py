@@ -835,7 +835,6 @@ class HomeAgent(AbstractConversationAgent):
         """
         from homeassistant.components import conversation
         from homeassistant.components.conversation.chat_log import current_chat_log
-
         from homeassistant.helpers import llm
 
         from .streaming import OpenAIStreamingHandler

@@ -7,9 +7,9 @@ and streaming responses.
 
 import json
 import logging
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from homeassistant.const import ATTR_ENTITY_ID
 
 from custom_components.home_agent.agent import HomeAgent

@@ -799,8 +799,8 @@ async def test_tool_timeout_fires_proper_events(mock_hass_for_custom_tools, sess
     - A "failed" event is fired with timeout information
     - The failed event includes error_type: "TimeoutError"
     """
-    from custom_components.home_agent.exceptions import ToolExecutionError
     from custom_components.home_agent.const import EVENT_TOOL_PROGRESS
+    from custom_components.home_agent.exceptions import ToolExecutionError
     from custom_components.home_agent.tool_handler import ToolHandler
 
     # Track events

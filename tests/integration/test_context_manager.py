@@ -4,8 +4,9 @@ These tests verify that the context manager correctly switches between modes
 and handles different context formatting options.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from custom_components.home_agent.agent import HomeAgent
 from custom_components.home_agent.const import (

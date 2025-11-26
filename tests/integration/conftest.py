@@ -103,6 +103,7 @@ async def chromadb_client(chromadb_config: dict[str, Any]) -> AsyncGenerator[Any
         pytest.skip: If ChromaDB is not available
     """
     import socket as socket_module
+
     import _socket
 
     # Enable real sockets for this session-scoped fixture
@@ -664,6 +665,7 @@ def socket_enabled(request: pytest.FixtureRequest):
         request: Pytest request object
     """
     import socket as socket_module
+
     import _socket
 
     # Store the current socket implementation
