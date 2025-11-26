@@ -199,10 +199,12 @@ from ..const import (
     CONF_EXTERNAL_LLM_ENABLED,
     CONF_MEMORY_ENABLED,
     CONF_MEMORY_EXTRACTION_LLM,
+    CONF_MEMORY_MIN_IMPORTANCE,
     DEFAULT_MEMORY_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_LLM,
     EVENT_MEMORY_EXTRACTED,
 )
+from ..memory.validator import MemoryValidator
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -225,11 +227,30 @@ class MemoryExtractionMixin:
     hass: "HomeAssistant"
     config: dict[str, Any]
     tool_handler: "ToolHandler"
+    _memory_validator: MemoryValidator | None = None
 
     @property
     def memory_manager(self) -> Any:
         """Get memory manager (provided by host class)."""
         ...
+
+    @property
+    def memory_validator(self) -> MemoryValidator:
+        """Get or create the memory validator instance.
+
+        Returns:
+            MemoryValidator configured with current settings
+        """
+        if self._memory_validator is None:
+            # Use config value if set, otherwise use 0.4 (historical default for extraction)
+            # Note: DEFAULT_MEMORY_MIN_IMPORTANCE (0.3) is for storage, but extraction
+            # has historically used 0.4 as a stricter threshold
+            min_importance = self.config.get(CONF_MEMORY_MIN_IMPORTANCE, 0.4)
+            self._memory_validator = MemoryValidator(
+                min_word_count=10,
+                min_importance=min_importance,
+            )
+        return self._memory_validator
 
     # This method is provided by LLMMixin
     async def _call_llm(
@@ -478,101 +499,24 @@ Return ONLY valid JSON, no other text:
             stored_count = 0
             for memory_data in memories:
                 try:
-                    # Validate memory data
-                    if not isinstance(memory_data, dict):
-                        _LOGGER.warning("Skipping invalid memory data: %s", memory_data)
-                        continue
+                    # Validate memory using MemoryValidator
+                    is_valid, rejection_reason = self.memory_validator.validate(
+                        memory_data
+                    )
 
-                    if "content" not in memory_data:
-                        _LOGGER.warning(
-                            "Skipping memory without content: %s", memory_data
+                    if not is_valid:
+                        content = memory_data.get("content", "")[:50] if isinstance(
+                            memory_data, dict
+                        ) else str(memory_data)[:50]
+                        _LOGGER.debug(
+                            "Rejecting memory (%s): %s",
+                            rejection_reason,
+                            content,
                         )
                         continue
 
                     content = memory_data["content"]
                     memory_type = memory_data.get("type", "fact")
-                    importance = memory_data.get("importance", 0.5)
-
-                    # Quality validation checks
-
-                    # 1. Reject if too short (less than 10 meaningful words)
-                    # Count only meaningful words (>2 chars) to filter out filler words
-                    words = content.split()
-                    meaningful_words = [w for w in words if len(w) > 2]
-                    meaningful_word_count = len(meaningful_words)
-                    if meaningful_word_count < 10:
-                        _LOGGER.debug(
-                            "Rejecting short memory (%d meaningful words): %s",
-                            meaningful_word_count,
-                            content[:50],
-                        )
-                        continue
-
-                    # 2. Reject if contains low-value patterns
-                    content_lower = content.lower()
-                    low_value_patterns = [
-                        # Negative existence statements
-                        ("there is no", "starts"),
-                        ("there are no", "starts"),
-                        ("no specific", "contains"),
-                        ("does not have", "contains"),
-                        # Conversation meta-information
-                        ("the conversation occurred", "contains"),
-                        ("conversation occurred", "contains"),
-                        ("we discussed", "contains"),
-                        ("we talked about", "contains"),
-                        ("user asked about", "contains"),
-                        ("during the conversation", "contains"),
-                        ("at the time", "contains"),
-                        ("in the conversation", "contains"),
-                        # Temporal references without context
-                        (
-                            ("at ", "starts")
-                            if content_lower.startswith("at ") and ":" in content
-                            else (None, None)
-                        ),
-                    ]
-
-                    rejected = False
-                    for pattern, match_type in low_value_patterns:
-                        if pattern is None:
-                            continue
-                        if match_type == "starts" and content_lower.startswith(pattern):
-                            _LOGGER.debug(
-                                "Rejecting low-value memory (starts with '%s'): %s",
-                                pattern,
-                                content[:50],
-                            )
-                            rejected = True
-                            break
-                        elif match_type == "contains" and pattern in content_lower:
-                            _LOGGER.debug(
-                                "Rejecting low-value memory (contains '%s'): %s",
-                                pattern,
-                                content[:50],
-                            )
-                            rejected = True
-                            break
-
-                    if rejected:
-                        continue
-
-                    # 3. Reject if importance is too low
-                    if importance < 0.4:
-                        _LOGGER.debug(
-                            "Rejecting low-importance memory (%.2f): %s",
-                            importance,
-                            content[:50],
-                        )
-                        continue
-
-                    # 4. Reject transient state or low-quality content (all types)
-                    if self.memory_manager._is_transient_state(content):
-                        _LOGGER.debug(
-                            "Rejecting transient/low-quality content: %s",
-                            content[:50],
-                        )
-                        continue
 
                     memory_id = await self.memory_manager.add_memory(
                         content=content,
