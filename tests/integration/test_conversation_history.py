@@ -52,7 +52,7 @@ async def test_history_persistence(test_hass, llm_config, session_manager):
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         # Create first agent and send messages
@@ -173,7 +173,7 @@ async def test_history_token_limits(test_hass, llm_config, session_manager):
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)
@@ -253,7 +253,7 @@ async def test_history_message_limits(test_hass, llm_config, session_manager):
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)
@@ -333,7 +333,7 @@ async def test_history_disabled(test_hass, llm_config, session_manager):
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)

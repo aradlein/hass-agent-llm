@@ -31,13 +31,17 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def vector_db_config():
-    """Provide standard vector DB configuration."""
+def vector_db_config(chromadb_config, embedding_config):
+    """Provide standard vector DB configuration from environment variables.
+
+    Uses chromadb_config and embedding_config fixtures from conftest.py
+    which load values from .env.test via environment variables.
+    """
     return {
-        CONF_VECTOR_DB_HOST: "db.inorganic.me",
-        CONF_VECTOR_DB_PORT: 8000,
+        CONF_VECTOR_DB_HOST: chromadb_config["host"],
+        CONF_VECTOR_DB_PORT: chromadb_config["port"],
         CONF_VECTOR_DB_COLLECTION: "home_entities",
-        CONF_VECTOR_DB_EMBEDDING_MODEL: "mxbai-embed-large",
+        CONF_VECTOR_DB_EMBEDDING_MODEL: embedding_config["model"],
         CONF_VECTOR_DB_EMBEDDING_PROVIDER: EMBEDDING_PROVIDER_OLLAMA,
         CONF_VECTOR_DB_TOP_K: 10,
         CONF_VECTOR_DB_SIMILARITY_THRESHOLD: 250.0,
@@ -124,10 +128,11 @@ class TestPhase2VectorDBIntegration:
         """Test that vector DB provider initializes with correct configuration."""
         provider = VectorDBContextProvider(mock_hass, vector_db_config)
 
-        assert provider.host == "db.inorganic.me"
-        assert provider.port == 8000
+        # Assert against the config values (loaded from environment via fixtures)
+        assert provider.host == vector_db_config[CONF_VECTOR_DB_HOST]
+        assert provider.port == vector_db_config[CONF_VECTOR_DB_PORT]
         assert provider.collection_name == "home_entities"
-        assert provider.embedding_model == "mxbai-embed-large"
+        assert provider.embedding_model == vector_db_config[CONF_VECTOR_DB_EMBEDDING_MODEL]
         assert provider.embedding_provider == EMBEDDING_PROVIDER_OLLAMA
         assert provider.top_k == 10
         assert provider.similarity_threshold == 250.0

@@ -122,7 +122,7 @@ async def test_conversation_persistence_across_messages(
     """
     # Create agent with session manager
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, test_config, session_manager)
@@ -183,7 +183,7 @@ async def test_device_isolation(
     4. Each device maintains its own separate conversation
     """
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, test_config, session_manager)
@@ -257,7 +257,7 @@ async def test_explicit_conversation_id_honored(
     4. Explicit ID takes precedence over session mapping
     """
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, test_config, session_manager)
@@ -318,7 +318,7 @@ async def test_session_activity_updates(
     3. Session info reflects recent activity
     """
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, test_config, session_manager)
@@ -395,7 +395,7 @@ async def test_clear_conversation_service(
     4. Session count is correctly reported
     """
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, test_config, session_manager)
@@ -483,7 +483,7 @@ async def test_conversation_persistence_in_streaming_mode(
     streaming_config = {**test_config, CONF_STREAMING_ENABLED: True}
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, streaming_config, session_manager)
@@ -550,7 +550,7 @@ async def test_session_timeout_behavior(
     await short_timeout_manager.async_load()
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, test_config, short_timeout_manager)
@@ -609,7 +609,7 @@ async def test_user_id_fallback_when_no_device_id(
     3. Preference for device_id over user_id when both are present
     """
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, test_config, session_manager)

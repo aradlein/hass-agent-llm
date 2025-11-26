@@ -114,7 +114,7 @@ async def test_custom_tools_registration(
     mock_hass_for_custom_tools, custom_tools_config, session_manager
 ):
     """Test that custom tools are registered from configuration."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
@@ -134,7 +134,7 @@ async def test_custom_tool_has_correct_properties(
     mock_hass_for_custom_tools, custom_tools_config, session_manager
 ):
     """Test that registered custom tools have correct properties."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
@@ -155,7 +155,7 @@ async def test_custom_tool_appears_in_llm_tools_list(
     session_manager, mock_hass_for_custom_tools, custom_tools_config
 ):
     """Test that custom tools appear in the tools list for LLM."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
@@ -176,7 +176,7 @@ async def test_custom_rest_tool_execution_success(
     mock_hass_for_custom_tools, custom_tools_config, session_manager
 ):
     """Test successful execution of a custom REST tool."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
@@ -208,7 +208,7 @@ async def test_custom_rest_tool_execution_with_post(
     session_manager, mock_hass_for_custom_tools, custom_tools_config
 ):
     """Test POST request execution of a custom REST tool."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
@@ -252,7 +252,7 @@ async def test_custom_tool_registration_with_validation_error(
         ],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         # Should not raise exception - just log error and continue
@@ -269,7 +269,7 @@ async def test_multiple_custom_tools_registration(
     mock_hass_for_custom_tools, custom_tools_config, session_manager
 ):
     """Test that multiple custom tools can be registered simultaneously."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
@@ -295,7 +295,7 @@ async def test_custom_tool_error_propagation(
     mock_hass_for_custom_tools, custom_tools_config, session_manager
 ):
     """Test that custom tool errors are properly propagated."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
@@ -382,7 +382,7 @@ async def test_service_tools_registration(
     # Mock has_service to return True for all services
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
@@ -405,7 +405,7 @@ async def test_service_tool_has_correct_properties(
     """Test that registered service tools have correct properties."""
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
@@ -428,7 +428,7 @@ async def test_service_tool_appears_in_llm_tools_list(
     """Test that service tools appear in the tools list for LLM."""
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
@@ -453,7 +453,7 @@ async def test_service_tool_execution_success(
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
     mock_hass_for_custom_tools.services.async_call = AsyncMock()
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
@@ -487,7 +487,7 @@ async def test_service_tool_execution_with_parameters(
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
     mock_hass_for_custom_tools.services.async_call = AsyncMock()
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
@@ -527,7 +527,7 @@ async def test_service_tool_execution_with_target(
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
     mock_hass_for_custom_tools.services.async_call = AsyncMock()
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
@@ -559,7 +559,7 @@ async def test_service_tool_error_propagation(
     error._message = "Service automation.trigger not found"
     mock_hass_for_custom_tools.services.async_call = AsyncMock(side_effect=error)
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
@@ -612,7 +612,7 @@ async def test_mixed_rest_and_service_tools(mock_hass_for_custom_tools, session_
 
     mock_hass_for_custom_tools.services.has_service = MagicMock(return_value=True)
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_custom_tools, mixed_config, session_manager)

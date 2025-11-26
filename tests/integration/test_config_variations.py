@@ -29,8 +29,8 @@ from custom_components.home_agent.const import (
     CONF_EXTERNAL_LLM_MODEL,
     CONF_HISTORY_ENABLED,
     CONF_LLM_API_KEY,
-    CONF_LLM_BACKEND,
     CONF_LLM_BASE_URL,
+    CONF_LLM_PROXY_HEADERS,
     CONF_LLM_KEEP_ALIVE,
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
@@ -54,37 +54,33 @@ from custom_components.home_agent.const import (
     CONTEXT_MODE_VECTOR_DB,
     EMBEDDING_PROVIDER_OLLAMA,
     EMBEDDING_PROVIDER_OPENAI,
-    LLM_BACKEND_DEFAULT,
-    LLM_BACKEND_LLAMA_CPP,
-    LLM_BACKEND_OLLAMA_GPU,
-    LLM_BACKEND_VLLM,
 )
 from custom_components.home_agent.vector_db_manager import VectorDBManager
 
 # =============================================================================
-# LLM Backend Tests
+# Proxy Headers Tests
 # =============================================================================
 
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    "backend_value",
+    "header_value",
     [
-        LLM_BACKEND_LLAMA_CPP,
-        LLM_BACKEND_VLLM,
-        LLM_BACKEND_OLLAMA_GPU,
+        "llama-cpp",
+        "vllm-server",
+        "ollama-gpu",
     ],
 )
 @pytest.mark.asyncio
-async def test_llm_backend_header_sent(
-    test_hass, llm_config, backend_value, sample_entity_states, session_manager
+async def test_proxy_headers_sent(
+    test_hass, llm_config, header_value, sample_entity_states, session_manager
 ):
-    """Test that non-default LLM backends set the X-Ollama-Backend header.
+    """Test that proxy headers are correctly sent to the LLM API.
 
     This test verifies:
-    1. The X-Ollama-Backend header is included when backend != "default"
-    2. The header value matches the configured backend
-    3. The LLM request is made with the correct header
+    1. Custom proxy headers are included in LLM requests
+    2. The header value matches the configured value
+    3. Multiple header types work correctly
     """
     config = {
         CONF_LLM_BASE_URL: llm_config["base_url"],
@@ -92,7 +88,7 @@ async def test_llm_backend_header_sent(
         CONF_LLM_MODEL: llm_config["model"],
         CONF_LLM_TEMPERATURE: 0.7,
         CONF_LLM_MAX_TOKENS: 500,
-        CONF_LLM_BACKEND: backend_value,
+        CONF_LLM_PROXY_HEADERS: {"X-Ollama-Backend": header_value},
         CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
         CONF_DIRECT_ENTITIES: ["light.living_room"],
         CONF_CONTEXT_FORMAT: CONTEXT_FORMAT_JSON,
@@ -102,7 +98,7 @@ async def test_llm_backend_header_sent(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -153,23 +149,23 @@ async def test_llm_backend_header_sent(
 
             assert (
                 "X-Ollama-Backend" in headers
-            ), f"X-Ollama-Backend header should be set for backend={backend_value}"
+            ), f"X-Ollama-Backend header should be set for proxy_headers={header_value}"
             assert (
-                headers["X-Ollama-Backend"] == backend_value
-            ), f"X-Ollama-Backend header should be '{backend_value}', got '{headers['X-Ollama-Backend']}'"
+                headers["X-Ollama-Backend"] == header_value
+            ), f"X-Ollama-Backend header should be '{header_value}', got '{headers['X-Ollama-Backend']}'"
 
         await agent.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_llm_backend_default_no_header(
+async def test_no_proxy_headers_no_custom_header(
     test_hass, llm_config, sample_entity_states, session_manager
 ):
-    """Test that default LLM backend does NOT set X-Ollama-Backend header.
+    """Test that no custom headers are sent when proxy_headers is not configured.
 
     This test verifies:
-    1. When backend="default", the X-Ollama-Backend header is NOT included
+    1. When proxy_headers is empty/not set, no X-Ollama-Backend header is included
     2. This is the default behavior to avoid adding unnecessary headers
     """
     config = {
@@ -178,7 +174,7 @@ async def test_llm_backend_default_no_header(
         CONF_LLM_MODEL: llm_config["model"],
         CONF_LLM_TEMPERATURE: 0.7,
         CONF_LLM_MAX_TOKENS: 500,
-        CONF_LLM_BACKEND: LLM_BACKEND_DEFAULT,
+        CONF_LLM_PROXY_HEADERS: {},
         CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
         CONF_DIRECT_ENTITIES: ["light.living_room"],
         CONF_CONTEXT_FORMAT: CONTEXT_FORMAT_JSON,
@@ -188,7 +184,7 @@ async def test_llm_backend_default_no_header(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -239,7 +235,7 @@ async def test_llm_backend_default_no_header(
 
             assert (
                 "X-Ollama-Backend" not in headers
-            ), "X-Ollama-Backend header should NOT be set for default backend"
+            ), "X-Ollama-Backend header should NOT be set when proxy_headers is empty"
 
         await agent.close()
 
@@ -277,7 +273,7 @@ async def test_llm_temperature_in_payload(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -345,7 +341,7 @@ async def test_llm_max_tokens_in_payload(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -414,7 +410,7 @@ async def test_llm_keep_alive_in_payload(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -482,7 +478,7 @@ async def test_llm_top_p_in_payload(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -548,7 +544,7 @@ async def test_llm_payload_all_parameters_together(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -642,7 +638,7 @@ async def test_llm_streaming_payload_parameters(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -761,7 +757,7 @@ async def test_context_format_variations(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -840,7 +836,7 @@ async def test_context_format_json_baseline(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -904,7 +900,7 @@ async def test_embedding_provider_openai(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=True,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -976,7 +972,7 @@ async def test_embedding_provider_ollama(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=True,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -1055,7 +1051,7 @@ async def test_memory_extraction_llm_local(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -1146,7 +1142,7 @@ async def test_memory_extraction_llm_external(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -1248,7 +1244,7 @@ async def test_multiple_alternative_configs_together(
         CONF_LLM_MODEL: llm_config["model"],
         CONF_LLM_TEMPERATURE: 0.7,
         CONF_LLM_MAX_TOKENS: 500,
-        CONF_LLM_BACKEND: LLM_BACKEND_LLAMA_CPP,  # Alternative backend
+        CONF_LLM_PROXY_HEADERS: {"X-Ollama-Backend": "llama-cpp"},  # Custom proxy header
         # Context config with alternative format
         CONF_CONTEXT_MODE: CONTEXT_MODE_VECTOR_DB,
         CONF_CONTEXT_FORMAT: CONTEXT_FORMAT_NATURAL_LANGUAGE,  # Alternative format
@@ -1267,7 +1263,7 @@ async def test_multiple_alternative_configs_together(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=True,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -1303,7 +1299,7 @@ async def test_multiple_alternative_configs_together(
                 mock_embed.return_value = [0.1] * 1024  # Mock embedding vector
 
                 # Verify all configurations are set
-                assert agent.config.get(CONF_LLM_BACKEND) == LLM_BACKEND_LLAMA_CPP
+                assert agent.config.get(CONF_LLM_PROXY_HEADERS) == {"X-Ollama-Backend": "llama-cpp"}
                 assert agent.config.get(CONF_CONTEXT_FORMAT) == CONTEXT_FORMAT_NATURAL_LANGUAGE
                 assert (
                     agent.config.get(CONF_VECTOR_DB_EMBEDDING_PROVIDER) == EMBEDDING_PROVIDER_OLLAMA
@@ -1354,7 +1350,7 @@ async def test_events_fire_when_enabled(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -1467,7 +1463,7 @@ async def test_events_do_not_fire_when_disabled(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -1562,7 +1558,7 @@ async def test_emit_events_runtime_check_in_tool_handler(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -1650,7 +1646,7 @@ async def test_emit_events_dynamic_change(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -1797,7 +1793,7 @@ async def test_memory_extraction_event_respects_emit_events(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -1924,11 +1920,11 @@ Configuration Coverage Summary
 
 This test file provides comprehensive coverage for all alternative configuration values:
 
-1. LLM Backends (CONF_LLM_BACKEND):
-   - ✓ llama-cpp: test_llm_backend_header_sent
-   - ✓ vllm-server: test_llm_backend_header_sent
-   - ✓ ollama-gpu: test_llm_backend_header_sent
-   - ✓ default (baseline): test_llm_backend_default_no_header
+1. Proxy Headers (CONF_LLM_PROXY_HEADERS):
+   - ✓ llama-cpp: test_proxy_headers_sent
+   - ✓ vllm-server: test_proxy_headers_sent
+   - ✓ ollama-gpu: test_proxy_headers_sent
+   - ✓ empty (baseline): test_no_proxy_headers_no_custom_header
 
 2. Context Formats (CONF_CONTEXT_FORMAT):
    - ✓ natural_language: test_context_format_variations
@@ -1953,9 +1949,8 @@ This test file provides comprehensive coverage for all alternative configuration
 Code Paths Covered
 ==================
 
-1. agent.py:
-   - Lines 534-536: X-Ollama-Backend header addition (llm_backend)
-   - Lines 598-600: X-Ollama-Backend header in streaming (llm_backend)
+1. agent/llm.py and agent/streaming.py:
+   - Proxy headers addition (llm_proxy_headers)
    - Lines 692-702: EVENT_CONVERSATION_STARTED emission check (emit_events)
    - Lines 725-740: EVENT_CONVERSATION_FINISHED emission check (emit_events)
    - Lines 748-763: EVENT_ERROR emission check (emit_events)

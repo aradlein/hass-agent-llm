@@ -1,7 +1,92 @@
-"""Main conversation agent for Home Agent.
+"""Core conversation agent implementation for Home Agent.
 
-This module implements the core HomeAgent class that orchestrates all components
-to provide intelligent conversation capabilities integrated with Home Assistant.
+This module implements the HomeAgent class, which serves as the central orchestrator
+for all conversation-related functionality in the Home Agent integration. It brings
+together LLM communication, tool execution, context management, and conversation
+history to provide an intelligent conversational AI assistant for Home Assistant.
+
+Architecture:
+    The HomeAgent class uses a mixin-based architecture to separate concerns:
+
+    - Inherits from LLMMixin for LLM API communication
+    - Inherits from StreamingMixin for real-time streaming responses
+    - Inherits from MemoryExtractionMixin for automatic memory extraction
+    - Inherits from AbstractConversationAgent to integrate with Home Assistant
+
+Key Classes:
+    HomeAgent: Main conversation agent that integrates with Home Assistant's
+        conversation platform. Manages the complete lifecycle of a conversation
+        from user input to assistant response, including:
+
+        - Entity context injection
+        - Conversation history management
+        - Tool calling and execution
+        - Streaming and synchronous response modes
+        - Memory extraction and storage
+        - Event emission for observability
+
+Core Responsibilities:
+    - Process user inputs through Home Assistant's conversation platform
+    - Build and manage conversation context (system prompts, entity states)
+    - Execute multi-turn conversations with tool calling support
+    - Coordinate between LLM, tools, and Home Assistant services
+    - Track conversation history and metrics
+    - Support both streaming and synchronous response modes
+
+Usage Example:
+    Basic conversation processing:
+        agent = HomeAgent(hass, config, session_manager)
+        result = await agent.async_process(user_input)
+
+    Direct message processing:
+        response = await agent.process_message(
+            text="Turn on the kitchen lights",
+            conversation_id="conv_123",
+            user_id="user_456"
+        )
+
+    Tool execution for debugging:
+        result = await agent.execute_tool_debug(
+            tool_name="ha_control",
+            parameters={"action": "turn_on", "entity_id": "light.kitchen"}
+        )
+
+Integration Points:
+    - AbstractConversationAgent: Base class for Home Assistant conversation agents
+    - ContextManager: Provides entity and memory context for conversations
+    - ConversationHistoryManager: Manages multi-turn conversation history
+    - ToolHandler: Executes tools (Home Assistant actions, external services)
+    - MemoryManager: Stores and retrieves long-term memories
+    - ConversationSessionManager: Manages persistent voice conversation sessions
+
+Tool Calling Flow:
+    1. User message received via async_process() or process_message()
+    2. Context manager assembles relevant entity states and memories
+    3. System prompt built with context and conversation history
+    4. LLM called with messages and tool definitions
+    5. If LLM requests tools, execute them via ToolHandler
+    6. Results fed back to LLM for final response
+    7. Response saved to conversation history
+    8. Memories extracted asynchronously for future context
+
+Configuration:
+    The agent is configured through the config dictionary passed during
+    initialization. Key configuration options include:
+
+    - LLM settings (model, temperature, API credentials)
+    - Context mode (entity filtering and injection)
+    - History settings (max messages, token limits)
+    - Tool settings (max calls per turn, timeouts)
+    - Streaming and memory extraction toggles
+
+Events:
+    The agent emits events for observability:
+
+    - conversation_started: When a conversation begins
+    - conversation_finished: When a conversation completes with metrics
+    - error: When errors occur during processing
+    - streaming_error: When streaming fails (with fallback)
+    - memory_extracted: When memories are extracted and stored
 """
 
 from __future__ import annotations
@@ -9,10 +94,10 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .conversation_session import ConversationSessionManager
+    from ..conversation_session import ConversationSessionManager
 
 import aiohttp
 from homeassistant.components import conversation as ha_conversation
@@ -23,7 +108,7 @@ from homeassistant.exceptions import TemplateError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import intent, template
 
-from .const import (
+from ..const import (
     CONF_CONTEXT_ENTITIES,
     CONF_CONTEXT_MODE,
     CONF_DEBUG_LOGGING,
@@ -33,17 +118,7 @@ from .const import (
     CONF_HISTORY_MAX_MESSAGES,
     CONF_HISTORY_MAX_TOKENS,
     CONF_HISTORY_PERSIST,
-    CONF_LLM_API_KEY,
-    CONF_LLM_BACKEND,
-    CONF_LLM_BASE_URL,
-    CONF_LLM_KEEP_ALIVE,
-    CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
-    CONF_LLM_TEMPERATURE,
-    CONF_LLM_TOP_P,
-    CONF_MEMORY_ENABLED,
-    CONF_MEMORY_EXTRACTION_ENABLED,
-    CONF_MEMORY_EXTRACTION_LLM,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
     CONF_STREAMING_ENABLED,
@@ -52,10 +127,7 @@ from .const import (
     CONF_TOOLS_TIMEOUT,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
-    DEFAULT_LLM_KEEP_ALIVE,
-    DEFAULT_MEMORY_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
-    DEFAULT_MEMORY_EXTRACTION_LLM,
     DEFAULT_STREAMING_ENABLED,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
@@ -63,25 +135,30 @@ from .const import (
     EVENT_CONVERSATION_FINISHED,
     EVENT_CONVERSATION_STARTED,
     EVENT_ERROR,
-    EVENT_MEMORY_EXTRACTED,
     EVENT_STREAMING_ERROR,
-    HTTP_TIMEOUT,
-    LLM_BACKEND_DEFAULT,
+    CONF_MEMORY_EXTRACTION_ENABLED,
     TOOL_QUERY_EXTERNAL_LLM,
 )
-from .context_manager import ContextManager
-from .conversation import ConversationHistoryManager
-from .exceptions import AuthenticationError, HomeAgentError
-from .helpers import redact_sensitive_data
-from .tool_handler import ToolHandler
-from .tools import HomeAssistantControlTool, HomeAssistantQueryTool
-from .tools.custom import CustomToolHandler
-from .tools.external_llm import ExternalLLMTool
+from ..context_manager import ContextManager
+from ..conversation import ConversationHistoryManager
+from ..tool_handler import ToolHandler
+from ..tools import HomeAssistantControlTool, HomeAssistantQueryTool
+from ..tools.custom import CustomToolHandler
+from ..tools.external_llm import ExternalLLMTool
+
+from .llm import LLMMixin
+from .streaming import StreamingMixin
+from .memory_extraction import MemoryExtractionMixin
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class HomeAgent(AbstractConversationAgent):
+class HomeAgent(
+    LLMMixin,
+    StreamingMixin,
+    MemoryExtractionMixin,
+    AbstractConversationAgent,
+):
     """Main conversation agent that orchestrates all Home Agent components.
 
     This class integrates with Home Assistant's conversation platform and provides
@@ -151,25 +228,6 @@ class HomeAgent(AbstractConversationAgent):
                     self._memory_manager = entry_data["memory_manager"]
                     break
         return self._memory_manager
-
-    def _can_stream(self) -> bool:
-        """Check if streaming is supported in the current context.
-
-        Returns:
-            True if streaming is enabled and ChatLog with delta_listener is available
-        """
-        from homeassistant.components.conversation.chat_log import current_chat_log
-
-        # Check if streaming is enabled in config
-        if not self.config.get(CONF_STREAMING_ENABLED, DEFAULT_STREAMING_ENABLED):
-            return False
-
-        # Check if ChatLog with delta_listener exists (means assist pipeline supports streaming)
-        chat_log = current_chat_log.get()
-        if chat_log is None or chat_log.delta_listener is None:
-            return False
-
-        return True
 
     def _ensure_tools_registered(self) -> None:
         """Ensure tools are registered (lazy registration).
@@ -286,7 +344,7 @@ class HomeAgent(AbstractConversationAgent):
 
         # Register memory tools if memory manager is available
         if self.memory_manager is not None:
-            from .tools.memory_tools import RecallMemoryTool, StoreMemoryTool
+            from ..tools.memory_tools import RecallMemoryTool, StoreMemoryTool
 
             store_memory = StoreMemoryTool(
                 self.hass,
@@ -308,7 +366,7 @@ class HomeAgent(AbstractConversationAgent):
         Args:
             custom_tools_config: List of custom tool configuration dictionaries
         """
-        from .exceptions import ValidationError
+        from ..exceptions import ValidationError
 
         registered_count = 0
         failed_count = 0
@@ -423,17 +481,6 @@ class HomeAgent(AbstractConversationAgent):
 
         return exposed_entities
 
-    async def _ensure_session(self) -> aiohttp.ClientSession:
-        """Ensure HTTP session exists.
-
-        Returns:
-            Active aiohttp ClientSession
-        """
-        if self._session is None or self._session.closed:
-            timeout = aiohttp.ClientTimeout(total=HTTP_TIMEOUT)
-            self._session = aiohttp.ClientSession(timeout=timeout)
-        return self._session
-
     async def close(self) -> None:
         """Clean up resources."""
         if self._session and not self._session.closed:
@@ -509,151 +556,6 @@ class HomeAgent(AbstractConversationAgent):
         except TemplateError as err:
             _LOGGER.warning("Template rendering failed: %s. Using raw template.", err)
             return template_str
-
-    async def _call_llm(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-    ) -> dict[str, Any]:
-        """Call the LLM API.
-
-        Args:
-            messages: List of messages in OpenAI format
-            tools: Optional list of tool definitions
-            temperature: Optional temperature override (uses config if not provided)
-            max_tokens: Optional max_tokens override (uses config if not provided)
-
-        Returns:
-            LLM response dictionary
-
-        Raises:
-            AuthenticationError: If API authentication fails
-            HomeAgentError: If API call fails
-        """
-        session = await self._ensure_session()
-
-        url = f"{self.config[CONF_LLM_BASE_URL]}/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.config[CONF_LLM_API_KEY]}",
-        }
-
-        # Add X-Ollama-Backend header if backend is specified and not default
-        backend = self.config.get(CONF_LLM_BACKEND, LLM_BACKEND_DEFAULT)
-        if backend != LLM_BACKEND_DEFAULT:
-            headers["X-Ollama-Backend"] = backend
-
-        payload: dict[str, Any] = {
-            "model": self.config[CONF_LLM_MODEL],
-            "messages": messages,
-            "temperature": (
-                temperature
-                if temperature is not None
-                else self.config.get(CONF_LLM_TEMPERATURE, 0.7)
-            ),
-            "max_tokens": (
-                max_tokens if max_tokens is not None else self.config.get(CONF_LLM_MAX_TOKENS, 500)
-            ),
-            "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
-            "keep_alive": self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
-        }
-
-        if tools:
-            payload["tools"] = tools
-            payload["tool_choice"] = "auto"
-
-        if self.config.get(CONF_DEBUG_LOGGING):
-            _LOGGER.debug(
-                "Calling LLM at %s with %d messages and %d tools",
-                redact_sensitive_data(url, self.config[CONF_LLM_API_KEY]),
-                len(messages),
-                len(tools) if tools else 0,
-            )
-
-        try:
-            async with session.post(url, headers=headers, json=payload) as response:
-                if response.status == 401:
-                    raise AuthenticationError("LLM API authentication failed. Check your API key.")
-
-                if response.status != 200:
-                    error_text = await response.text()
-                    raise HomeAgentError(f"LLM API returned status {response.status}: {error_text}")
-
-                result: dict[str, Any] = await response.json()
-                return result
-
-        except aiohttp.ClientError as err:
-            raise HomeAgentError(f"Failed to connect to LLM API: {err}") from err
-
-    async def _call_llm_streaming(
-        self, messages: list[dict[str, Any]]
-    ) -> AsyncGenerator[str, None]:
-        """Call LLM API with streaming enabled.
-
-        Args:
-            messages: Conversation messages
-
-        Yields:
-            SSE lines from the streaming response
-        """
-        session = await self._ensure_session()
-
-        url = f"{self.config[CONF_LLM_BASE_URL]}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self.config[CONF_LLM_API_KEY]}",
-            "Content-Type": "application/json",
-        }
-
-        # Add X-Ollama-Backend header if backend is specified and not default
-        backend = self.config.get(CONF_LLM_BACKEND, LLM_BACKEND_DEFAULT)
-        if backend != LLM_BACKEND_DEFAULT:
-            headers["X-Ollama-Backend"] = backend
-
-        payload: dict[str, Any] = {
-            "model": self.config[CONF_LLM_MODEL],
-            "messages": messages,
-            "temperature": self.config.get(CONF_LLM_TEMPERATURE, 0.7),
-            "max_tokens": self.config.get(CONF_LLM_MAX_TOKENS, 1000),
-            "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
-            "stream": True,  # Enable streaming!
-            "keep_alive": self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
-        }
-
-        # Add tools if available
-        tool_definitions = self.tool_handler.get_tool_definitions()
-        if tool_definitions:
-            payload["tools"] = tool_definitions
-            payload["tool_choice"] = "auto"
-
-        # Request usage statistics in stream
-        payload["stream_options"] = {"include_usage": True}
-
-        if self.config.get(CONF_DEBUG_LOGGING):
-            _LOGGER.debug(
-                "Calling LLM (streaming) at %s with %d messages and %d tools",
-                redact_sensitive_data(url, self.config[CONF_LLM_API_KEY]),
-                len(messages),
-                len(tool_definitions) if tool_definitions else 0,
-            )
-
-        try:
-            async with session.post(url, headers=headers, json=payload) as response:
-                if response.status == 401:
-                    raise AuthenticationError("LLM API authentication failed. Check your API key.")
-
-                if response.status != 200:
-                    error_text = await response.text()
-                    raise HomeAgentError(f"LLM API returned status {response.status}: {error_text}")
-
-                # Stream SSE lines
-                async for line in response.content:
-                    if line:
-                        yield line.decode("utf-8")
-
-        except aiohttp.ClientError as err:
-            raise HomeAgentError(f"Failed to connect to LLM API: {err}") from err
 
     async def process_message(
         self,
@@ -837,7 +739,7 @@ class HomeAgent(AbstractConversationAgent):
         from homeassistant.components.conversation.chat_log import current_chat_log
         from homeassistant.helpers import llm
 
-        from .streaming import OpenAIStreamingHandler
+        from ..streaming import OpenAIStreamingHandler
 
         chat_log = current_chat_log.get()
         if chat_log is None:
@@ -1464,469 +1366,3 @@ class HomeAgent(AbstractConversationAgent):
         )
 
         _LOGGER.info("Agent configuration updated")
-
-    # Memory Extraction Methods
-
-    def _format_conversation_for_extraction(self, messages: list[dict[str, Any]]) -> str:
-        """Format conversation history for memory extraction.
-
-        Args:
-            messages: List of conversation messages
-
-        Returns:
-            Formatted conversation text
-        """
-        formatted_parts = []
-
-        for msg in messages:
-            role = msg.get("role", "").capitalize()
-            content = msg.get("content", "")
-
-            # Skip system messages and empty messages
-            if role.lower() == "system" or not content:
-                continue
-
-            # Skip tool messages
-            if role.lower() == "tool":
-                continue
-
-            formatted_parts.append(f"{role}: {content}")
-
-        return "\n".join(formatted_parts)
-
-    def _build_extraction_prompt(
-        self,
-        user_message: str,
-        assistant_response: str,
-        full_messages: list[dict[str, Any]],
-    ) -> str:
-        """Build prompt for memory extraction.
-
-        Args:
-            user_message: Current user message
-            assistant_response: Assistant's response
-            full_messages: Complete conversation history
-
-        Returns:
-            Extraction prompt
-        """
-        # Format conversation history (exclude current turn)
-        history_messages = [
-            msg for msg in full_messages if msg.get("role") not in ["system", "tool"]
-        ]
-
-        # Get previous turns (exclude the current user message we just added)
-        if history_messages and history_messages[-1].get("content") == user_message:
-            previous_turns = history_messages[:-1]
-        else:
-            previous_turns = history_messages
-
-        conversation_text = ""
-        if previous_turns:
-            conversation_text = self._format_conversation_for_extraction(previous_turns)
-
-        prompt = f"""You are a memory extraction assistant. Analyze this conversation \
-and extract important information that should be remembered for future conversations.
-
-Extract the following types of information:
-1. **Facts**: Concrete information about the home, devices, or user
-2. **Preferences**: User preferences for temperature, lighting, routines, etc.
-3. **Context**: Background information useful for future interactions
-4. **Events**: Significant events or actions that occurred
-
-## Previous Conversation
-
-{conversation_text if conversation_text else "(No previous conversation)"}
-
-## Current Turn
-
-User: {user_message}
-Assistant: {assistant_response}
-
-## Instructions
-
-Extract memories as a JSON array. Each memory should have:
-- "type": One of "fact", "preference", "context", "event"
-- "content": Clear, concise description (1-2 sentences)
-- "importance": Score from 0.0 to 1.0 (1.0 = very important)
-- "entities": List of Home Assistant entity IDs mentioned (if any)
-- "topics": List of topic tags (e.g., ["temperature", "bedroom"])
-
-**Critical Rules:**
-- Only extract genuinely useful, long-term information
-- Each memory must be at least 7 words long
-- Be specific and concrete with actionable details
-- If nothing worth remembering, return empty array: []
-
-**NEVER extract (these will be automatically rejected):**
-- ❌ Current device states: "light is on", "temperature is 72°F", "door is closed", "lights are currently on"
-- ❌ Transient states: "is currently", "are now", "was on", "were off"
-- ❌ Conversation meta-data: "conversation occurred at 3pm", "we discussed X", "user asked about Y"
-- ❌ Negative statements: "there is no X", "no specific Y sensor", "does not have Z"
-- ❌ Timestamps of conversation: "at 8:59 PM on November 4", "during the conversation"
-- ❌ Generic statements: "the lights can be controlled", "temperature can be adjusted"
-- ❌ Questions without answers: "user asked about temperature" (unless you provide the answer)
-- ❌ Very brief statements under 7 words
-
-**ALWAYS extract (these are valuable):**
-- ✅ User preferences with values: "user prefers bedroom temperature at 68°F for sleeping"
-- ✅ Permanent facts: "user's birthday is September 28th, 1982", "kitchen has 3 ceiling lights"
-- ✅ Patterns and routines: "user wants kitchen lights at 50% brightness during daytime"
-- ✅ Device capabilities (not states): "bedroom thermostat supports heating and cooling modes"
-- ✅ Important context: "user works night shifts and sleeps during the day"
-
-**Examples of REJECTED memories:**
-- "The kitchen lights are currently on" → REJECT: transient state
-- "Conversation occurred at 20:59 PM" → REJECT: conversation metadata
-- "There is no bed sensor for Candace" → REJECT: negative statement
-- "User asked about lights" → REJECT: question without answer, too brief
-
-**Examples of GOOD memories:**
-- "User prefers kitchen lights at 50% brightness during daytime hours" → GOOD: preference with value
-- "Anton's birthday is September 28th, 1982" → GOOD: permanent fact
-- "User works night shifts from Monday to Friday and sleeps during daytime" → GOOD: important routine
-
-Return ONLY valid JSON, no other text:
-
-```json
-[
-  {{
-    "type": "preference",
-    "content": "User prefers bedroom temperature at 68°F for sleeping",
-    "importance": 0.8,
-    "entities": ["climate.bedroom"],
-    "topics": ["temperature", "bedroom", "sleep"]
-  }}
-]
-```"""
-
-        return prompt
-
-    async def _call_primary_llm_for_extraction(self, extraction_prompt: str) -> dict[str, Any]:
-        """Call primary/local LLM for memory extraction.
-
-        Args:
-            extraction_prompt: The extraction prompt
-
-        Returns:
-            Dictionary with success, result, and error fields
-        """
-        try:
-            # Build simple message for extraction
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a memory extraction assistant. Extract important "
-                        "information from conversations and return it as JSON."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": extraction_prompt,
-                },
-            ]
-
-            # Call LLM without tool definitions
-            # Use lower temperature (0.3) for more consistent extraction
-            response = await self._call_llm(
-                messages,
-                tools=None,
-                temperature=0.3,
-            )
-
-            content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
-
-            return {
-                "success": True,
-                "result": content,
-                "error": None,
-            }
-
-        except Exception as err:
-            _LOGGER.error("Primary LLM extraction failed: %s", err)
-            return {
-                "success": False,
-                "result": None,
-                "error": str(err),
-            }
-
-    async def _parse_and_store_memories(
-        self,
-        extraction_result: str,
-        conversation_id: str,
-    ) -> int:
-        """Parse LLM extraction result and store memories.
-
-        Args:
-            extraction_result: JSON string from LLM
-            conversation_id: Conversation ID
-
-        Returns:
-            Number of memories stored
-        """
-        try:
-            # Clean up the result - extract JSON if wrapped in markdown
-            result = extraction_result.strip()
-            if "```json" in result:
-                # Extract JSON from markdown code block
-                start = result.find("```json") + 7
-                end = result.find("```", start)
-                result = result[start:end].strip()
-            elif "```" in result:
-                # Extract from generic code block
-                start = result.find("```") + 3
-                end = result.find("```", start)
-                result = result[start:end].strip()
-
-            # Parse JSON response
-            memories = json.loads(result)
-
-            if not isinstance(memories, list):
-                _LOGGER.error(
-                    "Expected JSON array from memory extraction, got: %s",
-                    type(memories).__name__,
-                )
-                return 0
-
-            if not memories:
-                _LOGGER.debug("No memories extracted from conversation")
-                return 0
-
-            # Store each memory
-            stored_count = 0
-            for memory_data in memories:
-                try:
-                    # Validate memory data
-                    if not isinstance(memory_data, dict):
-                        _LOGGER.warning("Skipping invalid memory data: %s", memory_data)
-                        continue
-
-                    if "content" not in memory_data:
-                        _LOGGER.warning("Skipping memory without content: %s", memory_data)
-                        continue
-
-                    content = memory_data["content"]
-                    memory_type = memory_data.get("type", "fact")
-                    importance = memory_data.get("importance", 0.5)
-
-                    # Quality validation checks
-
-                    # 1. Reject if too short (less than 10 meaningful words)
-                    # Count only meaningful words (>2 chars) to filter out filler words
-                    words = content.split()
-                    meaningful_words = [w for w in words if len(w) > 2]
-                    meaningful_word_count = len(meaningful_words)
-                    if meaningful_word_count < 10:
-                        _LOGGER.debug(
-                            "Rejecting short memory (%d meaningful words): %s",
-                            meaningful_word_count,
-                            content[:50],
-                        )
-                        continue
-
-                    # 2. Reject if contains low-value patterns
-                    content_lower = content.lower()
-                    low_value_patterns = [
-                        # Negative existence statements
-                        ("there is no", "starts"),
-                        ("there are no", "starts"),
-                        ("no specific", "contains"),
-                        ("does not have", "contains"),
-                        # Conversation meta-information
-                        ("the conversation occurred", "contains"),
-                        ("conversation occurred", "contains"),
-                        ("we discussed", "contains"),
-                        ("we talked about", "contains"),
-                        ("user asked about", "contains"),
-                        ("during the conversation", "contains"),
-                        ("at the time", "contains"),
-                        ("in the conversation", "contains"),
-                        # Temporal references without context
-                        (
-                            ("at ", "starts")
-                            if content_lower.startswith("at ") and ":" in content
-                            else (None, None)
-                        ),
-                    ]
-
-                    rejected = False
-                    for pattern, match_type in low_value_patterns:
-                        if pattern is None:
-                            continue
-                        if match_type == "starts" and content_lower.startswith(pattern):
-                            _LOGGER.debug(
-                                "Rejecting low-value memory (starts with '%s'): %s",
-                                pattern,
-                                content[:50],
-                            )
-                            rejected = True
-                            break
-                        elif match_type == "contains" and pattern in content_lower:
-                            _LOGGER.debug(
-                                "Rejecting low-value memory (contains '%s'): %s",
-                                pattern,
-                                content[:50],
-                            )
-                            rejected = True
-                            break
-
-                    if rejected:
-                        continue
-
-                    # 3. Reject if importance is too low
-                    if importance < 0.4:
-                        _LOGGER.debug(
-                            "Rejecting low-importance memory (%.2f): %s",
-                            importance,
-                            content[:50],
-                        )
-                        continue
-
-                    # 4. Reject transient state or low-quality content (all types)
-                    if self.memory_manager._is_transient_state(content):
-                        _LOGGER.debug(
-                            "Rejecting transient/low-quality content: %s",
-                            content[:50],
-                        )
-                        continue
-
-                    memory_id = await self.memory_manager.add_memory(
-                        content=content,
-                        memory_type=memory_type,
-                        conversation_id=conversation_id,
-                        importance=memory_data.get("importance", 0.5),
-                        metadata={
-                            "entities_involved": memory_data.get("entities", []),
-                            "topics": memory_data.get("topics", []),
-                            "extraction_method": "automatic",
-                        },
-                    )
-                    stored_count += 1
-                    _LOGGER.debug("Stored memory %s: %s", memory_id, content[:50])
-
-                except Exception as err:
-                    _LOGGER.error("Failed to store memory: %s", err)
-                    continue
-
-            if stored_count > 0:
-                _LOGGER.info(
-                    "Extracted and stored %d memories from conversation %s",
-                    stored_count,
-                    conversation_id,
-                )
-
-            return stored_count
-
-        except json.JSONDecodeError as err:
-            _LOGGER.error("Failed to parse memory extraction JSON: %s", err)
-            _LOGGER.debug("Raw extraction result: %s", extraction_result)
-            return 0
-        except Exception as err:
-            _LOGGER.error("Error parsing and storing memories: %s", err)
-            return 0
-
-    async def _extract_and_store_memories(
-        self,
-        conversation_id: str,
-        user_message: str,
-        assistant_response: str,
-        full_messages: list[dict[str, Any]],
-    ) -> None:
-        """Extract memories from completed conversation using configured LLM.
-
-        This method:
-        1. Determines which LLM to use (external or local)
-        2. Builds extraction prompt
-        3. Calls LLM to extract memories
-        4. Parses JSON response
-        5. Stores memories via MemoryManager
-
-        Args:
-            conversation_id: Conversation ID
-            user_message: User's message
-            assistant_response: Assistant's response
-            full_messages: Complete conversation history
-        """
-        try:
-            # Check if memory system is enabled
-            if not self.config.get(CONF_MEMORY_ENABLED, DEFAULT_MEMORY_ENABLED):
-                return
-
-            # Check if memory manager is available
-            if self.memory_manager is None:
-                _LOGGER.debug("Memory manager not available, skipping extraction")
-                return
-
-            # Determine which LLM to use for extraction
-            extraction_llm = self.config.get(
-                CONF_MEMORY_EXTRACTION_LLM, DEFAULT_MEMORY_EXTRACTION_LLM
-            )
-
-            # Build extraction prompt
-            extraction_prompt = self._build_extraction_prompt(
-                user_message=user_message,
-                assistant_response=assistant_response,
-                full_messages=full_messages,
-            )
-
-            # Call appropriate LLM
-            if extraction_llm == "external":
-                # Check if external LLM is enabled
-                if not self.config.get(CONF_EXTERNAL_LLM_ENABLED, False):
-                    _LOGGER.warning(
-                        "Memory extraction configured to use external LLM, "
-                        "but external LLM is not enabled. Skipping extraction."
-                    )
-                    return
-
-                # Use external LLM tool
-                _LOGGER.debug("Using external LLM for memory extraction")
-                result = await self.tool_handler.execute_tool(
-                    tool_name="query_external_llm",
-                    parameters={"prompt": extraction_prompt},
-                    conversation_id=conversation_id,
-                )
-
-                if not result.get("success"):
-                    _LOGGER.error(
-                        "External LLM memory extraction failed: %s",
-                        result.get("error"),
-                    )
-                    return
-
-                extraction_result = result.get("result", "[]")
-
-            else:
-                # Use local/primary LLM
-                _LOGGER.debug("Using local LLM for memory extraction")
-                result = await self._call_primary_llm_for_extraction(extraction_prompt)
-
-                if not result.get("success"):
-                    _LOGGER.error("Local LLM memory extraction failed: %s", result.get("error"))
-                    return
-
-                extraction_result = result.get("result", "[]")
-
-            # Parse and store memories
-            stored_count = await self._parse_and_store_memories(
-                extraction_result=extraction_result,
-                conversation_id=conversation_id,
-            )
-
-            # Fire event if memories were extracted
-            if stored_count > 0 and self.config.get(CONF_EMIT_EVENTS, True):
-                from datetime import datetime
-
-                self.hass.bus.async_fire(
-                    EVENT_MEMORY_EXTRACTED,
-                    {
-                        "conversation_id": conversation_id,
-                        "memories_extracted": stored_count,
-                        "extraction_llm": extraction_llm,
-                        "timestamp": datetime.now().isoformat(),
-                    },
-                )
-
-        except Exception as err:
-            _LOGGER.exception("Error during memory extraction: %s", err)

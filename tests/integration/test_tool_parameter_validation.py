@@ -103,7 +103,7 @@ async def test_tool_parameter_wrong_type_string_instead_of_number(mock_hass, ses
         ],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -150,7 +150,7 @@ async def test_tool_parameter_invalid_parameters_not_dict(mock_hass, session_man
         ],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -181,7 +181,7 @@ async def test_tool_parameter_parameters_is_list(mock_hass, session_manager):
         ],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -233,7 +233,7 @@ async def test_tool_parameter_missing_required_parameter(mock_hass, session_mana
         ],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -286,7 +286,7 @@ async def test_service_tool_parameter_missing_required(mock_hass, session_manage
     mock_hass.services.has_service = MagicMock(return_value=True)
     mock_hass.services.async_call = AsyncMock()
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -344,7 +344,7 @@ async def test_tool_parameter_empty_string_when_non_empty_required(mock_hass, se
         ],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -398,7 +398,7 @@ async def test_tool_execution_with_none_parameter_value(mock_hass, session_manag
         ],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -469,7 +469,7 @@ async def test_tool_parameter_nested_object_invalid_structure(mock_hass, session
         ],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -529,7 +529,7 @@ async def test_tool_parameter_validation_with_additional_properties(mock_hass, s
         ],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -593,7 +593,7 @@ async def test_rest_tool_template_rendering_failure(mock_hass, session_manager):
         ],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -644,7 +644,7 @@ async def test_service_tool_template_rendering_failure(mock_hass, session_manage
 
     mock_hass.services.has_service = MagicMock(return_value=True)
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -685,7 +685,7 @@ async def test_tool_nonexistent_tool_call(mock_hass, session_manager):
         CONF_TOOLS_CUSTOM: [],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)
@@ -712,7 +712,7 @@ async def test_tool_call_empty_tool_name(mock_hass, session_manager):
         CONF_TOOLS_CUSTOM: [],
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass, config, session_manager)

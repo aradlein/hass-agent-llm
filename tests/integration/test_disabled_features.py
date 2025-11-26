@@ -362,7 +362,7 @@ class TestDisabledFeatures:
         agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Mock ExternalLLMTool to verify it's NOT instantiated
-        with patch("custom_components.home_agent.agent.ExternalLLMTool") as mock_ext_llm:
+        with patch("custom_components.home_agent.agent.core.ExternalLLMTool") as mock_ext_llm:
             # Force tool registration
             agent._ensure_tools_registered()
 

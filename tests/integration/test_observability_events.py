@@ -122,7 +122,7 @@ async def test_conversation_started_event(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)
@@ -236,7 +236,7 @@ async def test_conversation_finished_event(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)
@@ -406,7 +406,7 @@ async def test_error_event_on_exception(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)
@@ -520,7 +520,7 @@ async def test_events_disabled_when_config_false(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent_disabled = HomeAgent(test_hass, config_disabled, session_manager)
@@ -560,7 +560,7 @@ async def test_events_disabled_when_config_false(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent_enabled = HomeAgent(test_hass, config_enabled, session_manager)
@@ -634,7 +634,7 @@ async def test_context_injected_event(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         # Setup test states
@@ -731,7 +731,7 @@ async def test_history_saved_event(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent_with_history = HomeAgent(test_hass, config_with_history, session_manager)
@@ -784,7 +784,7 @@ async def test_history_saved_event(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent_no_history = HomeAgent(test_hass, config_no_history, session_manager)
@@ -852,7 +852,7 @@ async def test_multiple_events_in_single_conversation(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)
@@ -959,7 +959,7 @@ async def test_conversation_finished_metrics_accuracy(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         # Setup test states

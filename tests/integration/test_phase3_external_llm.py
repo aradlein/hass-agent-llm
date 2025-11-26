@@ -91,7 +91,7 @@ async def test_external_llm_tool_registration(
     mock_hass_for_integration, external_llm_config, session_manager
 ):
     """Test that external LLM tool is registered when enabled."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_integration, external_llm_config, session_manager)
@@ -121,7 +121,7 @@ async def test_external_llm_tool_not_registered_when_disabled(
         CONF_EXTERNAL_LLM_ENABLED: False,  # Disabled
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_integration, config, session_manager)
@@ -140,7 +140,7 @@ async def test_dual_llm_workflow_successful(
     mock_hass_for_integration, external_llm_config, session_manager
 ):
     """Test complete dual-LLM workflow: primary delegates to external LLM."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_integration, external_llm_config, session_manager)
@@ -275,7 +275,7 @@ async def test_external_llm_error_propagation(
     mock_hass_for_integration, external_llm_config, session_manager
 ):
     """Test that external LLM errors are propagated to primary LLM."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_integration, external_llm_config, session_manager)
@@ -382,7 +382,7 @@ async def test_tool_call_counting_includes_external_llm(
     config = external_llm_config.copy()
     config[CONF_TOOLS_MAX_CALLS_PER_TURN] = 2  # Low limit
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_integration, config, session_manager)
@@ -482,7 +482,7 @@ async def test_external_llm_context_not_included_automatically(
     mock_hass_for_integration, external_llm_config, session_manager
 ):
     """Test that conversation history is NOT automatically included in external LLM calls."""
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_integration, external_llm_config, session_manager)
@@ -594,7 +594,7 @@ async def test_external_llm_configuration_validation(mock_hass_for_integration, 
         # Missing CONF_EXTERNAL_LLM_BASE_URL and CONF_EXTERNAL_LLM_API_KEY
     }
 
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_integration, incomplete_config, session_manager)

@@ -69,7 +69,7 @@ async def test_context_mode_switching_direct(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         # Setup test states
@@ -164,7 +164,7 @@ async def test_context_mode_switching_vector_db(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=True,  # Expose entities for vector DB
     ):
         # Setup test states
@@ -244,7 +244,7 @@ async def test_context_format_json(test_hass, llm_config, sample_entity_states, 
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -308,7 +308,7 @@ async def test_context_format_natural_language(
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -374,7 +374,7 @@ async def test_context_format_hybrid(test_hass, llm_config, sample_entity_states
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -443,7 +443,7 @@ async def test_context_with_no_entities(test_hass, llm_config, session_manager):
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=[])

@@ -12,7 +12,7 @@ import chromadb
 CHROMADB_HOST = "db.inorganic.me"
 CHROMADB_PORT = 8000
 COLLECTION_NAME = "home_entities"
-ENTITY_TO_FIND = "binary_sensor.sleepnumber_master_other_is_in_bed"
+ENTITY_TO_FIND = "binary_sensor.motion_sensor_kitchen"
 
 
 def query_entity_by_id() -> dict[str, Any] | None:

@@ -289,6 +289,73 @@ External LLM API Key: sk-your-key-here
 External LLM Model: gpt-4o
 ```
 
+### Configure Proxy Headers (Advanced)
+
+Custom HTTP headers for routing requests through proxies or load balancers. Useful for:
+- Multi-backend Ollama setups
+- Custom routing in proxy scenarios
+- Load balancing across GPU clusters
+- A/B testing different model configurations
+
+**Basic example (Ollama backend selection):**
+```json
+{
+  "X-Ollama-Backend": "llama-cpp"
+}
+```
+
+**Advanced example (multiple headers):**
+```json
+{
+  "X-Ollama-Backend": "vllm-server",
+  "X-Custom-Router": "gpu-cluster-1",
+  "X-Model-Tier": "premium",
+  "X-Request-Priority": "high"
+}
+```
+
+**Common use cases:**
+
+1. **Ollama Backend Selection:**
+   ```json
+   {"X-Ollama-Backend": "llama-cpp"}
+   ```
+   Routes requests to specific Ollama backend (llama-cpp, vllm-server, ollama-gpu)
+
+2. **Load Balancer Routing:**
+   ```json
+   {"X-Target-Server": "gpu-node-2"}
+   ```
+   Direct requests to specific backend servers
+
+3. **Multi-tier Model Selection:**
+   ```json
+   {
+     "X-Model-Tier": "premium",
+     "X-Priority": "high"
+   }
+   ```
+   Route to different model tiers or priorities
+
+**Configuration in UI:**
+1. Go to Settings → Devices & Services → Home Agent → Configure
+2. Select "LLM Settings"
+3. Enter JSON in "Proxy Headers" field
+4. Leave empty if not needed
+
+**Validation rules:**
+- Must be valid JSON format
+- Header names: alphanumeric, hyphens, underscores only (RFC 7230)
+- Header values: must be strings
+- Empty/null is valid (no headers added)
+
+**Migration from legacy backend setting:**
+
+The old `llm_backend` dropdown is deprecated. It's automatically migrated:
+- `llm_backend: "llama-cpp"` → `{"X-Ollama-Backend": "llama-cpp"}`
+- Proxy headers take precedence if both are set
+- Legacy backend still works for backward compatibility
+
 ## Validation
 
 **Check configuration:**

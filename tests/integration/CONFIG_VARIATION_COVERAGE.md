@@ -12,29 +12,29 @@ This document describes the comprehensive test coverage for alternative configur
 
 ## Configuration Options Tested
 
-### 1. LLM Backends (CONF_LLM_BACKEND)
+### 1. Proxy Headers (CONF_LLM_PROXY_HEADERS)
 
-**Default Value**: `"default"`
+**Default Value**: `{}` (empty dictionary)
 
 **Alternative Values Tested**:
-- `"llama-cpp"` (LLM_BACKEND_LLAMA_CPP)
-- `"vllm-server"` (LLM_BACKEND_VLLM)
-- `"ollama-gpu"` (LLM_BACKEND_OLLAMA_GPU)
+- `{"X-Ollama-Backend": "llama-cpp"}`
+- `{"X-Ollama-Backend": "vllm-server"}`
+- `{"X-Ollama-Backend": "ollama-gpu"}`
 
 **Code Paths Covered**:
-- `/workspaces/home-agent/custom_components/home_agent/agent.py:534-536`
-  - Sets `X-Ollama-Backend` HTTP header when backend != "default"
-- `/workspaces/home-agent/custom_components/home_agent/agent.py:598-600`
-  - Sets `X-Ollama-Backend` HTTP header in streaming mode
+- `/workspaces/home-agent/custom_components/home_agent/agent/llm.py`
+  - Adds custom proxy headers to LLM API requests
+- `/workspaces/home-agent/custom_components/home_agent/agent/streaming.py`
+  - Adds custom proxy headers to streaming requests
 
 **Tests**:
-1. `test_llm_backend_header_sent` (parametrized for 3 backends)
-   - Verifies X-Ollama-Backend header is added
-   - Confirms header value matches configured backend
+1. `test_proxy_headers_sent` (parametrized for 3 header values)
+   - Verifies custom proxy headers are added to requests
+   - Confirms header value matches configured value
    - Uses mocking to capture HTTP headers without real LLM call
 
-2. `test_llm_backend_default_no_header`
-   - Verifies X-Ollama-Backend header is NOT added for default backend
+2. `test_no_proxy_headers_no_custom_header`
+   - Verifies no custom headers are added when proxy_headers is empty
    - Ensures backward compatibility
 
 **Verification Method**: Mocks `aiohttp.ClientSession` to capture HTTP headers sent to LLM API
@@ -172,8 +172,8 @@ pytest tests/integration/test_config_variations.py -v
 
 ### Run Specific Configuration Category
 ```bash
-# LLM Backend tests
-pytest tests/integration/test_config_variations.py -k "llm_backend" -v
+# Proxy Headers tests
+pytest tests/integration/test_config_variations.py -k "proxy_headers" -v
 
 # Context Format tests
 pytest tests/integration/test_config_variations.py -k "context_format" -v
@@ -185,9 +185,9 @@ pytest tests/integration/test_config_variations.py -k "embedding_provider" -v
 pytest tests/integration/test_config_variations.py -k "memory_extraction" -v
 ```
 
-### Run Specific Backend Test
+### Run Specific Proxy Headers Test
 ```bash
-pytest tests/integration/test_config_variations.py::test_llm_backend_header_sent[llama-cpp] -v
+pytest tests/integration/test_config_variations.py::test_proxy_headers_sent[llama-cpp] -v
 ```
 
 ---

@@ -240,7 +240,7 @@ class TestGracefulDegradation:
         # Mock ExternalLLMTool to fail during instantiation
         # This tests that tool failures are handled (or demonstrates they should be)
         with patch(
-            "custom_components.home_agent.agent.ExternalLLMTool",
+            "custom_components.home_agent.agent.core.ExternalLLMTool",
             side_effect=Exception("External LLM service unavailable"),
         ):
             # Agent initialization will fail when trying to register tools
@@ -445,7 +445,7 @@ class TestGracefulDegradation:
             patch(
                 "custom_components.home_agent.context_providers.vector_db.VectorDBContextProvider"
             ) as mock_vector_provider,
-            patch("custom_components.home_agent.agent.ExternalLLMTool") as mock_ext_llm,
+            patch("custom_components.home_agent.agent.core.ExternalLLMTool") as mock_ext_llm,
         ):
 
             # Make vector DB and external LLM fail
