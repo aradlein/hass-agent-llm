@@ -282,4 +282,109 @@ When adding new configuration options:
 
 ---
 
-Last Updated: 2025-01-25
+Last Updated: 2025-11-26
+
+---
+
+## External Service Connection Patterns (Issue #59)
+
+This section documents the validated patterns for connecting to external services in integration tests.
+
+### ✅ Validated Pattern: Proxy Headers (CONF_LLM_PROXY_HEADERS)
+
+Integration tests correctly use the **proxy headers** pattern for configuring LLM connections:
+
+```python
+from custom_components.home_agent.const import CONF_LLM_PROXY_HEADERS
+
+config = {
+    CONF_LLM_BASE_URL: llm_config["base_url"],
+    CONF_LLM_API_KEY: llm_config.get("api_key", "test-key"),
+    CONF_LLM_MODEL: llm_config["model"],
+    CONF_LLM_PROXY_HEADERS: {"X-Ollama-Backend": "llama-cpp"},  # Custom routing headers
+}
+```
+
+**Key Points**:
+- Use `CONF_LLM_PROXY_HEADERS` (dictionary) instead of legacy `CONF_LLM_BACKEND` (string)
+- Proxy headers are flexible - any key-value pairs can be added
+- Headers are applied to both streaming and non-streaming LLM requests
+- Empty dict `{}` means no custom headers (production-safe default)
+
+### ❌ Deprecated: LLM_BACKEND Setting
+
+The `CONF_LLM_BACKEND` / `LLM_BACKEND_*` constants are **legacy** and only exist for:
+1. Backwards compatibility with existing configs
+2. Migration testing (in `tests/unit/test_proxy_headers.py`)
+
+**Do NOT use in new integration tests**. The migration code (`_migrate_legacy_backend`) automatically converts:
+- `LLM_BACKEND_LLAMA_CPP` → `{"X-Ollama-Backend": "llama-cpp"}`
+- `LLM_BACKEND_VLLM` → `{"X-Ollama-Backend": "vllm-server"}`
+- `LLM_BACKEND_OLLAMA_GPU` → `{"X-Ollama-Backend": "ollama-gpu"}`
+
+### ✅ External Service Configuration via Environment
+
+All external service connections are configured via `.env.test`:
+
+```bash
+# LLM Configuration
+TEST_LLM_BASE_URL=http://llm.inorganic.me:8080/v1
+TEST_LLM_API_KEY=your-api-key
+TEST_LLM_MODEL=Qwen2.5-7B-Instruct-Q5_K_L.gguf
+
+# ChromaDB Configuration
+TEST_CHROMADB_HOST=db.inorganic.me
+TEST_CHROMADB_PORT=8000
+
+# Embedding Configuration
+TEST_EMBEDDING_BASE_URL=http://ai.inorganic.me:11434
+TEST_EMBEDDING_MODEL=mxbai-embed-large
+```
+
+Tests access these via fixtures in `conftest.py`:
+- `llm_config` - Returns dict with `base_url`, `api_key`, `model`
+- `chromadb_config` - Returns dict with `host`, `port`
+- `embedding_config` - Returns dict with `base_url`, `model`, `provider`
+
+### ✅ Service Availability Markers
+
+Tests requiring external services use pytest markers:
+
+```python
+@pytest.mark.requires_llm
+@pytest.mark.requires_chromadb
+@pytest.mark.requires_embedding
+```
+
+Tests are automatically skipped if services are unavailable (checked via health endpoints in `health.py`).
+
+### ✅ Example: Complete Integration Test Pattern
+
+```python
+@pytest.mark.integration
+@pytest.mark.requires_llm
+@pytest.mark.asyncio
+async def test_llm_with_proxy_headers(test_hass, llm_config, session_manager):
+    """Test LLM connection with custom proxy headers."""
+    config = {
+        CONF_LLM_BASE_URL: llm_config["base_url"],
+        CONF_LLM_API_KEY: llm_config.get("api_key", ""),
+        CONF_LLM_MODEL: llm_config["model"],
+        CONF_LLM_PROXY_HEADERS: {"X-Custom-Router": "gpu-1"},
+        CONF_EMIT_EVENTS: False,
+    }
+
+    agent = HomeAgent(test_hass, config, session_manager)
+    # ... test logic
+    await agent.close()
+```
+
+### Validation Summary (Issue #59)
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Integration tests use `CONF_LLM_PROXY_HEADERS` | ✅ | No direct `LLM_BACKEND` usage in integration tests |
+| `LLM_BACKEND` only used for migration tests | ✅ | Only in `tests/unit/test_proxy_headers.py` |
+| Service connections via environment vars | ✅ | `.env.test` pattern followed |
+| Health checks before service access | ✅ | `health.py` + pytest markers |
+| Proxy headers tested for all backends | ✅ | `test_config_variations.py` covers all values |
