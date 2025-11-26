@@ -49,6 +49,15 @@ class TestDisabledFeatures:
         }
 
     @pytest.fixture
+    async def mock_session_manager(self, test_hass):
+        """Create a mock ConversationSessionManager for testing."""
+        from custom_components.home_agent.conversation_session import ConversationSessionManager
+
+        manager = ConversationSessionManager(test_hass)
+        await manager.async_load()
+        return manager
+
+    @pytest.fixture
     def mock_hass(self, test_hass) -> HomeAssistant:
         """Provide mock HomeAssistant instance."""
         return test_hass
@@ -74,7 +83,7 @@ class TestDisabledFeatures:
             },
         }
 
-    async def test_memory_disabled_skips_initialization(self, mock_hass, base_config):
+    async def test_memory_disabled_skips_initialization(self, mock_hass, base_config, mock_session_manager):
         """Test that MemoryManager is NOT initialized when memory_enabled=False.
 
         Verifies:
@@ -87,7 +96,7 @@ class TestDisabledFeatures:
             CONF_MEMORY_ENABLED: False,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Verify memory manager is None
         assert agent.memory_manager is None, "MemoryManager should be None when memory is disabled"
@@ -101,7 +110,7 @@ class TestDisabledFeatures:
         assert "recall_memory" not in registered_tools, "recall_memory tool should NOT be registered"
 
     async def test_memory_disabled_skips_operations(
-        self, mock_hass, base_config, mock_llm_response
+        self, mock_hass, base_config, mock_llm_response, mock_session_manager
     ):
         """Test that memory operations are skipped when memory_enabled=False.
 
@@ -115,7 +124,7 @@ class TestDisabledFeatures:
             CONF_MEMORY_ENABLED: False,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Verify memory manager is None
         assert agent.memory_manager is None
@@ -135,7 +144,7 @@ class TestDisabledFeatures:
         assert agent.memory_manager is None
 
     async def test_memory_extraction_disabled_skips_extraction(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, caplog, mock_session_manager
     ):
         """Test that extraction is NOT called when memory_extraction_enabled=False.
 
@@ -152,7 +161,7 @@ class TestDisabledFeatures:
             CONF_MEMORY_EXTRACTION_ENABLED: False,  # But extraction disabled
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Mock the extraction method to track calls - use simple async function
         call_count = [0]
@@ -180,7 +189,7 @@ class TestDisabledFeatures:
         assert len(response) > 0
 
     async def test_memory_extraction_disabled_via_memory_disabled(
-        self, mock_hass, base_config, mock_llm_response
+        self, mock_hass, base_config, mock_llm_response, mock_session_manager
     ):
         """Test that extraction is skipped when memory_enabled=False.
 
@@ -194,7 +203,7 @@ class TestDisabledFeatures:
             CONF_MEMORY_EXTRACTION_ENABLED: True,  # Extraction "enabled" but won't work
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Mock the extraction method to track calls
         call_count = [0]
@@ -222,7 +231,7 @@ class TestDisabledFeatures:
         # The fixture already patches this, so this test is mainly verifying memory_manager is None
 
     async def test_history_disabled_skips_saving(
-        self, mock_hass, base_config, mock_llm_response
+        self, mock_hass, base_config, mock_llm_response, mock_session_manager
     ):
         """Test that conversation history is NOT saved when history_enabled=False.
 
@@ -236,7 +245,7 @@ class TestDisabledFeatures:
             CONF_HISTORY_ENABLED: False,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Mock add_message to verify it's NOT called - use simple MagicMock (sync method)
         with patch.object(
@@ -256,7 +265,7 @@ class TestDisabledFeatures:
         assert len(response) > 0
 
     async def test_history_disabled_not_included_in_context(
-        self, mock_hass, base_config, mock_llm_response
+        self, mock_hass, base_config, mock_llm_response, mock_session_manager
     ):
         """Test that history is NOT included in LLM messages when history_enabled=False.
 
@@ -270,7 +279,7 @@ class TestDisabledFeatures:
             CONF_HISTORY_ENABLED: False,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Track LLM calls to verify message structure
         llm_calls = []
@@ -300,7 +309,7 @@ class TestDisabledFeatures:
         assert len(assistant_messages) == 0
 
     async def test_context_mode_direct_skips_vector_db(
-        self, mock_hass, base_config, mock_llm_response
+        self, mock_hass, base_config, mock_llm_response, mock_session_manager
     ):
         """Test that VectorDBManager is NOT used when context_mode='direct'.
 
@@ -314,7 +323,7 @@ class TestDisabledFeatures:
             CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Verify context manager uses DirectContextProvider
         # This is determined at initialization in ContextManager
@@ -337,7 +346,7 @@ class TestDisabledFeatures:
         assert response is not None
         assert len(response) > 0
 
-    async def test_external_llm_disabled_tool_not_registered(self, mock_hass, base_config):
+    async def test_external_llm_disabled_tool_not_registered(self, mock_hass, base_config, mock_session_manager):
         """Test that external LLM tool is NOT registered when external_llm_enabled=False.
 
         Verifies:
@@ -350,7 +359,7 @@ class TestDisabledFeatures:
             CONF_EXTERNAL_LLM_ENABLED: False,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Mock ExternalLLMTool to verify it's NOT instantiated
         with patch("custom_components.home_agent.agent.ExternalLLMTool") as mock_ext_llm:
@@ -367,7 +376,7 @@ class TestDisabledFeatures:
         ), "query_external_llm tool should NOT be registered"
 
     async def test_external_llm_disabled_not_available_for_memory_extraction(
-        self, mock_hass, base_config, mock_llm_response
+        self, mock_hass, base_config, mock_llm_response, mock_session_manager
     ):
         """Test that external LLM is NOT used for extraction when disabled.
 
@@ -386,7 +395,7 @@ class TestDisabledFeatures:
             CONF_MEMORY_EXTRACTION_LLM: "external",  # Explicitly set to external
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Set up a mock memory manager
         mock_memory_manager = MagicMock()
@@ -427,7 +436,7 @@ class TestDisabledFeatures:
             assert len(external_llm_calls) == 0, "External LLM should NOT be called when disabled"
 
     async def test_all_features_disabled_minimal_mode(
-        self, mock_hass, base_config, mock_llm_response
+        self, mock_hass, base_config, mock_llm_response, mock_session_manager
     ):
         """Test agent works in minimal mode with all optional features disabled.
 
@@ -447,7 +456,7 @@ class TestDisabledFeatures:
             CONF_STREAMING_ENABLED: False,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Verify memory is disabled
         assert agent.memory_manager is None
@@ -475,7 +484,7 @@ class TestDisabledFeatures:
         assert len(response) > 0
 
     async def test_memory_disabled_context_manager_no_memory_provider(
-        self, mock_hass, base_config
+        self, mock_hass, base_config, mock_session_manager
     ):
         """Test that context manager does NOT have memory provider when memory disabled.
 
@@ -488,7 +497,7 @@ class TestDisabledFeatures:
             CONF_MEMORY_ENABLED: False,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Mock set_memory_provider to track calls - use simple MagicMock (it's a sync method)
         with patch.object(
@@ -501,7 +510,7 @@ class TestDisabledFeatures:
             mock_set_memory.assert_not_called()
 
     async def test_history_disabled_in_streaming_mode(
-        self, mock_hass, base_config, mock_llm_response
+        self, mock_hass, base_config, mock_llm_response, mock_session_manager
     ):
         """Test that history is NOT saved in streaming mode when disabled.
 
@@ -515,7 +524,7 @@ class TestDisabledFeatures:
             CONF_STREAMING_ENABLED: True,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Mock add_message to verify it's NOT called - use simple MagicMock (sync method)
         with patch.object(
@@ -536,7 +545,7 @@ class TestDisabledFeatures:
         assert response is not None
 
     async def test_memory_extraction_check_happens_before_manager_check(
-        self, mock_hass, base_config, mock_llm_response, caplog
+        self, mock_hass, base_config, mock_llm_response, caplog, mock_session_manager
     ):
         """Test extraction check respects both CONF_MEMORY_ENABLED and manager availability.
 
@@ -554,7 +563,7 @@ class TestDisabledFeatures:
             CONF_MEMORY_EXTRACTION_ENABLED: True,
         }
 
-        agent1 = HomeAgent(mock_hass, config1)
+        agent1 = HomeAgent(mock_hass, config1, mock_session_manager)
 
         # Mock the extraction LLM call to track if it's made - use call counter
         call_count1 = [0]
@@ -584,7 +593,7 @@ class TestDisabledFeatures:
             CONF_MEMORY_EXTRACTION_ENABLED: True,
         }
 
-        agent2 = HomeAgent(mock_hass, config2)
+        agent2 = HomeAgent(mock_hass, config2, mock_session_manager)
         assert agent2.memory_manager is None  # Not provided in fixture
 
         call_count2 = [0]
@@ -608,7 +617,7 @@ class TestDisabledFeatures:
             assert call_count2[0] == 0, "Extraction LLM should not be called when manager is None"
 
     async def test_disabled_features_dont_affect_enabled_features(
-        self, mock_hass, base_config, mock_llm_response
+        self, mock_hass, base_config, mock_llm_response, mock_session_manager
     ):
         """Test that disabling one feature doesn't break others.
 
@@ -624,7 +633,7 @@ class TestDisabledFeatures:
             CONF_EXTERNAL_LLM_ENABLED: False,  # External LLM disabled
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
         agent._ensure_tools_registered()
 
         # Verify memory is disabled
@@ -655,7 +664,7 @@ class TestDisabledFeatures:
         assert len(history) > 0  # Should have messages from both interactions
 
     async def test_context_mode_direct_uses_direct_provider_methods(
-        self, mock_hass, base_config, mock_llm_response
+        self, mock_hass, base_config, mock_llm_response, mock_session_manager
     ):
         """Test that direct context mode uses DirectContextProvider, not VectorDB.
 
@@ -669,7 +678,7 @@ class TestDisabledFeatures:
             CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
         }
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
 
         # Track context manager calls
         context_calls = []

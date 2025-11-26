@@ -80,17 +80,25 @@ class ConversationSessionManager:
         Prefers device_id over user_id for better multi-device support. This allows
         different devices for the same user to maintain independent conversation contexts.
 
+        Session persistence is disabled if session_timeout is set to 0 or less,
+        in which case this method always returns None.
+
         Args:
             user_id: User ID from conversation context
             device_id: Device ID from conversation input
 
         Returns:
-            Conversation ID if found and not expired, None otherwise
+            Conversation ID if found and not expired, None otherwise.
+            Always returns None if session_timeout <= 0.
 
         Example:
             >>> manager.get_conversation_id(user_id="user_123", device_id="kitchen")
             "01HWXYZ123..."  # Returns existing conversation ID
         """
+        # Session persistence is disabled when timeout is 0 or less
+        if self._session_timeout <= 0:
+            return None
+
         # Prefer device_id for better multi-device support
         key = device_id if device_id else user_id
 

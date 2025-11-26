@@ -89,12 +89,15 @@ async def check_llm_health(base_url: str, timeout: int = 5) -> bool:
                 async with session.get(
                     url, timeout=aiohttp.ClientTimeout(total=timeout)
                 ) as response:
+                    _LOGGER.debug(f"LLM health check: {url} returned status {response.status}")
                     if response.status in (200, 404):  # 404 is ok for root endpoint
                         _LOGGER.info("LLM health check passed: %s (endpoint: %s)", base_url, endpoint)
                         return True
-            except aiohttp.ClientError:
+            except aiohttp.ClientError as e:
+                _LOGGER.debug(f"LLM health check: {url} failed with ClientError: {e}")
                 continue
-            except Exception:
+            except Exception as e:
+                _LOGGER.debug(f"LLM health check: {url} failed with Exception: {e}")
                 continue
 
     _LOGGER.warning("LLM health check failed: %s (tried all endpoints)", base_url)

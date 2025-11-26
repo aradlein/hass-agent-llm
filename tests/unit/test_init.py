@@ -35,6 +35,9 @@ def mock_hass():
     hass.services.async_remove = MagicMock()
     hass.config_entries = MagicMock()
     hass.config_entries.async_reload = AsyncMock()
+    # Mock config.config_dir for ConversationSessionManager storage
+    hass.config = MagicMock()
+    hass.config.config_dir = "/tmp/test_config"
     return hass
 
 
@@ -136,6 +139,7 @@ class TestAsyncSetup:
 class TestAsyncSetupEntry:
     """Test async_setup_entry function."""
 
+    @patch("custom_components.home_agent.ConversationSessionManager")
     @patch("custom_components.home_agent.HomeAgent")
     @patch("custom_components.home_agent.ha_conversation.async_set_agent")
     @patch("custom_components.home_agent.async_setup_services")
@@ -144,6 +148,7 @@ class TestAsyncSetupEntry:
         mock_setup_services,
         mock_set_agent,
         mock_agent_class,
+        mock_session_manager_class,
         mock_hass,
         mock_config_entry,
         mock_agent,
@@ -151,6 +156,9 @@ class TestAsyncSetupEntry:
         """Test basic config entry setup without memory or vector DB."""
         mock_agent_class.return_value = mock_agent
         mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
 
         result = await async_setup_entry(mock_hass, mock_config_entry)
 
@@ -161,6 +169,7 @@ class TestAsyncSetupEntry:
         mock_set_agent.assert_called_once_with(mock_hass, mock_config_entry, mock_agent)
         mock_setup_services.assert_called_once()
 
+    @patch("custom_components.home_agent.ConversationSessionManager")
     @patch("custom_components.home_agent.HomeAgent")
     @patch("custom_components.home_agent.ha_conversation.async_set_agent")
     @patch("custom_components.home_agent.async_setup_services")
@@ -169,6 +178,7 @@ class TestAsyncSetupEntry:
         mock_setup_services,
         mock_set_agent,
         mock_agent_class,
+        mock_session_manager_class,
         mock_hass,
         mock_config_entry,
         mock_agent,
@@ -176,6 +186,9 @@ class TestAsyncSetupEntry:
         """Test setup merges custom tools from YAML config."""
         mock_agent_class.return_value = mock_agent
         mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
 
         # Add YAML config with custom tools
         custom_tools = [{"name": "yaml_tool"}]
@@ -191,6 +204,7 @@ class TestAsyncSetupEntry:
         assert CONF_TOOLS_CUSTOM in call_args[0][1]
         assert call_args[0][1][CONF_TOOLS_CUSTOM] == custom_tools
 
+    @patch("custom_components.home_agent.ConversationSessionManager")
     @patch("custom_components.home_agent.HomeAgent")
     @patch("custom_components.home_agent.vector_db_manager.VectorDBManager")
     @patch("custom_components.home_agent.ha_conversation.async_set_agent")
@@ -201,6 +215,7 @@ class TestAsyncSetupEntry:
         mock_set_agent,
         mock_vector_class,
         mock_agent_class,
+        mock_session_manager_class,
         mock_hass,
         mock_config_entry,
         mock_agent,
@@ -210,6 +225,9 @@ class TestAsyncSetupEntry:
         mock_agent_class.return_value = mock_agent
         mock_vector_class.return_value = mock_vector_manager
         mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
 
         # Enable vector DB mode
         mock_config_entry.data = {
@@ -223,6 +241,7 @@ class TestAsyncSetupEntry:
         assert "vector_manager" in mock_hass.data[DOMAIN][mock_config_entry.entry_id]
         mock_vector_manager.async_setup.assert_called_once()
 
+    @patch("custom_components.home_agent.ConversationSessionManager")
     @patch("custom_components.home_agent.HomeAgent")
     @patch("custom_components.home_agent.vector_db_manager.VectorDBManager")
     @patch("custom_components.home_agent.ha_conversation.async_set_agent")
@@ -233,6 +252,7 @@ class TestAsyncSetupEntry:
         mock_set_agent,
         mock_vector_class,
         mock_agent_class,
+        mock_session_manager_class,
         mock_hass,
         mock_config_entry,
         mock_agent,
@@ -240,6 +260,9 @@ class TestAsyncSetupEntry:
         """Test that setup continues if vector DB fails."""
         mock_agent_class.return_value = mock_agent
         mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
 
         # Make vector DB setup fail
         mock_vector_class.side_effect = Exception("Vector DB error")
@@ -255,6 +278,7 @@ class TestAsyncSetupEntry:
         assert result is True
         assert "vector_manager" not in mock_hass.data[DOMAIN][mock_config_entry.entry_id]
 
+    @patch("custom_components.home_agent.ConversationSessionManager")
     @patch("custom_components.home_agent.HomeAgent")
     @patch("custom_components.home_agent.memory_manager.MemoryManager")
     @patch("custom_components.home_agent.ha_conversation.async_set_agent")
@@ -265,6 +289,7 @@ class TestAsyncSetupEntry:
         mock_set_agent,
         mock_memory_class,
         mock_agent_class,
+        mock_session_manager_class,
         mock_hass,
         mock_config_entry,
         mock_agent,
@@ -274,6 +299,9 @@ class TestAsyncSetupEntry:
         mock_agent_class.return_value = mock_agent
         mock_memory_class.return_value = mock_memory_manager
         mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
 
         # Enable memory
         mock_config_entry.options = {CONF_MEMORY_ENABLED: True}
@@ -284,6 +312,7 @@ class TestAsyncSetupEntry:
         assert "memory_manager" in mock_hass.data[DOMAIN][mock_config_entry.entry_id]
         mock_memory_manager.async_initialize.assert_called_once()
 
+    @patch("custom_components.home_agent.ConversationSessionManager")
     @patch("custom_components.home_agent.HomeAgent")
     @patch("custom_components.home_agent.memory_manager.MemoryManager")
     @patch("custom_components.home_agent.ha_conversation.async_set_agent")
@@ -294,6 +323,7 @@ class TestAsyncSetupEntry:
         mock_set_agent,
         mock_memory_class,
         mock_agent_class,
+        mock_session_manager_class,
         mock_hass,
         mock_config_entry,
         mock_agent,
@@ -301,6 +331,9 @@ class TestAsyncSetupEntry:
         """Test that memory is disabled when not explicitly enabled."""
         mock_agent_class.return_value = mock_agent
         mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
 
         # Memory defaults to DEFAULT_MEMORY_ENABLED (should be False)
         result = await async_setup_entry(mock_hass, mock_config_entry)
@@ -310,6 +343,7 @@ class TestAsyncSetupEntry:
         if not DEFAULT_MEMORY_ENABLED:
             mock_memory_class.assert_not_called()
 
+    @patch("custom_components.home_agent.ConversationSessionManager")
     @patch("custom_components.home_agent.HomeAgent")
     @patch("custom_components.home_agent.memory_manager.MemoryManager")
     @patch("custom_components.home_agent.ha_conversation.async_set_agent")
@@ -320,6 +354,7 @@ class TestAsyncSetupEntry:
         mock_set_agent,
         mock_memory_class,
         mock_agent_class,
+        mock_session_manager_class,
         mock_hass,
         mock_config_entry,
         mock_agent,
@@ -327,6 +362,9 @@ class TestAsyncSetupEntry:
         """Test that setup continues if memory manager fails."""
         mock_agent_class.return_value = mock_agent
         mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
 
         # Make memory manager setup fail
         mock_memory_class.side_effect = Exception("Memory error")
@@ -339,6 +377,7 @@ class TestAsyncSetupEntry:
         assert result is True
         assert "memory_manager" not in mock_hass.data[DOMAIN][mock_config_entry.entry_id]
 
+    @patch("custom_components.home_agent.ConversationSessionManager")
     @patch("custom_components.home_agent.HomeAgent")
     @patch("custom_components.home_agent.vector_db_manager.VectorDBManager")
     @patch("custom_components.home_agent.memory_manager.MemoryManager")
@@ -351,6 +390,7 @@ class TestAsyncSetupEntry:
         mock_memory_class,
         mock_vector_class,
         mock_agent_class,
+        mock_session_manager_class,
         mock_hass,
         mock_config_entry,
         mock_agent,
@@ -362,6 +402,9 @@ class TestAsyncSetupEntry:
         mock_vector_class.return_value = mock_vector_manager
         mock_memory_class.return_value = mock_memory_manager
         mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
 
         mock_config_entry.data = {
             **mock_config_entry.data,
@@ -380,6 +423,7 @@ class TestAsyncSetupEntry:
         call_args = mock_memory_class.call_args
         assert call_args[1]["vector_db_manager"] == mock_vector_manager
 
+    @patch("custom_components.home_agent.ConversationSessionManager")
     @patch("custom_components.home_agent.HomeAgent")
     @patch("custom_components.home_agent.ha_conversation.async_set_agent")
     @patch("custom_components.home_agent.async_setup_services")
@@ -388,6 +432,7 @@ class TestAsyncSetupEntry:
         mock_setup_services,
         mock_set_agent,
         mock_agent_class,
+        mock_session_manager_class,
         mock_hass,
         mock_config_entry,
         mock_agent,
@@ -395,12 +440,112 @@ class TestAsyncSetupEntry:
         """Test that update listener is registered."""
         mock_agent_class.return_value = mock_agent
         mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
 
         result = await async_setup_entry(mock_hass, mock_config_entry)
 
         assert result is True
         mock_config_entry.add_update_listener.assert_called_once()
         mock_config_entry.async_on_unload.assert_called_once()
+
+    @patch("custom_components.home_agent.ConversationSessionManager")
+    @patch("custom_components.home_agent.HomeAgent")
+    @patch("custom_components.home_agent.ha_conversation.async_set_agent")
+    @patch("custom_components.home_agent.async_setup_services")
+    async def test_setup_entry_session_persistence_enabled_default(
+        self,
+        mock_setup_services,
+        mock_set_agent,
+        mock_agent_class,
+        mock_session_manager_class,
+        mock_hass,
+        mock_config_entry,
+        mock_agent,
+    ):
+        """Test that when no session_persistence_enabled is specified, it defaults to enabled with 3600 second timeout."""
+        mock_agent_class.return_value = mock_agent
+        mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
+
+        # Don't set session_persistence_enabled or session_timeout, so defaults are used
+        result = await async_setup_entry(mock_hass, mock_config_entry)
+
+        assert result is True
+        # Verify ConversationSessionManager was called with default timeout (3600 seconds)
+        mock_session_manager_class.assert_called_once_with(mock_hass, 3600)
+        mock_session_manager.async_load.assert_called_once()
+
+    @patch("custom_components.home_agent.ConversationSessionManager")
+    @patch("custom_components.home_agent.HomeAgent")
+    @patch("custom_components.home_agent.ha_conversation.async_set_agent")
+    @patch("custom_components.home_agent.async_setup_services")
+    async def test_setup_entry_session_persistence_disabled(
+        self,
+        mock_setup_services,
+        mock_set_agent,
+        mock_agent_class,
+        mock_session_manager_class,
+        mock_hass,
+        mock_config_entry,
+        mock_agent,
+    ):
+        """Test that when session_persistence_enabled=False, the session_manager is initialized with timeout=0."""
+        mock_agent_class.return_value = mock_agent
+        mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
+
+        # Disable session persistence
+        mock_config_entry.data = {
+            **mock_config_entry.data,
+            "session_persistence_enabled": False,
+        }
+
+        result = await async_setup_entry(mock_hass, mock_config_entry)
+
+        assert result is True
+        # Verify ConversationSessionManager was called with timeout=0
+        mock_session_manager_class.assert_called_once_with(mock_hass, 0)
+        mock_session_manager.async_load.assert_called_once()
+
+    @patch("custom_components.home_agent.ConversationSessionManager")
+    @patch("custom_components.home_agent.HomeAgent")
+    @patch("custom_components.home_agent.ha_conversation.async_set_agent")
+    @patch("custom_components.home_agent.async_setup_services")
+    async def test_setup_entry_session_persistence_custom_timeout(
+        self,
+        mock_setup_services,
+        mock_set_agent,
+        mock_agent_class,
+        mock_session_manager_class,
+        mock_hass,
+        mock_config_entry,
+        mock_agent,
+    ):
+        """Test that when session_timeout is set to a custom value (in minutes), it's converted to seconds correctly."""
+        mock_agent_class.return_value = mock_agent
+        mock_setup_services.return_value = AsyncMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.async_load = AsyncMock()
+        mock_session_manager_class.return_value = mock_session_manager
+
+        # Set custom session timeout (30 minutes, which should be converted to 1800 seconds)
+        mock_config_entry.data = {
+            **mock_config_entry.data,
+            "session_timeout": 30,  # in minutes
+        }
+
+        result = await async_setup_entry(mock_hass, mock_config_entry)
+
+        assert result is True
+        # Verify ConversationSessionManager was called with 1800 seconds (30 * 60)
+        mock_session_manager_class.assert_called_once_with(mock_hass, 1800)
+        mock_session_manager.async_load.assert_called_once()
 
 
 class TestAsyncReloadEntry:
@@ -1124,6 +1269,7 @@ class TestAsyncRemoveServices:
             "clear_memories",
             "search_memories",
             "add_memory",
+            "clear_conversation",
         ]
 
         for service in expected_services:
@@ -1195,6 +1341,7 @@ class TestServiceRegistration:
             "clear_memories",
             "search_memories",
             "add_memory",
+            "clear_conversation",
         ]
 
         registered_services = [

@@ -251,12 +251,16 @@
         "data": {
           "history_enabled": "Enable Conversation History",
           "history_max_messages": "Max Messages",
-          "history_max_tokens": "Max Tokens"
+          "history_max_tokens": "Max Tokens",
+          "session_persistence_enabled": "Enable Voice Session Persistence",
+          "session_timeout": "Session Timeout (minutes)"
         },
         "data_description": {
           "history_enabled": "Include previous conversation turns in LLM context",
           "history_max_messages": "Maximum number of conversation turns to retain",
-          "history_max_tokens": "Token-based limit for history"
+          "history_max_tokens": "Token-based limit for history",
+          "session_persistence_enabled": "Maintain conversation context across multiple voice interactions from the same device. When disabled, each voice request starts a fresh conversation.",
+          "session_timeout": "Time in minutes before voice sessions expire and start fresh (1-120 minutes)"
         }
       },
       "prompt_settings": {

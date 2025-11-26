@@ -102,6 +102,7 @@ CONF_STREAMING_ENABLED: Final = "streaming_enabled"
 
 # Configuration keys - Conversation Session
 CONF_SESSION_TIMEOUT: Final = "session_timeout"
+CONF_SESSION_PERSISTENCE_ENABLED: Final = "session_persistence_enabled"
 
 # Context modes
 CONTEXT_MODE_DIRECT: Final = "direct"
@@ -211,6 +212,7 @@ DEFAULT_STREAMING_ENABLED: Final = False
 
 # Default values - Conversation Session
 DEFAULT_SESSION_TIMEOUT: Final = 3600  # 1 hour in seconds
+DEFAULT_SESSION_PERSISTENCE_ENABLED: Final = True
 
 # Event names
 EVENT_CONVERSATION_STARTED: Final = f"{DOMAIN}.conversation.started"

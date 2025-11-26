@@ -193,6 +193,13 @@ async def test_context_mode_switching_vector_db(session_manager,
 
         # Clean up
         if hasattr(agent, 'vector_db_manager') and agent.vector_db_manager:
+            # Delete the test collection
+            try:
+                chromadb_client = agent.vector_db_manager._client
+                if chromadb_client:
+                    chromadb_client.delete_collection(name=test_collection_name)
+            except Exception:
+                pass  # Collection might not exist
             await agent.vector_db_manager.close()
 
         await agent.close()

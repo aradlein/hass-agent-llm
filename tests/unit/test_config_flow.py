@@ -8,7 +8,11 @@ from homeassistant.data_entry_flow import FlowResultType
 from custom_components.home_agent.config_flow import HomeAgentConfigFlow, HomeAgentOptionsFlow
 from custom_components.home_agent.const import (
     CONF_DEBUG_LOGGING,
+    CONF_SESSION_PERSISTENCE_ENABLED,
+    CONF_SESSION_TIMEOUT,
     CONF_STREAMING_ENABLED,
+    DEFAULT_SESSION_PERSISTENCE_ENABLED,
+    DEFAULT_SESSION_TIMEOUT,
     DEFAULT_STREAMING_ENABLED,
 )
 
@@ -184,6 +188,90 @@ class TestHomeAgentOptionsFlow:
         assert result["data"][CONF_DEBUG_LOGGING] is True
         assert result["data"]["history_enabled"] is True
         assert result["data"]["memory_enabled"] is False
+
+    async def test_history_settings_includes_session_persistence_options(self, mock_config_entry, mock_hass):
+        """Test that history_settings step includes both session_persistence_enabled and session_timeout fields."""
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Get the history settings form
+        result = await options_flow.async_step_history_settings()
+
+        # Verify the form is shown
+        assert result["type"] == FlowResultType.FORM
+        assert result["step_id"] == "history_settings"
+
+        # Verify session persistence options are in the schema
+        schema_keys = list(result["data_schema"].schema.keys())
+        session_persistence_key = None
+        session_timeout_key = None
+
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == CONF_SESSION_PERSISTENCE_ENABLED:
+                session_persistence_key = key
+            if hasattr(key, "schema") and key.schema == CONF_SESSION_TIMEOUT:
+                session_timeout_key = key
+
+        assert session_persistence_key is not None, "Session persistence enabled option not found in schema"
+        assert session_timeout_key is not None, "Session timeout option not found in schema"
+
+    async def test_session_persistence_defaults(self, mock_config_entry, mock_hass):
+        """Test that session_persistence_enabled defaults to True and session_timeout defaults to 60 (minutes)."""
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Get the history settings form
+        result = await options_flow.async_step_history_settings()
+
+        # Find the session persistence keys and check their defaults
+        schema_keys = list(result["data_schema"].schema.keys())
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == CONF_SESSION_PERSISTENCE_ENABLED:
+                # The default should be True
+                assert key.default() == DEFAULT_SESSION_PERSISTENCE_ENABLED
+                assert DEFAULT_SESSION_PERSISTENCE_ENABLED is True
+            if hasattr(key, "schema") and key.schema == CONF_SESSION_TIMEOUT:
+                # The default should be 60 minutes (3600 seconds / 60)
+                assert key.default() == DEFAULT_SESSION_TIMEOUT // 60
+                assert DEFAULT_SESSION_TIMEOUT // 60 == 60
+
+    async def test_session_timeout_converts_to_seconds(self, mock_config_entry, mock_hass):
+        """Test that when user enters timeout in minutes (e.g., 30), it gets converted to seconds (1800) for storage."""
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Submit form with session timeout in minutes
+        user_input = {
+            "history_enabled": True,
+            "history_max_messages": 10,
+            "history_max_tokens": 1000,
+            CONF_SESSION_PERSISTENCE_ENABLED: True,
+            CONF_SESSION_TIMEOUT: 30,  # 30 minutes
+        }
+
+        result = await options_flow.async_step_history_settings(user_input)
+
+        # Verify the entry is created successfully and timeout is converted to seconds
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["data"][CONF_SESSION_TIMEOUT] == 1800  # 30 * 60 = 1800 seconds
+
+    async def test_session_timeout_displayed_in_minutes(self, mock_config_entry, mock_hass):
+        """Test that stored timeout in seconds is displayed as minutes in the form."""
+        # Set initial state with timeout in seconds (7200 seconds = 120 minutes)
+        mock_config_entry.options = {CONF_SESSION_TIMEOUT: 7200}
+
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Get the history settings form
+        result = await options_flow.async_step_history_settings()
+
+        # Find the session timeout key and check its displayed value (in minutes)
+        schema_keys = list(result["data_schema"].schema.keys())
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == CONF_SESSION_TIMEOUT:
+                # The default should show 120 minutes (7200 seconds / 60)
+                assert key.default() == 120
 
 
 class TestHomeAgentConfigFlow:

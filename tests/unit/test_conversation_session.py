@@ -319,3 +319,76 @@ async def test_update_activity_nonexistent_session(session_manager):
 
     # Verify nothing was created
     assert len(session_manager._sessions) == 0
+
+
+@pytest.mark.asyncio
+async def test_session_persistence_disabled_returns_none(mock_hass):
+    """Test that when session_timeout=0, get_conversation_id always returns None even if there's a session stored."""
+    with patch("custom_components.home_agent.conversation_session.Store") as mock_store:
+        store_instance = MagicMock()
+        store_instance.async_load = AsyncMock(return_value=None)
+        store_instance.async_save = AsyncMock()
+        mock_store.return_value = store_instance
+
+        # Create session manager with persistence disabled (timeout=0)
+        manager = ConversationSessionManager(mock_hass, session_timeout=0)
+        await manager.async_load()
+
+        # Set a conversation ID
+        await manager.set_conversation_id("conv_123", user_id="user_123")
+
+        # Should return None because persistence is disabled
+        result = manager.get_conversation_id(user_id="user_123")
+        assert result is None
+
+
+@pytest.mark.asyncio
+async def test_session_persistence_disabled_negative_timeout(mock_hass):
+    """Test that negative timeout values also disable persistence (returns None)."""
+    with patch("custom_components.home_agent.conversation_session.Store") as mock_store:
+        store_instance = MagicMock()
+        store_instance.async_load = AsyncMock(return_value=None)
+        store_instance.async_save = AsyncMock()
+        mock_store.return_value = store_instance
+
+        # Create session manager with negative timeout
+        manager = ConversationSessionManager(mock_hass, session_timeout=-10)
+        await manager.async_load()
+
+        # Set a conversation ID
+        await manager.set_conversation_id("conv_456", user_id="user_456")
+
+        # Should return None because negative timeout disables persistence
+        result = manager.get_conversation_id(user_id="user_456")
+        assert result is None
+
+
+@pytest.mark.asyncio
+async def test_session_persistence_enabled_with_custom_timeout(mock_hass):
+    """Test that a custom timeout (e.g., 300 seconds / 5 minutes) works correctly."""
+    with patch("custom_components.home_agent.conversation_session.Store") as mock_store:
+        store_instance = MagicMock()
+        store_instance.async_load = AsyncMock(return_value=None)
+        store_instance.async_save = AsyncMock()
+        mock_store.return_value = store_instance
+
+        # Create session manager with custom 300 second (5 minute) timeout
+        manager = ConversationSessionManager(mock_hass, session_timeout=300)
+        await manager.async_load()
+
+        # Set a conversation ID
+        await manager.set_conversation_id("conv_789", user_id="user_789")
+
+        # Should be found immediately
+        result = manager.get_conversation_id(user_id="user_789")
+        assert result == "conv_789"
+
+        # Verify the session info shows the custom timeout
+        info = manager.get_session_info()
+        assert info["timeout_seconds"] == 300
+        assert info["total_sessions"] == 1
+
+        # Session should still be valid after a short delay (well within 300 seconds)
+        time.sleep(0.5)
+        result = manager.get_conversation_id(user_id="user_789")
+        assert result == "conv_789"

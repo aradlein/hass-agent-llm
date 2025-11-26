@@ -465,7 +465,7 @@ async def test_events_disabled_when_config_false(test_hass: HomeAssistant, llm_c
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent_disabled = HomeAgent(test_hass, config_disabled)
+        agent_disabled = HomeAgent(test_hass, config_disabled, session_manager)
 
         event_capture.clear()
 
@@ -503,7 +503,7 @@ async def test_events_disabled_when_config_false(test_hass: HomeAssistant, llm_c
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent_enabled = HomeAgent(test_hass, config_enabled)
+        agent_enabled = HomeAgent(test_hass, config_enabled, session_manager)
 
         event_capture.clear()
 
@@ -656,7 +656,7 @@ async def test_history_saved_event(test_hass: HomeAssistant, llm_config: dict[st
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent_with_history = HomeAgent(test_hass, config_with_history)
+        agent_with_history = HomeAgent(test_hass, config_with_history, session_manager)
 
         event_capture.clear()
 
@@ -707,7 +707,7 @@ async def test_history_saved_event(test_hass: HomeAssistant, llm_config: dict[st
         "custom_components.home_agent.agent.async_should_expose",
         return_value=False,
     ):
-        agent_no_history = HomeAgent(test_hass, config_no_history)
+        agent_no_history = HomeAgent(test_hass, config_no_history, session_manager)
 
         event_capture.clear()
 
@@ -925,9 +925,9 @@ async def test_conversation_finished_metrics_accuracy(test_hass: HomeAssistant, 
 
         # Verify duration_ms is close to actual measured duration
         reported_duration_ms = event_data["duration_ms"]
-        # Allow 10% margin for event processing overhead
+        # Allow 10% margin for event processing overhead, but at least 5ms to account for OS scheduling jitter
         duration_diff = abs(reported_duration_ms - actual_duration_ms)
-        duration_margin = actual_duration_ms * 0.1
+        duration_margin = max(actual_duration_ms * 0.1, 5)
         assert duration_diff <= duration_margin, \
             f"Reported duration {reported_duration_ms}ms differs too much from actual {actual_duration_ms}ms (diff: {duration_diff}ms, margin: {duration_margin}ms)"
 

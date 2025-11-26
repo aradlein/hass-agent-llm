@@ -206,7 +206,8 @@ async def create_http_503_stream() -> AsyncGenerator[bytes, None]:
 
 
 @pytest.mark.asyncio
-async def test_partial_sse_stream_connection_drop(session_manager,
+async def test_partial_sse_stream_connection_drop(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -224,7 +225,7 @@ async def test_partial_sse_stream_connection_drop(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []
@@ -300,7 +301,8 @@ async def test_partial_sse_stream_connection_drop(session_manager,
 
 
 @pytest.mark.asyncio
-async def test_malformed_sse_data_handling(session_manager,
+async def test_malformed_sse_data_handling(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -317,7 +319,7 @@ async def test_malformed_sse_data_handling(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Mock response with malformed data
         mock_response = MagicMock()
@@ -374,7 +376,8 @@ async def test_malformed_sse_data_handling(session_manager,
 
 
 @pytest.mark.asyncio
-async def test_http_503_during_streaming(session_manager,
+async def test_http_503_during_streaming(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -391,7 +394,7 @@ async def test_http_503_during_streaming(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []
@@ -472,7 +475,8 @@ async def test_http_503_during_streaming(session_manager,
 
 
 @pytest.mark.asyncio
-async def test_timeout_during_streaming(session_manager,
+async def test_timeout_during_streaming(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -489,7 +493,7 @@ async def test_timeout_during_streaming(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []
@@ -556,7 +560,8 @@ async def test_timeout_during_streaming(session_manager,
 
 
 @pytest.mark.asyncio
-async def test_invalid_json_in_sse_events(session_manager,
+async def test_invalid_json_in_sse_events(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -573,7 +578,7 @@ async def test_invalid_json_in_sse_events(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Mock response with invalid JSON
         mock_response = MagicMock()
@@ -629,7 +634,8 @@ async def test_invalid_json_in_sse_events(session_manager,
 
 
 @pytest.mark.asyncio
-async def test_invalid_tool_call_json_in_stream(session_manager,
+async def test_invalid_tool_call_json_in_stream(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -646,7 +652,7 @@ async def test_invalid_tool_call_json_in_stream(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Create stream with tool call containing invalid JSON
         async def invalid_tool_json_stream():
@@ -716,7 +722,8 @@ async def test_invalid_tool_call_json_in_stream(session_manager,
 
 
 @pytest.mark.asyncio
-async def test_empty_stream_response(session_manager,
+async def test_empty_stream_response(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -732,7 +739,7 @@ async def test_empty_stream_response(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Create empty stream
         async def empty_stream():
@@ -790,7 +797,8 @@ async def test_empty_stream_response(session_manager,
 
 
 @pytest.mark.asyncio
-async def test_network_error_before_streaming_starts(session_manager,
+async def test_network_error_before_streaming_starts(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -807,7 +815,7 @@ async def test_network_error_before_streaming_starts(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []
@@ -868,7 +876,8 @@ async def test_network_error_before_streaming_starts(session_manager,
 
 
 @pytest.mark.asyncio
-async def test_stream_with_only_done_marker(session_manager,
+async def test_stream_with_only_done_marker(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -884,7 +893,7 @@ async def test_stream_with_only_done_marker(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Create stream with only [DONE]
         async def done_only_stream():
@@ -938,7 +947,8 @@ async def test_stream_with_only_done_marker(session_manager,
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_exception_propagation(session_manager,
+async def test_stream_handler_exception_propagation(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -954,7 +964,7 @@ async def test_stream_handler_exception_propagation(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []

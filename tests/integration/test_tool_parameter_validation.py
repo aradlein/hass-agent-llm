@@ -106,7 +106,7 @@ async def test_tool_parameter_wrong_type_string_instead_of_number(mock_hass, ses
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         temp_tool = agent.tool_handler.tools["set_temperature"]
@@ -153,7 +153,7 @@ async def test_tool_parameter_invalid_parameters_not_dict(mock_hass, session_man
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Try to call with non-dict parameters
@@ -184,7 +184,7 @@ async def test_tool_parameter_parameters_is_list(mock_hass, session_manager):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Try to call with list parameters
@@ -236,7 +236,7 @@ async def test_tool_parameter_missing_required_parameter(mock_hass, session_mana
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         notify_tool = agent.tool_handler.tools["send_notification"]
@@ -289,7 +289,7 @@ async def test_service_tool_parameter_missing_required(mock_hass, session_manage
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Call with missing 'message' parameter
@@ -347,7 +347,7 @@ async def test_tool_parameter_empty_string_when_non_empty_required(mock_hass, se
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         search_tool = agent.tool_handler.tools["search_query"]
@@ -401,7 +401,7 @@ async def test_tool_execution_with_none_parameter_value(mock_hass, session_manag
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         tool = agent.tool_handler.tools["optional_param_tool"]
@@ -472,7 +472,7 @@ async def test_tool_parameter_nested_object_invalid_structure(mock_hass, session
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         user_tool = agent.tool_handler.tools["create_user"]
@@ -532,7 +532,7 @@ async def test_tool_parameter_validation_with_additional_properties(mock_hass, s
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         tool = agent.tool_handler.tools["simple_action"]
@@ -596,7 +596,7 @@ async def test_rest_tool_template_rendering_failure(mock_hass, session_manager):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Execute tool - should fail during template rendering
@@ -645,7 +645,7 @@ async def test_service_tool_template_rendering_failure(mock_hass, session_manage
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Execute tool - should fail during template rendering
@@ -684,7 +684,7 @@ async def test_tool_nonexistent_tool_call(mock_hass, session_manager):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Try to call non-existent tool
@@ -711,7 +711,7 @@ async def test_tool_call_empty_tool_name(mock_hass, session_manager):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass, config)
+        agent = HomeAgent(mock_hass, config, session_manager)
         agent._ensure_tools_registered()
 
         # Try to call with empty tool name

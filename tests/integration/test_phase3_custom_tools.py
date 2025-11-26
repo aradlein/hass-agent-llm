@@ -115,7 +115,7 @@ async def test_custom_tools_registration(mock_hass_for_custom_tools, custom_tool
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
 
         # Trigger lazy tool registration
         agent._ensure_tools_registered()
@@ -133,7 +133,7 @@ async def test_custom_tool_has_correct_properties(mock_hass_for_custom_tools, cu
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Get the weather tool
@@ -154,7 +154,7 @@ async def test_custom_tool_appears_in_llm_tools_list(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Get tools formatted for LLM
@@ -173,7 +173,7 @@ async def test_custom_rest_tool_execution_success(mock_hass_for_custom_tools, cu
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Get the tool and mock its _make_request method
@@ -205,7 +205,7 @@ async def test_custom_rest_tool_execution_with_post(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Get the tool and mock its _make_request method
@@ -248,7 +248,7 @@ async def test_custom_tool_registration_with_validation_error(mock_hass_for_cust
         mock_expose.return_value = False
 
         # Should not raise exception - just log error and continue
-        agent = HomeAgent(mock_hass_for_custom_tools, config_with_invalid_tool)
+        agent = HomeAgent(mock_hass_for_custom_tools, config_with_invalid_tool, session_manager)
         agent._ensure_tools_registered()
 
         # Invalid tool should not be registered
@@ -262,7 +262,7 @@ async def test_multiple_custom_tools_registration(mock_hass_for_custom_tools, cu
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Verify both custom tools are registered alongside core tools
@@ -286,7 +286,7 @@ async def test_custom_tool_error_propagation(mock_hass_for_custom_tools, custom_
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, custom_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Get the tool and mock its _make_request method to raise an error
@@ -371,7 +371,7 @@ async def test_service_tools_registration(mock_hass_for_custom_tools, service_to
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
 
         # Trigger lazy tool registration
         agent._ensure_tools_registered()
@@ -394,7 +394,7 @@ async def test_service_tool_has_correct_properties(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Get the automation trigger tool
@@ -417,7 +417,7 @@ async def test_service_tool_appears_in_llm_tools_list(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Get tools formatted for LLM
@@ -440,7 +440,7 @@ async def test_service_tool_execution_success(mock_hass_for_custom_tools, servic
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Execute the service tool
@@ -474,7 +474,7 @@ async def test_service_tool_execution_with_parameters(session_manager,
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Execute the service tool with parameters
@@ -512,7 +512,7 @@ async def test_service_tool_execution_with_target(mock_hass_for_custom_tools, se
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Execute the service tool
@@ -542,7 +542,7 @@ async def test_service_tool_error_propagation(mock_hass_for_custom_tools, servic
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, service_tools_config, session_manager)
         agent._ensure_tools_registered()
 
         # Execute the service tool - should return error, not raise
@@ -595,7 +595,7 @@ async def test_mixed_rest_and_service_tools(mock_hass_for_custom_tools, session_
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_custom_tools, mixed_config)
+        agent = HomeAgent(mock_hass_for_custom_tools, mixed_config, session_manager)
         agent._ensure_tools_registered()
 
         # Verify both types of tools are registered

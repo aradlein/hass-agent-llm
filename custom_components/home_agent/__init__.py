@@ -19,10 +19,12 @@ from .agent import HomeAgent
 from .const import (
     CONF_CONTEXT_MODE,
     CONF_MEMORY_ENABLED,
+    CONF_SESSION_PERSISTENCE_ENABLED,
     CONF_SESSION_TIMEOUT,
     CONF_TOOLS_CUSTOM,
     CONTEXT_MODE_VECTOR_DB,
     DEFAULT_MEMORY_ENABLED,
+    DEFAULT_SESSION_PERSISTENCE_ENABLED,
     DEFAULT_SESSION_TIMEOUT,
     DOMAIN,
 )
@@ -79,10 +81,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
 
     # Initialize conversation session manager for persistent voice conversations
-    session_timeout = config.get(CONF_SESSION_TIMEOUT, DEFAULT_SESSION_TIMEOUT)
+    session_persistence_enabled = config.get(CONF_SESSION_PERSISTENCE_ENABLED, DEFAULT_SESSION_PERSISTENCE_ENABLED)
+    if session_persistence_enabled:
+        # Get timeout from config (stored in minutes, convert to seconds)
+        session_timeout_minutes = config.get(CONF_SESSION_TIMEOUT, DEFAULT_SESSION_TIMEOUT // 60)
+        session_timeout = session_timeout_minutes * 60  # Convert to seconds
+    else:
+        # Disabled - use 0 which makes get_conversation_id always return None
+        session_timeout = 0
     session_manager = ConversationSessionManager(hass, session_timeout)
     await session_manager.async_load()
-    _LOGGER.info("Conversation Session Manager initialized (timeout: %ds)", session_timeout)
+    if session_persistence_enabled:
+        _LOGGER.info("Conversation Session Manager initialized with persistence enabled (timeout: %ds)", session_timeout)
+    else:
+        _LOGGER.info("Conversation Session Manager initialized with persistence disabled")
 
     # Create Home Agent instance with session manager
     agent = HomeAgent(hass, config, session_manager)

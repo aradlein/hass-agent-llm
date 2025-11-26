@@ -1487,7 +1487,7 @@ async def test_emit_events_runtime_check_in_tool_handler(test_hass, llm_config, 
 
         test_hass.states.get = MagicMock(side_effect=mock_get_state)
 
-        agent = HomeAgent(test_hass, config_disabled)
+        agent = HomeAgent(test_hass, config_disabled, session_manager)
 
         # Verify ToolHandler has emit_events set correctly
         assert agent.tool_handler.emit_events is False, \
