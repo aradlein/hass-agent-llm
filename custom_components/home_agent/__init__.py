@@ -22,13 +22,22 @@ from .const import (
     CONF_SESSION_PERSISTENCE_ENABLED,
     CONF_SESSION_TIMEOUT,
     CONF_TOOLS_CUSTOM,
+    CONF_VECTOR_DB_EMBEDDING_BASE_URL,
+    CONF_VECTOR_DB_EMBEDDING_PROVIDER,
+    CONF_VECTOR_DB_HOST,
+    CONF_VECTOR_DB_PORT,
     CONTEXT_MODE_VECTOR_DB,
     DEFAULT_MEMORY_ENABLED,
     DEFAULT_SESSION_PERSISTENCE_ENABLED,
     DEFAULT_SESSION_TIMEOUT,
+    DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
+    DEFAULT_VECTOR_DB_HOST,
+    DEFAULT_VECTOR_DB_PORT,
     DOMAIN,
+    EMBEDDING_PROVIDER_OLLAMA,
 )
 from .conversation_session import ConversationSessionManager
+from .helpers import check_chromadb_health, check_ollama_health
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -111,8 +120,44 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "session_manager": session_manager,
     }
 
-    # Set up vector DB manager if using vector DB mode
+    # Perform health checks if using vector DB mode
     context_mode = config.get(CONF_CONTEXT_MODE)
+    if context_mode == CONTEXT_MODE_VECTOR_DB:
+        # Get configuration values
+        chromadb_host = config.get(CONF_VECTOR_DB_HOST, DEFAULT_VECTOR_DB_HOST)
+        chromadb_port = config.get(CONF_VECTOR_DB_PORT, DEFAULT_VECTOR_DB_PORT)
+        embedding_provider = config.get(CONF_VECTOR_DB_EMBEDDING_PROVIDER)
+        embedding_base_url = config.get(
+            CONF_VECTOR_DB_EMBEDDING_BASE_URL, DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL
+        )
+
+        # Check ChromaDB health
+        chromadb_healthy, chromadb_msg = await check_chromadb_health(chromadb_host, chromadb_port)
+        if not chromadb_healthy:
+            _LOGGER.warning(
+                "ChromaDB health check failed at %s:%s - %s. "
+                "Vector DB features may not work until ChromaDB is available.",
+                chromadb_host,
+                chromadb_port,
+                chromadb_msg,
+            )
+        else:
+            _LOGGER.info("ChromaDB health check passed: %s", chromadb_msg)
+
+        # Check Ollama health if using Ollama embeddings
+        if embedding_provider == EMBEDDING_PROVIDER_OLLAMA:
+            ollama_healthy, ollama_msg = await check_ollama_health(embedding_base_url)
+            if not ollama_healthy:
+                _LOGGER.warning(
+                    "Ollama health check failed at %s - %s. "
+                    "Embedding generation may not work until Ollama is available.",
+                    embedding_base_url,
+                    ollama_msg,
+                )
+            else:
+                _LOGGER.info("Ollama health check passed: %s", ollama_msg)
+
+    # Set up vector DB manager if using vector DB mode
     vector_manager = None
     if context_mode == CONTEXT_MODE_VECTOR_DB:
         try:
@@ -146,6 +191,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register as a conversation agent
     ha_conversation.async_set_agent(hass, entry, agent)
+
+    # Setup scheduled cleanup for conversation history
+    agent.conversation_manager.setup_scheduled_cleanup()
 
     # Register services
     await async_setup_services(hass, entry.entry_id)
@@ -196,6 +244,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Clean up agent
         agent: HomeAgent = entry_data["agent"]
+
+        # Shutdown scheduled cleanup for conversation history
+        agent.conversation_manager.shutdown_scheduled_cleanup()
+
         await agent.close()
 
         del hass.data[DOMAIN][entry.entry_id]

@@ -44,8 +44,9 @@ from ..const import (
     EMBEDDING_PROVIDER_OLLAMA,
     EMBEDDING_PROVIDER_OPENAI,
 )
-from ..exceptions import ContextInjectionError
+from ..exceptions import ContextInjectionError, EmbeddingTimeoutError
 from .base import ContextProvider
+from .direct import DirectContextProvider
 
 # Conditional imports for ChromaDB
 try:
@@ -108,6 +109,7 @@ class VectorDBContextProvider(ContextProvider):
         self._client: ClientAPI | None = None
         self._collection: Collection | None = None
         self._embedding_cache: dict[str, list[float]] = {}
+        self._fallback_provider: DirectContextProvider | None = None
 
         _LOGGER.info(
             "Vector DB provider initialized (host=%s:%s, collection=%s)",
@@ -193,9 +195,29 @@ class VectorDBContextProvider(ContextProvider):
             else:
                 return "No relevant context found."
 
+        except EmbeddingTimeoutError:
+            # Timeout during embedding - fall back to direct mode
+            return await self._fallback_to_direct(user_input)
+        except ContextInjectionError:
+            # Vector DB or embedding failure - fall back to direct mode
+            return await self._fallback_to_direct(user_input)
         except Exception as err:
+            # Unexpected error - fall back to direct mode
             _LOGGER.error("Vector DB context retrieval failed: %s", err, exc_info=True)
-            raise ContextInjectionError(f"Vector DB query failed: {err}") from err
+            return await self._fallback_to_direct(user_input)
+
+    def _get_fallback_provider(self) -> DirectContextProvider:
+        """Lazy-initialize fallback direct context provider."""
+        if self._fallback_provider is None:
+            self._fallback_provider = DirectContextProvider(self.hass, {"entities": []})
+        return self._fallback_provider
+
+    async def _fallback_to_direct(self, user_input: str) -> str:
+        """Fall back to direct context when vector DB fails."""
+        _LOGGER.warning("Falling back to direct context provider")
+        fallback = self._get_fallback_provider()
+        context = await fallback.get_context(user_input)
+        return f"[Fallback mode - Vector DB unavailable]\n{context}" if context else ""
 
     async def _ensure_initialized(self) -> None:
         """Ensure ChromaDB client and collection are initialized."""
@@ -282,6 +304,7 @@ class VectorDBContextProvider(ContextProvider):
     async def _embed_with_ollama(self, text: str) -> list[float]:
         """Generate embedding using Ollama API."""
         import aiohttp
+        import asyncio
 
         url = f"{self.embedding_base_url.rstrip('/')}/api/embeddings"
         payload = {"model": self.embedding_model, "prompt": text}
@@ -299,6 +322,10 @@ class VectorDBContextProvider(ContextProvider):
                     result = await response.json()
                     embedding: list[float] = result["embedding"]
                     return embedding
+        except asyncio.TimeoutError as err:
+            raise EmbeddingTimeoutError(
+                f"Ollama embedding timed out after 30s for model {self.embedding_model}"
+            ) from err
         except aiohttp.ClientError as err:
             raise ContextInjectionError(
                 f"Failed to connect to Ollama at {self.embedding_base_url}: {err}"

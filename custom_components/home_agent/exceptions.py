@@ -165,3 +165,93 @@ class ValidationError(HomeAgentError):
             f"Expected format: domain.entity_name"
         )
     """
+
+
+class EmbeddingTimeoutError(ContextInjectionError):
+    """Exception raised when embedding generation times out.
+
+    This exception is raised when the embedding model fails to generate
+    embeddings within the configured timeout period.
+
+    Common causes:
+        - Slow embedding model response
+        - Network timeout to embedding service
+        - Embedding service overloaded
+        - Large text input requiring long processing
+
+    Example:
+        raise EmbeddingTimeoutError(
+            f"Embedding generation timed out after {timeout}s for model {model}"
+        )
+    """
+
+
+class EntityNotFoundError(HomeAgentError):
+    """Exception raised when an entity does not exist.
+
+    This exception is raised when attempting to access or control an entity
+    that does not exist in Home Assistant's state registry.
+
+    Common causes:
+        - Entity ID typo or incorrect format
+        - Entity was removed or renamed
+        - Entity not yet initialized
+        - Wrong domain specified
+        - Entity from disabled integration
+
+    Example:
+        raise EntityNotFoundError(
+            f"Entity {entity_id} not found in state registry",
+            entity_id=entity_id
+        )
+    """
+
+    def __init__(self, message: str, entity_id: str | None = None) -> None:
+        """Initialize EntityNotFoundError.
+
+        Args:
+            message: The error message.
+            entity_id: Optional entity ID that was not found.
+        """
+        super().__init__(message)
+        self.entity_id = entity_id
+
+
+class ServiceUnavailableError(HomeAgentError):
+    """Exception raised when a service is unavailable.
+
+    This exception is raised when a required service (LLM API, embedding
+    service, vector database, or Home Assistant service) is temporarily
+    unavailable or not responding.
+
+    Common causes:
+        - Service temporarily down
+        - Network connectivity issues
+        - Service maintenance or restart
+        - Resource exhaustion (memory, CPU)
+        - Dependency service failure
+
+    Example:
+        raise ServiceUnavailableError(
+            f"LLM service at {base_url} is unavailable",
+            service_name="openai_api",
+            retry_after=60
+        )
+    """
+
+    def __init__(
+        self,
+        message: str,
+        service_name: str | None = None,
+        retry_after: int | None = None,
+    ) -> None:
+        """Initialize ServiceUnavailableError.
+
+        Args:
+            message: The error message.
+            service_name: Optional name of the unavailable service.
+            retry_after: Optional seconds to wait before retrying.
+        """
+        super().__init__(message)
+        self.service_name = service_name
+        self.retry_after = retry_after

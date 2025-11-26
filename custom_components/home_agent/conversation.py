@@ -10,9 +10,11 @@ import asyncio
 import logging
 import time
 from collections import defaultdict
-from typing import Any
+from datetime import datetime, timedelta
+from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 
 from .const import EVENT_HISTORY_SAVED, HISTORY_STORAGE_KEY
@@ -79,6 +81,7 @@ class ConversationHistoryManager:
         self._store: Store | None = None
         self._save_task: asyncio.Task | None = None
         self._pending_save = False
+        self._cleanup_listener: Callable[[], None] | None = None
 
         # Initialize storage if persistence is enabled
         if self._persist:
@@ -656,3 +659,64 @@ class ConversationHistoryManager:
             old_max_tokens = self._max_tokens
             self._max_tokens = max_tokens
             _LOGGER.info("Updated max_tokens from %s to %d", old_max_tokens, max_tokens)
+
+    def setup_scheduled_cleanup(self) -> None:
+        """Start periodic cleanup of old conversations.
+
+        Schedules automatic cleanup of conversations older than 24 hours to run
+        every hour. Only operates when persistence is enabled.
+        """
+        if self._persist and self._hass:
+            self._cleanup_listener = async_track_time_interval(
+                self._hass,
+                self._async_cleanup_old_conversations,
+                timedelta(hours=1),
+            )
+            _LOGGER.info("Scheduled conversation cleanup every hour")
+
+    async def _async_cleanup_old_conversations(self, _now=None) -> None:
+        """Remove conversations older than 24 hours.
+
+        Args:
+            _now: Unused parameter for compatibility with async_track_time_interval
+
+        Note:
+            Checks the timestamp of the most recent message in each conversation.
+            If the most recent message is older than 24 hours, the entire
+            conversation is removed.
+        """
+        cutoff = datetime.now() - timedelta(hours=24)
+        cutoff_timestamp = int(cutoff.timestamp())
+        to_delete = []
+
+        for conv_id, messages in self._histories.items():
+            if not messages:
+                # Empty conversation, mark for deletion
+                to_delete.append(conv_id)
+                continue
+
+            # Check the last message timestamp (most recent message)
+            last_message = messages[-1]
+            last_activity = last_message.get("timestamp", 0)
+
+            if last_activity < cutoff_timestamp:
+                to_delete.append(conv_id)
+
+        # Delete old conversations
+        for conv_id in to_delete:
+            del self._histories[conv_id]
+
+        if to_delete:
+            await self.save_to_storage()
+            _LOGGER.info("Cleaned up %d old conversations", len(to_delete))
+
+    def shutdown_scheduled_cleanup(self) -> None:
+        """Stop cleanup scheduler.
+
+        Cancels the periodic cleanup task. Should be called during component shutdown
+        to prevent cleanup from running after the component is unloaded.
+        """
+        if self._cleanup_listener:
+            self._cleanup_listener()
+            self._cleanup_listener = None
+            _LOGGER.info("Stopped scheduled conversation cleanup")

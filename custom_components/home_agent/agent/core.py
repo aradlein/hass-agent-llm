@@ -139,6 +139,16 @@ from ..const import (
     CONF_MEMORY_EXTRACTION_ENABLED,
     TOOL_QUERY_EXTERNAL_LLM,
 )
+from ..exceptions import (
+    HomeAgentError,
+    AuthenticationError,
+    TokenLimitExceeded,
+    RateLimitExceeded,
+    PermissionDenied,
+    EntityNotFoundError,
+    ServiceUnavailableError,
+    ContextInjectionError,
+)
 from ..context_manager import ContextManager
 from ..conversation import ConversationHistoryManager
 from ..tool_handler import ToolHandler
@@ -289,14 +299,119 @@ class HomeAgent(
             # Synchronous processing (existing code path)
             return await self._async_process_synchronous(user_input)
 
-        except Exception as err:
-            _LOGGER.error("Error in async_process: %s", err, exc_info=True)
+        except AuthenticationError as err:
+            _LOGGER.error("Authentication error: %s", err, exc_info=True)
+            message = "I'm having trouble connecting to the AI service. Please check your API key."
 
-            # Return error response
             intent_response = intent.IntentResponse(language=user_input.language)
             intent_response.async_set_error(
                 intent.IntentResponseErrorCode.UNKNOWN,
-                f"Sorry, I encountered an error: {err}",
+                message,
+            )
+
+            return ha_conversation.ConversationResult(
+                response=intent_response,
+                conversation_id=user_input.conversation_id,
+            )
+
+        except ServiceUnavailableError as err:
+            _LOGGER.error("Service unavailable: %s", err, exc_info=True)
+            message = "The AI service is temporarily unavailable. Please try again later."
+
+            intent_response = intent.IntentResponse(language=user_input.language)
+            intent_response.async_set_error(
+                intent.IntentResponseErrorCode.UNKNOWN,
+                message,
+            )
+
+            return ha_conversation.ConversationResult(
+                response=intent_response,
+                conversation_id=user_input.conversation_id,
+            )
+
+        except TokenLimitExceeded as err:
+            _LOGGER.error("Token limit exceeded: %s", err, exc_info=True)
+            message = "Your request was too long. Please try a shorter message."
+
+            intent_response = intent.IntentResponse(language=user_input.language)
+            intent_response.async_set_error(
+                intent.IntentResponseErrorCode.UNKNOWN,
+                message,
+            )
+
+            return ha_conversation.ConversationResult(
+                response=intent_response,
+                conversation_id=user_input.conversation_id,
+            )
+
+        except RateLimitExceeded as err:
+            _LOGGER.error("Rate limit exceeded: %s", err, exc_info=True)
+            message = "Too many requests. Please wait a moment and try again."
+
+            intent_response = intent.IntentResponse(language=user_input.language)
+            intent_response.async_set_error(
+                intent.IntentResponseErrorCode.UNKNOWN,
+                message,
+            )
+
+            return ha_conversation.ConversationResult(
+                response=intent_response,
+                conversation_id=user_input.conversation_id,
+            )
+
+        except EntityNotFoundError as err:
+            _LOGGER.error("Entity not found: %s", err, exc_info=True)
+            message = "I couldn't find the device. Please check if it's available."
+
+            intent_response = intent.IntentResponse(language=user_input.language)
+            intent_response.async_set_error(
+                intent.IntentResponseErrorCode.UNKNOWN,
+                message,
+            )
+
+            return ha_conversation.ConversationResult(
+                response=intent_response,
+                conversation_id=user_input.conversation_id,
+            )
+
+        except PermissionDenied as err:
+            _LOGGER.error("Permission denied: %s", err, exc_info=True)
+            message = "I don't have permission to control that device."
+
+            intent_response = intent.IntentResponse(language=user_input.language)
+            intent_response.async_set_error(
+                intent.IntentResponseErrorCode.UNKNOWN,
+                message,
+            )
+
+            return ha_conversation.ConversationResult(
+                response=intent_response,
+                conversation_id=user_input.conversation_id,
+            )
+
+        except ContextInjectionError as err:
+            _LOGGER.error("Context injection error: %s", err, exc_info=True)
+            message = "I had trouble getting device information. Please try again."
+
+            intent_response = intent.IntentResponse(language=user_input.language)
+            intent_response.async_set_error(
+                intent.IntentResponseErrorCode.UNKNOWN,
+                message,
+            )
+
+            return ha_conversation.ConversationResult(
+                response=intent_response,
+                conversation_id=user_input.conversation_id,
+            )
+
+        except Exception as err:
+            _LOGGER.error("Unexpected error: %s", err, exc_info=True)
+            message = "Something unexpected went wrong. Please check the logs."
+
+            intent_response = intent.IntentResponse(language=user_input.language)
+            intent_response.async_set_error(
+                intent.IntentResponseErrorCode.UNKNOWN,
+                message,
             )
 
             return ha_conversation.ConversationResult(
