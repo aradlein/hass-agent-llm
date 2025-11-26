@@ -199,10 +199,14 @@ from ..const import (
     CONF_EXTERNAL_LLM_ENABLED,
     CONF_MEMORY_ENABLED,
     CONF_MEMORY_EXTRACTION_LLM,
+    CONF_MEMORY_MIN_IMPORTANCE,
+    CONF_MEMORY_MIN_WORDS,
     DEFAULT_MEMORY_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_LLM,
+    DEFAULT_MEMORY_MIN_WORDS,
     EVENT_MEMORY_EXTRACTED,
 )
+from ..memory.validator import MemoryValidator
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -225,11 +229,31 @@ class MemoryExtractionMixin:
     hass: "HomeAssistant"
     config: dict[str, Any]
     tool_handler: "ToolHandler"
+    _memory_validator: MemoryValidator | None = None
 
     @property
     def memory_manager(self) -> Any:
         """Get memory manager (provided by host class)."""
         ...
+
+    @property
+    def memory_validator(self) -> MemoryValidator:
+        """Get or create the memory validator instance.
+
+        Returns:
+            MemoryValidator configured with current settings
+        """
+        if self._memory_validator is None:
+            # Use config value if set, otherwise use 0.4 (historical default for extraction)
+            # Note: DEFAULT_MEMORY_MIN_IMPORTANCE (0.3) is for storage, but extraction
+            # has historically used 0.4 as a stricter threshold
+            min_importance = self.config.get(CONF_MEMORY_MIN_IMPORTANCE, 0.4)
+            min_word_count = self.config.get(CONF_MEMORY_MIN_WORDS, DEFAULT_MEMORY_MIN_WORDS)
+            self._memory_validator = MemoryValidator(
+                min_word_count=min_word_count,
+                min_importance=min_importance,
+            )
+        return self._memory_validator
 
     # This method is provided by LLMMixin
     async def _call_llm(
@@ -328,6 +352,13 @@ Extract memories as a JSON array. Each memory should have:
 - "importance": Score from 0.0 to 1.0 (1.0 = very important)
 - "entities": List of Home Assistant entity IDs mentioned (if any)
 - "topics": List of topic tags (e.g., ["temperature", "bedroom"])
+
+**Importance Score Guidelines:**
+- 0.9-1.0: Critical personal info (birthdays, allergies, security codes, medical needs)
+- 0.7-0.8: Strong preferences with specific values (temperature 68°F, lights at 50%)
+- 0.5-0.6: General preferences and useful context (prefers dim lights, works from home)
+- 0.3-0.4: Minor details mentioned in passing (asked about a feature once)
+- 0.1-0.2: Trivial or uncertain information (might want something someday)
 
 **Critical Rules:**
 - Only extract genuinely useful, long-term information
@@ -474,105 +505,33 @@ Return ONLY valid JSON, no other text:
                 _LOGGER.debug("No memories extracted from conversation")
                 return 0
 
-            # Store each memory
+            # Store each memory and track rejection reasons
             stored_count = 0
+            rejection_counts: dict[str, int] = {}
+            total_count = len(memories)
+
             for memory_data in memories:
                 try:
-                    # Validate memory data
-                    if not isinstance(memory_data, dict):
-                        _LOGGER.warning("Skipping invalid memory data: %s", memory_data)
-                        continue
+                    # Validate memory using MemoryValidator
+                    is_valid, rejection_reason = self.memory_validator.validate(
+                        memory_data
+                    )
 
-                    if "content" not in memory_data:
-                        _LOGGER.warning(
-                            "Skipping memory without content: %s", memory_data
+                    if not is_valid:
+                        content = memory_data.get("content", "")[:50] if isinstance(
+                            memory_data, dict
+                        ) else str(memory_data)[:50]
+                        _LOGGER.debug(
+                            "Rejecting memory (%s): %s",
+                            rejection_reason,
+                            content,
                         )
+                        # Track rejection reason
+                        rejection_counts[rejection_reason] = rejection_counts.get(rejection_reason, 0) + 1
                         continue
 
                     content = memory_data["content"]
                     memory_type = memory_data.get("type", "fact")
-                    importance = memory_data.get("importance", 0.5)
-
-                    # Quality validation checks
-
-                    # 1. Reject if too short (less than 10 meaningful words)
-                    # Count only meaningful words (>2 chars) to filter out filler words
-                    words = content.split()
-                    meaningful_words = [w for w in words if len(w) > 2]
-                    meaningful_word_count = len(meaningful_words)
-                    if meaningful_word_count < 10:
-                        _LOGGER.debug(
-                            "Rejecting short memory (%d meaningful words): %s",
-                            meaningful_word_count,
-                            content[:50],
-                        )
-                        continue
-
-                    # 2. Reject if contains low-value patterns
-                    content_lower = content.lower()
-                    low_value_patterns = [
-                        # Negative existence statements
-                        ("there is no", "starts"),
-                        ("there are no", "starts"),
-                        ("no specific", "contains"),
-                        ("does not have", "contains"),
-                        # Conversation meta-information
-                        ("the conversation occurred", "contains"),
-                        ("conversation occurred", "contains"),
-                        ("we discussed", "contains"),
-                        ("we talked about", "contains"),
-                        ("user asked about", "contains"),
-                        ("during the conversation", "contains"),
-                        ("at the time", "contains"),
-                        ("in the conversation", "contains"),
-                        # Temporal references without context
-                        (
-                            ("at ", "starts")
-                            if content_lower.startswith("at ") and ":" in content
-                            else (None, None)
-                        ),
-                    ]
-
-                    rejected = False
-                    for pattern, match_type in low_value_patterns:
-                        if pattern is None:
-                            continue
-                        if match_type == "starts" and content_lower.startswith(pattern):
-                            _LOGGER.debug(
-                                "Rejecting low-value memory (starts with '%s'): %s",
-                                pattern,
-                                content[:50],
-                            )
-                            rejected = True
-                            break
-                        elif match_type == "contains" and pattern in content_lower:
-                            _LOGGER.debug(
-                                "Rejecting low-value memory (contains '%s'): %s",
-                                pattern,
-                                content[:50],
-                            )
-                            rejected = True
-                            break
-
-                    if rejected:
-                        continue
-
-                    # 3. Reject if importance is too low
-                    if importance < 0.4:
-                        _LOGGER.debug(
-                            "Rejecting low-importance memory (%.2f): %s",
-                            importance,
-                            content[:50],
-                        )
-                        continue
-
-                    # 4. Reject transient state or low-quality content (all types)
-                    if self.memory_manager._is_transient_state(content):
-                        _LOGGER.debug(
-                            "Rejecting transient/low-quality content: %s",
-                            content[:50],
-                        )
-                        continue
 
                     memory_id = await self.memory_manager.add_memory(
                         content=content,
@@ -592,11 +551,25 @@ Return ONLY valid JSON, no other text:
                     _LOGGER.error("Failed to store memory: %s", err)
                     continue
 
-            if stored_count > 0:
+            # Log summary statistics
+            rejected_count = total_count - stored_count
+            if rejected_count > 0:
+                # Format rejection reasons as "reason1: count1, reason2: count2"
+                rejection_summary = ", ".join(
+                    f"{reason}: {count}" for reason, count in sorted(rejection_counts.items())
+                )
                 _LOGGER.info(
-                    "Extracted and stored %d memories from conversation %s",
+                    "Memory extraction: %d/%d stored, %d rejected (reasons: %s)",
                     stored_count,
-                    conversation_id,
+                    total_count,
+                    rejected_count,
+                    rejection_summary,
+                )
+            elif stored_count > 0:
+                _LOGGER.info(
+                    "Memory extraction: %d/%d stored, 0 rejected",
+                    stored_count,
+                    total_count,
                 )
 
             return stored_count

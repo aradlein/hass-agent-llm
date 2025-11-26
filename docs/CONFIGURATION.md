@@ -2,6 +2,8 @@
 
 Essential configuration settings for Home Agent. For complete options, see the [Configuration Reference](reference/CONFIGURATION.md).
 
+**Looking for ready-to-use configurations?** See [Example Configurations](EXAMPLE_CONFIGS.md) for comprehensive setup guides for OpenAI, Ollama, LocalAI, multi-LLM, memory system, and vector DB.
+
 ## Configuration Overview
 
 **Access configuration:**

@@ -136,6 +136,7 @@ Access Settings > Devices & Services > Home Agent > Configure to:
 ### Quick Start Guides
 - [Installation](docs/INSTALLATION.md) - Get up and running in minutes
 - [Configuration](docs/CONFIGURATION.md) - Essential settings explained
+- [Example Configurations](docs/EXAMPLE_CONFIGS.md) - Ready-to-use configs for common providers
 - [FAQ](docs/FAQ.md) - Top 20 questions answered
 
 ### Feature Guides
@@ -145,6 +146,7 @@ Access Settings > Devices & Services > Home Agent > Configure to:
 - [External LLM](docs/EXTERNAL_LLM.md) - Multi-LLM workflows
 
 ### Reference
+- [Architecture Overview](docs/ARCHITECTURE.md) - Component diagrams and system design
 - [API Reference](docs/API_REFERENCE.md) - Services, events, and tools
 - [Observability](observability/README.md) - Monitoring with Prometheus, InfluxDB, and Grafana
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Quick fixes for common issues

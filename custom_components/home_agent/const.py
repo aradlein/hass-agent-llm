@@ -93,6 +93,7 @@ CONF_MEMORY_EVENT_TTL: Final = "memory_event_ttl"
 CONF_MEMORY_FACT_TTL: Final = "memory_fact_ttl"
 CONF_MEMORY_PREFERENCE_TTL: Final = "memory_preference_ttl"
 CONF_MEMORY_CLEANUP_INTERVAL: Final = "memory_cleanup_interval"
+CONF_MEMORY_MIN_WORDS: Final = "memory_min_words"
 
 # Configuration keys - Debugging and Events
 CONF_DEBUG_LOGGING: Final = "debug_logging"
@@ -203,6 +204,7 @@ DEFAULT_MEMORY_EVENT_TTL: Final = 300  # 5 minutes for events (in seconds)
 DEFAULT_MEMORY_FACT_TTL: Final = None  # No expiration for facts
 DEFAULT_MEMORY_PREFERENCE_TTL: Final = 7776000  # 90 days for preferences
 DEFAULT_MEMORY_CLEANUP_INTERVAL: Final = 300  # Run cleanup every 5 minutes
+DEFAULT_MEMORY_MIN_WORDS: Final = 10
 
 # Default values - Debugging
 DEFAULT_DEBUG_LOGGING: Final = False

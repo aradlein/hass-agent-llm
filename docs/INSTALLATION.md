@@ -71,6 +71,8 @@ Note: Currently in development. Use manual installation below.
 - API Key: Leave blank
 - Model: `llama3.2:3b`
 
+**For complete setup guides with ready-to-copy configurations, see [Example Configurations](EXAMPLE_CONFIGS.md)**
+
 Other providers (LocalAI, LM Studio) follow similar patterns - see reference docs for details.
 
 ## Basic Setup

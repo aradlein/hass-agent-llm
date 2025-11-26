@@ -62,6 +62,7 @@ from .const import (
     CONF_MEMORY_EXTRACTION_LLM,
     CONF_MEMORY_MAX_MEMORIES,
     CONF_MEMORY_MIN_IMPORTANCE,
+    CONF_MEMORY_MIN_WORDS,
     CONF_OPENAI_API_KEY,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
@@ -110,6 +111,7 @@ from .const import (
     DEFAULT_MEMORY_EXTRACTION_LLM,
     DEFAULT_MEMORY_MAX_MEMORIES,
     DEFAULT_MEMORY_MIN_IMPORTANCE,
+    DEFAULT_MEMORY_MIN_WORDS,
     DEFAULT_NAME,
     DEFAULT_PROMPT_USE_DEFAULT,
     DEFAULT_SESSION_PERSISTENCE_ENABLED,
@@ -1240,6 +1242,16 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                             ),
                         ),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+                    vol.Optional(
+                        CONF_MEMORY_MIN_WORDS,
+                        default=current_options.get(
+                            CONF_MEMORY_MIN_WORDS,
+                            current_data.get(
+                                CONF_MEMORY_MIN_WORDS,
+                                DEFAULT_MEMORY_MIN_WORDS,
+                            ),
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
                     vol.Optional(
                         CONF_MEMORY_CONTEXT_TOP_K,
                         default=current_options.get(
