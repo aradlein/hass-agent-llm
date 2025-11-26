@@ -1,4 +1,5 @@
 """Unit tests for the ToolRegistry and BaseTool."""
+
 from typing import Any
 
 import pytest

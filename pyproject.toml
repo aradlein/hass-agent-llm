@@ -66,6 +66,17 @@ asyncio_mode = "auto"
 timeout = 30
 filterwarnings = [
     "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore:coroutine.*was never awaited:RuntimeWarning",
+    "ignore:Unclosed client session:ResourceWarning",
+    "ignore:Enable tracemalloc:ResourceWarning",
+]
+markers = [
+    "integration: Integration tests requiring external services (ChromaDB, LLM, etc.)",
+    "e2e: End-to-end tests covering complete workflows",
+    "smoke: Quick smoke tests for basic functionality verification",
+    "performance: Performance benchmark tests",
 ]
 
 [tool.coverage.run]

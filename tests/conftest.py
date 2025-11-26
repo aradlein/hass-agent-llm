@@ -1,4 +1,5 @@
 """Shared test fixtures for Home Agent."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

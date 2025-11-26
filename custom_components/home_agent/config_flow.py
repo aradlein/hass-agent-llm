@@ -54,6 +54,8 @@ from .const import (
     CONF_OPENAI_API_KEY,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
+    CONF_SESSION_PERSISTENCE_ENABLED,
+    CONF_SESSION_TIMEOUT,
     CONF_STREAMING_ENABLED,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
@@ -100,6 +102,8 @@ from .const import (
     DEFAULT_MEMORY_MIN_IMPORTANCE,
     DEFAULT_NAME,
     DEFAULT_PROMPT_USE_DEFAULT,
+    DEFAULT_SESSION_PERSISTENCE_ENABLED,
+    DEFAULT_SESSION_TIMEOUT,
     DEFAULT_STREAMING_ENABLED,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
@@ -745,6 +749,10 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             FlowResult indicating completion or next step
         """
         if user_input is not None:
+            # Convert session_timeout from minutes to seconds for storage
+            if CONF_SESSION_TIMEOUT in user_input:
+                user_input[CONF_SESSION_TIMEOUT] = user_input[CONF_SESSION_TIMEOUT] * 60
+
             updated_options = {**self._config_entry.options, **user_input}
             return self.async_create_entry(title="", data=updated_options)
 
@@ -778,6 +786,24 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                             current_data.get(CONF_HISTORY_MAX_TOKENS, DEFAULT_HISTORY_MAX_TOKENS),
                         ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=100, max=50000)),
+                    vol.Required(
+                        CONF_SESSION_PERSISTENCE_ENABLED,
+                        default=current_options.get(
+                            CONF_SESSION_PERSISTENCE_ENABLED,
+                            current_data.get(
+                                CONF_SESSION_PERSISTENCE_ENABLED,
+                                DEFAULT_SESSION_PERSISTENCE_ENABLED,
+                            ),
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_SESSION_TIMEOUT,
+                        default=current_options.get(
+                            CONF_SESSION_TIMEOUT,
+                            current_data.get(CONF_SESSION_TIMEOUT, DEFAULT_SESSION_TIMEOUT),
+                        )
+                        // 60,  # Convert seconds to minutes for display
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=120)),
                 }
             ),
         )

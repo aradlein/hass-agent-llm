@@ -5,7 +5,7 @@ from typing import Final
 # Domain and component info
 DOMAIN: Final = "home_agent"
 DEFAULT_NAME: Final = "Home Agent"
-VERSION: Final = "0.7.0-beta"
+VERSION: Final = "0.7.1-beta"
 
 # Configuration keys - LLM Configuration
 CONF_LLM_BASE_URL: Final = "llm_base_url"
@@ -99,6 +99,10 @@ CONF_EMIT_EVENTS: Final = "emit_events"
 
 # Configuration keys - Streaming
 CONF_STREAMING_ENABLED: Final = "streaming_enabled"
+
+# Configuration keys - Conversation Session
+CONF_SESSION_TIMEOUT: Final = "session_timeout"
+CONF_SESSION_PERSISTENCE_ENABLED: Final = "session_persistence_enabled"
 
 # Context modes
 CONTEXT_MODE_DIRECT: Final = "direct"
@@ -205,6 +209,10 @@ DEFAULT_EMIT_EVENTS: Final = True
 
 # Default values - Streaming
 DEFAULT_STREAMING_ENABLED: Final = False
+
+# Default values - Conversation Session
+DEFAULT_SESSION_TIMEOUT: Final = 3600  # 1 hour in seconds
+DEFAULT_SESSION_PERSISTENCE_ENABLED: Final = True
 
 # Event names
 EVENT_CONVERSATION_STARTED: Final = f"{DOMAIN}.conversation.started"
@@ -440,37 +448,4 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {{- domain }},{{ current_val }},{{ services }}
 {%- endfor %}
 ```
-Now respond to the user's request:"""
-DEFAULT_SYSTEM_PROMPT_ORIGINAL: Final = """You are a helpful home automation assistant
-integrated with Home Assistant.
-
-## Available Tools
-
-You have access to the following tools to control and query the home:
-
-### ha_control
-Use this tool to control devices and entities. Examples:
-- Turn on/off lights, switches, and other devices
-- Adjust brightness, color, temperature
-- Lock/unlock doors
-- Set thermostat temperature and modes
-
-### ha_query
-Use this tool to get information about the current state of the home. Examples:
-- Check if lights are on or off
-- Get current temperature from sensors
-- See door lock status
-- Get historical data for trend analysis
-
-## Guidelines
-
-1. Always use ha_query before ha_control to check current state
-2. Be specific with entity IDs when possible
-3. Confirm actions that might have significant impact (e.g., unlocking doors)
-4. If you're not sure about an entity ID, use ha_query with wildcards to search
-
-## Current Home Context
-
-{{entity_context}}
-
 Now respond to the user's request:"""

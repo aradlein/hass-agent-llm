@@ -541,8 +541,8 @@ class TestDeleteMemory:
 
         await memory_manager.delete_memory(memory_id)
 
-        # Verify ChromaDB delete was called
-        memory_manager._collection.delete.assert_called()
+        # Verify ChromaDB delete was called with correct arguments
+        memory_manager._collection.delete.assert_called_once_with(ids=[memory_id])
 
 
 class TestListAllMemories:
@@ -686,7 +686,7 @@ class TestStoragePersistence:
 
     async def test_save_to_store(self, memory_manager, mock_store):
         """Test that memories are saved to store."""
-        await memory_manager.add_memory(
+        memory_id = await memory_manager.add_memory(
             content="Test memory",
             memory_type=MEMORY_TYPE_FACT,
         )
@@ -694,8 +694,14 @@ class TestStoragePersistence:
         # Wait for debounced save
         await asyncio.sleep(1.5)
 
-        # Verify save was called
-        assert mock_store.async_save.called
+        # Verify save was called with proper data structure
+        mock_store.async_save.assert_called_once()
+        saved_data = mock_store.async_save.call_args[0][0]
+        assert "version" in saved_data
+        assert "memories" in saved_data
+        assert memory_id in saved_data["memories"]
+        assert saved_data["memories"][memory_id]["content"] == "Test memory"
+        assert saved_data["memories"][memory_id]["type"] == MEMORY_TYPE_FACT
 
     async def test_load_from_store(self, mock_hass, mock_vector_db_manager, memory_config):
         """Test loading memories from store on initialization."""
@@ -747,8 +753,12 @@ class TestDualStorage:
         # Should be in memory dict (HA Store)
         assert memory_id in memory_manager._memories
 
-        # Should be added to ChromaDB
-        memory_manager._collection.upsert.assert_called()
+        # Should be added to ChromaDB with correct arguments
+        memory_manager._collection.upsert.assert_called_once()
+        call_args = memory_manager._collection.upsert.call_args
+        assert call_args is not None
+        # Verify the upsert call includes the memory_id
+        assert memory_id in call_args.kwargs.get("ids", [])
 
     async def test_chromadb_failure_graceful_degradation(
         self, mock_hass, mock_vector_db_manager, memory_config

@@ -33,6 +33,9 @@ from custom_components.home_agent.const import (
     EVENT_STREAMING_ERROR,
 )
 
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
+
 # Test constants
 TEST_MODEL = "llama2"
 TEST_BASE_URL = "http://localhost:11434/v1"
@@ -67,7 +70,8 @@ def mock_hass_for_streaming():
 
     # Mock bus for event tracking
     mock.bus = MagicMock()
-    mock.bus.async_fire = MagicMock()
+    # async_fire is actually sync in HA (returns None, not a coroutine)
+    mock.bus.async_fire = MagicMock(return_value=None)
 
     return mock
 
@@ -249,6 +253,7 @@ def create_multiple_tool_calls_stream(tool_calls: list[tuple[str, dict[str, Any]
 
 @pytest.mark.asyncio
 async def test_end_to_end_streaming(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -266,7 +271,7 @@ async def test_end_to_end_streaming(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Create mock streaming response
         stream_lines = create_text_stream_chunked(["Hello", " there", ", how can I help?"])
@@ -332,6 +337,7 @@ async def test_end_to_end_streaming(
 
 @pytest.mark.asyncio
 async def test_streaming_with_tool_calls(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -348,7 +354,7 @@ async def test_streaming_with_tool_calls(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Create streaming response with tool call
         stream_lines = create_text_then_tool_stream(
@@ -421,6 +427,7 @@ async def test_streaming_with_tool_calls(
 
 @pytest.mark.asyncio
 async def test_streaming_with_multiple_tool_calls(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -436,7 +443,7 @@ async def test_streaming_with_multiple_tool_calls(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Create streaming response with multiple tool calls
         stream_lines = create_multiple_tool_calls_stream(
@@ -515,6 +522,7 @@ async def test_streaming_with_multiple_tool_calls(
 
 @pytest.mark.asyncio
 async def test_streaming_fallback_on_error(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_user_input,
@@ -530,7 +538,7 @@ async def test_streaming_fallback_on_error(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Track events
         events = []
@@ -598,6 +606,7 @@ async def test_streaming_fallback_on_error(
 
 @pytest.mark.asyncio
 async def test_streaming_disabled_uses_synchronous(
+    session_manager,
     mock_hass_for_streaming,
     non_streaming_config,
     mock_user_input,
@@ -612,7 +621,7 @@ async def test_streaming_disabled_uses_synchronous(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, non_streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, non_streaming_config, session_manager)
 
         # Verify _can_stream() returns False
         # We need to set up the context first
@@ -655,6 +664,7 @@ async def test_streaming_disabled_uses_synchronous(
 
 @pytest.mark.asyncio
 async def test_streaming_no_chatlog_uses_synchronous(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_user_input,
@@ -668,7 +678,7 @@ async def test_streaming_no_chatlog_uses_synchronous(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Mock ChatLog to be None (not available)
         with patch("homeassistant.components.conversation.chat_log.current_chat_log") as mock_ctx:
@@ -707,6 +717,7 @@ async def test_streaming_no_chatlog_uses_synchronous(
 
 @pytest.mark.asyncio
 async def test_streaming_no_delta_listener_uses_synchronous(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_user_input,
@@ -720,7 +731,7 @@ async def test_streaming_no_delta_listener_uses_synchronous(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Mock ChatLog without delta_listener
         mock_chat_log = MagicMock(spec=conversation.ChatLog)
@@ -762,6 +773,7 @@ async def test_streaming_no_delta_listener_uses_synchronous(
 
 @pytest.mark.asyncio
 async def test_streaming_conversation_history_integration(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -776,7 +788,7 @@ async def test_streaming_conversation_history_integration(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # Add some history
         agent.conversation_manager.add_message("test_123", "user", "Previous question")
@@ -841,6 +853,7 @@ async def test_streaming_conversation_history_integration(
 
 @pytest.mark.asyncio
 async def test_streaming_tool_iteration_loop(
+    session_manager,
     mock_hass_for_streaming,
     streaming_config,
     mock_chat_log,
@@ -856,7 +869,7 @@ async def test_streaming_tool_iteration_loop(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_streaming, streaming_config)
+        agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
 
         # First call: tool call
         stream_lines_1 = create_tool_call_stream("ha_query", {"entity_id": "light.living_room"})

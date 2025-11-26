@@ -1,0 +1,23 @@
+name: "Basic Conversation Flow"
+description: "Test simple question-answer without tool calls"
+
+setup:
+  entities:
+    - entity_id: "light.living_room"
+      state: "on"
+      attributes:
+        brightness: 255
+        friendly_name: "Living Room Light"
+    - entity_id: "light.bedroom"
+      state: "off"
+      attributes:
+        friendly_name: "Bedroom Light"
+
+steps:
+  - user: "What lights are on?"
+    mock_response: "The living room light is currently on."
+    expected_response_contains: "living room"
+    timeout: 10
+
+assertions:
+  - conversation_history_length: 2

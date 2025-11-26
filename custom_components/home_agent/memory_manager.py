@@ -374,14 +374,10 @@ class MemoryManager:
 
         if context_mode == CONTEXT_MODE_VECTOR_DB:
             # Vector DB mode: Query ChromaDB directly
-            return await self._search_memories_chromadb(
-                query, top_k, min_importance, memory_types
-            )
+            return await self._search_memories_chromadb(query, top_k, min_importance, memory_types)
         else:
             # Direct mode: Use local memory storage
-            return await self._search_memories_local(
-                query, top_k, min_importance, memory_types
-            )
+            return await self._search_memories_local(query, top_k, min_importance, memory_types)
 
     async def _search_memories_chromadb(
         self,

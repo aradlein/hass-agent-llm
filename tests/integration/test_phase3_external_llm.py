@@ -32,6 +32,9 @@ from custom_components.home_agent.const import (
 )
 from custom_components.home_agent.tools.external_llm import ExternalLLMTool
 
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def external_llm_config():
@@ -77,18 +80,21 @@ def mock_hass_for_integration():
 
     # Mock bus
     mock.bus = MagicMock()
-    mock.bus.async_fire = AsyncMock()
+    # async_fire is sync in HA, not actually async
+    mock.bus.async_fire = MagicMock(return_value=None)
 
     return mock
 
 
 @pytest.mark.asyncio
-async def test_external_llm_tool_registration(mock_hass_for_integration, external_llm_config):
+async def test_external_llm_tool_registration(
+    mock_hass_for_integration, external_llm_config, session_manager
+):
     """Test that external LLM tool is registered when enabled."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_integration, external_llm_config)
+        agent = HomeAgent(mock_hass_for_integration, external_llm_config, session_manager)
 
         # Trigger lazy tool registration
         agent._ensure_tools_registered()
@@ -104,7 +110,9 @@ async def test_external_llm_tool_registration(mock_hass_for_integration, externa
 
 
 @pytest.mark.asyncio
-async def test_external_llm_tool_not_registered_when_disabled(mock_hass_for_integration):
+async def test_external_llm_tool_not_registered_when_disabled(
+    mock_hass_for_integration, session_manager
+):
     """Test that external LLM tool is NOT registered when disabled."""
     config = {
         CONF_LLM_BASE_URL: "https://api.primary.com/v1",
@@ -116,7 +124,7 @@ async def test_external_llm_tool_not_registered_when_disabled(mock_hass_for_inte
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_integration, config)
+        agent = HomeAgent(mock_hass_for_integration, config, session_manager)
 
         # Trigger lazy tool registration
         agent._ensure_tools_registered()
@@ -128,12 +136,14 @@ async def test_external_llm_tool_not_registered_when_disabled(mock_hass_for_inte
 
 
 @pytest.mark.asyncio
-async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_llm_config):
+async def test_dual_llm_workflow_successful(
+    mock_hass_for_integration, external_llm_config, session_manager
+):
     """Test complete dual-LLM workflow: primary delegates to external LLM."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_integration, external_llm_config)
+        agent = HomeAgent(mock_hass_for_integration, external_llm_config, session_manager)
 
         # Mock primary LLM response that calls external LLM tool
         primary_llm_response_with_tool_call = {
@@ -261,12 +271,14 @@ async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_
 
 
 @pytest.mark.asyncio
-async def test_external_llm_error_propagation(mock_hass_for_integration, external_llm_config):
+async def test_external_llm_error_propagation(
+    mock_hass_for_integration, external_llm_config, session_manager
+):
     """Test that external LLM errors are propagated to primary LLM."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_integration, external_llm_config)
+        agent = HomeAgent(mock_hass_for_integration, external_llm_config, session_manager)
 
         # Mock primary LLM response that calls external LLM tool
         primary_llm_response_with_tool_call = {
@@ -363,7 +375,7 @@ async def test_external_llm_error_propagation(mock_hass_for_integration, externa
 
 @pytest.mark.asyncio
 async def test_tool_call_counting_includes_external_llm(
-    mock_hass_for_integration, external_llm_config
+    mock_hass_for_integration, external_llm_config, session_manager
 ):
     """Test that external LLM calls count toward tool call limit."""
     # Set low limit for testing
@@ -373,7 +385,7 @@ async def test_tool_call_counting_includes_external_llm(
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_integration, config)
+        agent = HomeAgent(mock_hass_for_integration, config, session_manager)
 
         # Mock primary LLM making multiple tool calls (exceeding limit)
         primary_llm_response = {
@@ -467,13 +479,13 @@ async def test_tool_call_counting_includes_external_llm(
 
 @pytest.mark.asyncio
 async def test_external_llm_context_not_included_automatically(
-    mock_hass_for_integration, external_llm_config
+    mock_hass_for_integration, external_llm_config, session_manager
 ):
     """Test that conversation history is NOT automatically included in external LLM calls."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_integration, external_llm_config)
+        agent = HomeAgent(mock_hass_for_integration, external_llm_config, session_manager)
 
         # First message to establish history
         primary_response_1 = {
@@ -571,7 +583,7 @@ async def test_external_llm_context_not_included_automatically(
 
 
 @pytest.mark.asyncio
-async def test_external_llm_configuration_validation(mock_hass_for_integration):
+async def test_external_llm_configuration_validation(mock_hass_for_integration, session_manager):
     """Test that proper configuration is required for external LLM tool."""
     # Config missing external LLM settings
     incomplete_config = {
@@ -585,7 +597,7 @@ async def test_external_llm_configuration_validation(mock_hass_for_integration):
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
-        agent = HomeAgent(mock_hass_for_integration, incomplete_config)
+        agent = HomeAgent(mock_hass_for_integration, incomplete_config, session_manager)
 
         # Mock primary LLM calling external LLM tool
         primary_response = {

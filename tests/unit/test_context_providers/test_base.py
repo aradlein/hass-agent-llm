@@ -429,3 +429,103 @@ class TestContextProviderIntegration:
         result = await provider.get_context("turn on the lights")
 
         assert result == "Context for: turn on the lights"
+
+
+class TestMakeJsonSerializable:
+    """Tests for _make_json_serializable helper function."""
+
+    def test_serialize_datetime(self):
+        """Test that datetime objects are converted to ISO format strings."""
+        from datetime import datetime
+
+        from custom_components.home_agent.context_providers.base import _make_json_serializable
+
+        dt = datetime(2025, 11, 24, 13, 18, 7, 730000)
+        result = _make_json_serializable(dt)
+
+        assert result == "2025-11-24T13:18:07.730000"
+        assert isinstance(result, str)
+
+    def test_serialize_nested_datetime_in_dict(self):
+        """Test that datetime in nested dict is serialized."""
+        from datetime import datetime
+
+        from custom_components.home_agent.context_providers.base import _make_json_serializable
+
+        data = {
+            "name": "test",
+            "timestamp": datetime(2025, 1, 1, 12, 0, 0),
+            "nested": {"updated_at": datetime(2025, 1, 2, 14, 30, 0)},
+        }
+        result = _make_json_serializable(data)
+
+        assert result["timestamp"] == "2025-01-01T12:00:00"
+        assert result["nested"]["updated_at"] == "2025-01-02T14:30:00"
+
+    def test_serialize_datetime_in_list(self):
+        """Test that datetime in list is serialized."""
+        from datetime import datetime
+
+        from custom_components.home_agent.context_providers.base import _make_json_serializable
+
+        data = [datetime(2025, 1, 1), "string", 123]
+        result = _make_json_serializable(data)
+
+        assert result[0] == "2025-01-01T00:00:00"
+        assert result[1] == "string"
+        assert result[2] == 123
+
+    def test_serialize_primitives_unchanged(self):
+        """Test that primitives pass through unchanged."""
+        from custom_components.home_agent.context_providers.base import _make_json_serializable
+
+        assert _make_json_serializable("string") == "string"
+        assert _make_json_serializable(123) == 123
+        assert _make_json_serializable(45.67) == 45.67
+        assert _make_json_serializable(True) is True
+        assert _make_json_serializable(None) is None
+
+    def test_serialize_non_serializable_to_string(self):
+        """Test that non-serializable objects become strings."""
+        from custom_components.home_agent.context_providers.base import _make_json_serializable
+
+        class CustomObject:
+            def __str__(self):
+                return "custom_object_string"
+
+        result = _make_json_serializable(CustomObject())
+        assert result == "custom_object_string"
+
+    def test_entity_state_with_datetime_attributes(self, mock_hass):
+        """Test getting entity state with datetime attributes (like media players)."""
+        from datetime import datetime
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        # Mock state object with datetime attribute (common in media_player entities)
+        state = Mock(spec=State)
+        state.entity_id = "media_player.speaker"
+        state.state = "playing"
+        state.attributes = {
+            "friendly_name": "Living Room Speaker",
+            "media_title": "Song Name",
+            "media_position_updated_at": datetime(2025, 11, 24, 13, 18, 7, 730000),
+            "volume_level": 0.5,
+        }
+        mock_hass.states.get.return_value = state
+
+        result = provider._get_entity_state("media_player.speaker")
+
+        assert result is not None
+        assert result["entity_id"] == "media_player.speaker"
+        assert result["state"] == "playing"
+        # Verify datetime was converted to string
+        assert result["attributes"]["media_position_updated_at"] == "2025-11-24T13:18:07.730000"
+        assert result["attributes"]["volume_level"] == 0.5
+
+        # Verify it's JSON serializable
+        import json
+
+        json_str = json.dumps(result)
+        assert "media_player.speaker" in json_str
+        assert "2025-11-24T13:18:07.730000" in json_str

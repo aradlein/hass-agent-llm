@@ -499,7 +499,14 @@ class ContextManager:
         if isinstance(self._provider, DirectContextProvider):
             # Get entities from direct provider config
             for entity_config in self._provider.entities_config:
-                entity_id = entity_config.get("entity_id")
+                # Handle both dict format {"entity_id": "...", "attributes": [...]}
+                # and simple string format "entity_id"
+                if isinstance(entity_config, dict):
+                    entity_id = entity_config.get("entity_id")
+                else:
+                    # Simple string format - just the entity_id
+                    entity_id = str(entity_config)
+
                 if entity_id:
                     # Expand wildcards
                     matching = self._provider._get_entities_matching_pattern(entity_id)
