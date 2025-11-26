@@ -548,12 +548,14 @@ class HomeAgent(AbstractConversationAgent):
         payload: dict[str, Any] = {
             "model": self.config[CONF_LLM_MODEL],
             "messages": messages,
-            "temperature": temperature
-            if temperature is not None
-            else self.config.get(CONF_LLM_TEMPERATURE, 0.7),
-            "max_tokens": max_tokens
-            if max_tokens is not None
-            else self.config.get(CONF_LLM_MAX_TOKENS, 500),
+            "temperature": (
+                temperature
+                if temperature is not None
+                else self.config.get(CONF_LLM_TEMPERATURE, 0.7)
+            ),
+            "max_tokens": (
+                max_tokens if max_tokens is not None else self.config.get(CONF_LLM_MAX_TOKENS, 500)
+            ),
             "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
             "keep_alive": self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
         }
@@ -902,9 +904,7 @@ class HomeAgent(AbstractConversationAgent):
                 """Execute tool via tool_handler."""
                 try:
                     result = await self.tool_handler.execute_tool(
-                        tool_input.tool_name,
-                        tool_input.tool_args,
-                        self.conversation_id
+                        tool_input.tool_name, tool_input.tool_args, self.conversation_id
                     )
                     self.metrics["tool_calls"] += 1
                     return result if isinstance(result, dict) else {"result": str(result)}
@@ -1744,7 +1744,11 @@ Return ONLY valid JSON, no other text:
                         ("at the time", "contains"),
                         ("in the conversation", "contains"),
                         # Temporal references without context
-                        ("at ", "starts") if content_lower.startswith("at ") and ":" in content else (None, None),
+                        (
+                            ("at ", "starts")
+                            if content_lower.startswith("at ") and ":" in content
+                            else (None, None)
+                        ),
                     ]
 
                     rejected = False

@@ -79,7 +79,9 @@ class TestDisabledFeatures:
             },
         }
 
-    async def test_memory_disabled_skips_initialization(self, mock_hass, base_config, mock_session_manager):
+    async def test_memory_disabled_skips_initialization(
+        self, mock_hass, base_config, mock_session_manager
+    ):
         """Test that MemoryManager is NOT initialized when memory_enabled=False.
 
         Verifies:
@@ -103,7 +105,9 @@ class TestDisabledFeatures:
         # Verify memory tools are NOT registered
         registered_tools = agent.tool_handler.get_registered_tools()
         assert "store_memory" not in registered_tools, "store_memory tool should NOT be registered"
-        assert "recall_memory" not in registered_tools, "recall_memory tool should NOT be registered"
+        assert (
+            "recall_memory" not in registered_tools
+        ), "recall_memory tool should NOT be registered"
 
     async def test_memory_disabled_skips_operations(
         self, mock_hass, base_config, mock_llm_response, mock_session_manager
@@ -161,13 +165,12 @@ class TestDisabledFeatures:
 
         # Mock the extraction method to track calls - use simple async function
         call_count = [0]
+
         async def mock_extract_noop(*args, **kwargs):
             call_count[0] += 1
             return None
 
-        with patch.object(
-            agent, "_extract_and_store_memories", side_effect=mock_extract_noop
-        ):
+        with patch.object(agent, "_extract_and_store_memories", side_effect=mock_extract_noop):
             with patch.object(agent, "_call_llm", return_value=mock_llm_response):
                 response = await agent.process_message(
                     text="I prefer tea in the morning",
@@ -203,14 +206,13 @@ class TestDisabledFeatures:
 
         # Mock the extraction method to track calls
         call_count = [0]
+
         async def mock_extract_noop(*args, **kwargs):
             """Mock extraction that does nothing (simulates early exit)."""
             call_count[0] += 1
             return None
 
-        with patch.object(
-            agent, "_extract_and_store_memories", side_effect=mock_extract_noop
-        ):
+        with patch.object(agent, "_extract_and_store_memories", side_effect=mock_extract_noop):
             with patch.object(agent, "_call_llm", return_value=mock_llm_response):
                 await agent.process_message(
                     text="I like coffee",
@@ -342,7 +344,9 @@ class TestDisabledFeatures:
         assert response is not None
         assert len(response) > 0
 
-    async def test_external_llm_disabled_tool_not_registered(self, mock_hass, base_config, mock_session_manager):
+    async def test_external_llm_disabled_tool_not_registered(
+        self, mock_hass, base_config, mock_session_manager
+    ):
         """Test that external LLM tool is NOT registered when external_llm_enabled=False.
 
         Verifies:
@@ -426,7 +430,8 @@ class TestDisabledFeatures:
 
             # Verify external LLM tool was NOT called
             external_llm_calls = [
-                c for c in mock_execute_tool.call_args_list
+                c
+                for c in mock_execute_tool.call_args_list
                 if len(c[0]) > 0 and c[0][0] == "query_external_llm"
             ]
             assert len(external_llm_calls) == 0, "External LLM should NOT be called when disabled"
@@ -563,6 +568,7 @@ class TestDisabledFeatures:
 
         # Mock the extraction LLM call to track if it's made - use call counter
         call_count1 = [0]
+
         async def mock_extract_llm1(*args, **kwargs):
             call_count1[0] += 1
             return None
@@ -580,7 +586,9 @@ class TestDisabledFeatures:
             await asyncio.sleep(0.1)
 
             # Verify extraction LLM was NOT called
-            assert call_count1[0] == 0, "Extraction LLM should not be called when memory is disabled"
+            assert (
+                call_count1[0] == 0
+            ), "Extraction LLM should not be called when memory is disabled"
 
         # Test 2: Memory enabled but manager is None
         config2 = {
@@ -593,6 +601,7 @@ class TestDisabledFeatures:
         assert agent2.memory_manager is None  # Not provided in fixture
 
         call_count2 = [0]
+
         async def mock_extract_llm2(*args, **kwargs):
             call_count2[0] += 1
             return None

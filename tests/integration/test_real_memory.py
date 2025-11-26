@@ -96,14 +96,20 @@ async def test_memory_extraction_flow(
             )
 
             assert memory_id is not None, "Memory ID should not be None after adding memory"
-            assert isinstance(memory_id, str), f"Memory ID should be a string, got {type(memory_id)}"
+            assert isinstance(
+                memory_id, str
+            ), f"Memory ID should be a string, got {type(memory_id)}"
             assert len(memory_id) > 0, "Memory ID should not be empty"
-            assert len(memory_id) >= 8, f"Memory ID should be meaningful length (>=8 chars), got {len(memory_id)}"
+            assert (
+                len(memory_id) >= 8
+            ), f"Memory ID should be meaningful length (>=8 chars), got {len(memory_id)}"
 
             # Verify memory was stored
             retrieved = await memory_manager.get_memory(memory_id)
             assert retrieved is not None, "Retrieved memory should not be None"
-            assert isinstance(retrieved, dict), f"Retrieved memory should be a dict, got {type(retrieved)}"
+            assert isinstance(
+                retrieved, dict
+            ), f"Retrieved memory should be a dict, got {type(retrieved)}"
             assert "content" in retrieved, "Retrieved memory should have 'content' key"
             assert "type" in retrieved, "Retrieved memory should have 'type' key"
             assert "importance" in retrieved, "Retrieved memory should have 'importance' key"
@@ -124,13 +130,19 @@ async def test_memory_extraction_flow(
 
             # Should be a different memory ID (distinct content)
             assert second_memory_id is not None, "Second memory ID should not be None"
-            assert isinstance(second_memory_id, str), f"Second memory ID should be a string, got {type(second_memory_id)}"
-            assert second_memory_id != memory_id, "Second memory should have a different ID from first memory"
+            assert isinstance(
+                second_memory_id, str
+            ), f"Second memory ID should be a string, got {type(second_memory_id)}"
+            assert (
+                second_memory_id != memory_id
+            ), "Second memory should have a different ID from first memory"
 
             # Verify both memories exist
             second_retrieved = await memory_manager.get_memory(second_memory_id)
             assert second_retrieved is not None, "Second retrieved memory should not be None"
-            assert isinstance(second_retrieved, dict), f"Second retrieved memory should be a dict, got {type(second_retrieved)}"
+            assert isinstance(
+                second_retrieved, dict
+            ), f"Second retrieved memory should be a dict, got {type(second_retrieved)}"
             assert second_retrieved["content"] == "User's favorite color is blue"
 
         finally:
@@ -219,12 +231,18 @@ async def test_memory_recall(
                 min_importance=0.5,
             )
 
-            assert len(light_results) > 0, "Search for kitchen lighting should return at least one result"
-            assert isinstance(light_results, list), f"Search results should be a list, got {type(light_results)}"
+            assert (
+                len(light_results) > 0
+            ), "Search for kitchen lighting should return at least one result"
+            assert isinstance(
+                light_results, list
+            ), f"Search results should be a list, got {type(light_results)}"
             # Verify structure of first result
             if len(light_results) > 0:
                 first_result = light_results[0]
-                assert isinstance(first_result, dict), f"Search result should be a dict, got {type(first_result)}"
+                assert isinstance(
+                    first_result, dict
+                ), f"Search result should be a dict, got {type(first_result)}"
                 assert "content" in first_result, "Search result should have 'content' key"
             # Should find the kitchen lights memory
             kitchen_found = any(
@@ -240,12 +258,15 @@ async def test_memory_recall(
                 min_importance=0.5,
             )
 
-            assert len(time_results) > 0, "Search for wake-up time should return at least one result"
-            assert isinstance(time_results, list), f"Time search results should be a list, got {type(time_results)}"
+            assert (
+                len(time_results) > 0
+            ), "Search for wake-up time should return at least one result"
+            assert isinstance(
+                time_results, list
+            ), f"Time search results should be a list, got {type(time_results)}"
             # Should find the wake-up time memory
             wakeup_found = any(
-                "wake" in mem["content"].lower() or "7" in mem["content"]
-                for mem in time_results
+                "wake" in mem["content"].lower() or "7" in mem["content"] for mem in time_results
             )
             assert wakeup_found, "Wake-up time memory not found in search"
 
@@ -351,10 +372,15 @@ async def test_memory_semantic_search(
             )
 
             assert len(fitness_results) > 0, "Fitness search should return at least one result"
-            assert isinstance(fitness_results, list), f"Fitness results should be a list, got {type(fitness_results)}"
+            assert isinstance(
+                fitness_results, list
+            ), f"Fitness results should be a list, got {type(fitness_results)}"
             # Top result should be about exercise
             top_result = fitness_results[0]
-            assert "exercise" in top_result["content"].lower() or "6 am" in top_result["content"].lower()
+            assert (
+                "exercise" in top_result["content"].lower()
+                or "6 am" in top_result["content"].lower()
+            )
 
             # Query about books (should match reading memory)
             book_results = await memory_manager.search_memories(
@@ -364,7 +390,9 @@ async def test_memory_semantic_search(
             )
 
             assert len(book_results) > 0, "Book search should return at least one result"
-            assert isinstance(book_results, list), f"Book results should be a list, got {type(book_results)}"
+            assert isinstance(
+                book_results, list
+            ), f"Book results should be a list, got {type(book_results)}"
             # Should find the reading preference
             reading_found = any(
                 "reading" in mem["content"].lower() or "fiction" in mem["content"].lower()
@@ -380,7 +408,9 @@ async def test_memory_semantic_search(
             )
 
             assert len(work_results) > 0, "Work schedule search should return at least one result"
-            assert isinstance(work_results, list), f"Work results should be a list, got {type(work_results)}"
+            assert isinstance(
+                work_results, list
+            ), f"Work results should be a list, got {type(work_results)}"
             # Should find work schedule
             work_found = any(
                 "work" in mem["content"].lower() and "home" in mem["content"].lower()

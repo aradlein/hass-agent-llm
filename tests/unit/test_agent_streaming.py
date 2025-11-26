@@ -1,4 +1,5 @@
 """Unit tests for HomeAgent streaming integration."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -44,6 +45,7 @@ def agent_config():
 def agent(mock_hass, agent_config):
     """Create HomeAgent instance."""
     from custom_components.home_agent.conversation_session import ConversationSessionManager
+
     session_manager = ConversationSessionManager(mock_hass)
     return HomeAgent(mock_hass, agent_config, session_manager)
 
@@ -137,11 +139,12 @@ class TestAsyncProcessBranching:
         mock_chat_log_instance.delta_listener = MagicMock()
 
         # Mock _async_process_streaming
-        with patch(
-            "homeassistant.components.conversation.chat_log.current_chat_log"
-        ) as mock_chat_log, patch.object(
-            agent, "_async_process_streaming", new_callable=AsyncMock
-        ) as mock_stream:
+        with (
+            patch(
+                "homeassistant.components.conversation.chat_log.current_chat_log"
+            ) as mock_chat_log,
+            patch.object(agent, "_async_process_streaming", new_callable=AsyncMock) as mock_stream,
+        ):
             mock_chat_log.get.return_value = mock_chat_log_instance
             mock_stream.return_value = MagicMock(spec=ha_conversation.ConversationResult)
 
@@ -171,13 +174,13 @@ class TestAsyncProcessBranching:
         mock_chat_log_instance.delta_listener = MagicMock()
 
         # Mock streaming to raise an error
-        with patch(
-            "homeassistant.components.conversation.chat_log.current_chat_log"
-        ) as mock_chat_log, patch.object(
-            agent, "_async_process_streaming", new_callable=AsyncMock
-        ) as mock_stream, patch.object(
-            agent, "_async_process_synchronous", new_callable=AsyncMock
-        ) as mock_sync:
+        with (
+            patch(
+                "homeassistant.components.conversation.chat_log.current_chat_log"
+            ) as mock_chat_log,
+            patch.object(agent, "_async_process_streaming", new_callable=AsyncMock) as mock_stream,
+            patch.object(agent, "_async_process_synchronous", new_callable=AsyncMock) as mock_sync,
+        ):
             mock_chat_log.get.return_value = mock_chat_log_instance
             mock_stream.side_effect = RuntimeError("Streaming error")
             mock_sync.return_value = MagicMock(spec=ha_conversation.ConversationResult)
@@ -221,13 +224,13 @@ class TestStreamingErrorEvents:
         error_message = "Test streaming error"
 
         # Mock streaming to raise an error
-        with patch(
-            "homeassistant.components.conversation.chat_log.current_chat_log"
-        ) as mock_chat_log, patch.object(
-            agent, "_async_process_streaming", new_callable=AsyncMock
-        ) as mock_stream, patch.object(
-            agent, "_async_process_synchronous", new_callable=AsyncMock
-        ) as mock_sync:
+        with (
+            patch(
+                "homeassistant.components.conversation.chat_log.current_chat_log"
+            ) as mock_chat_log,
+            patch.object(agent, "_async_process_streaming", new_callable=AsyncMock) as mock_stream,
+            patch.object(agent, "_async_process_synchronous", new_callable=AsyncMock) as mock_sync,
+        ):
             mock_chat_log.get.return_value = mock_chat_log_instance
             mock_stream.side_effect = RuntimeError(error_message)
             mock_sync.return_value = MagicMock(spec=ha_conversation.ConversationResult)
@@ -322,11 +325,10 @@ class TestCallLLMStreaming:
         mock_session.post.return_value.__aenter__ = AsyncMock(return_value=mock_response)
         mock_session.post.return_value.__aexit__ = AsyncMock()
 
-        with patch.object(
-            agent, "_ensure_session", new_callable=AsyncMock
-        ) as mock_ensure, patch.object(
-            agent.tool_handler, "get_tool_definitions"
-        ) as mock_get_tools:
+        with (
+            patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure,
+            patch.object(agent.tool_handler, "get_tool_definitions") as mock_get_tools,
+        ):
             mock_ensure.return_value = mock_session
             mock_get_tools.return_value = mock_tools
 

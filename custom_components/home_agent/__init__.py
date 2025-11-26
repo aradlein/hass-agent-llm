@@ -81,7 +81,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
 
     # Initialize conversation session manager for persistent voice conversations
-    session_persistence_enabled = config.get(CONF_SESSION_PERSISTENCE_ENABLED, DEFAULT_SESSION_PERSISTENCE_ENABLED)
+    session_persistence_enabled = config.get(
+        CONF_SESSION_PERSISTENCE_ENABLED, DEFAULT_SESSION_PERSISTENCE_ENABLED
+    )
     if session_persistence_enabled:
         # Get timeout from config (stored in minutes, convert to seconds)
         session_timeout_minutes = config.get(CONF_SESSION_TIMEOUT, DEFAULT_SESSION_TIMEOUT // 60)
@@ -92,7 +94,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session_manager = ConversationSessionManager(hass, session_timeout)
     await session_manager.async_load()
     if session_persistence_enabled:
-        _LOGGER.info("Conversation Session Manager initialized with persistence enabled (timeout: %ds)", session_timeout)
+        _LOGGER.info(
+            "Conversation Session Manager initialized with persistence enabled (timeout: %ds)",
+            session_timeout,
+        )
     else:
         _LOGGER.info("Conversation Session Manager initialized with persistence disabled")
 

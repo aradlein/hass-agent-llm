@@ -185,7 +185,9 @@ def verify_cleanup():
 
 
 @pytest.fixture
-async def test_collection(chromadb_client: Any, test_collection_name: str) -> AsyncGenerator[Any, None]:
+async def test_collection(
+    chromadb_client: Any, test_collection_name: str
+) -> AsyncGenerator[Any, None]:
     """Create a test collection and clean it up after test.
 
     Args:
@@ -335,6 +337,7 @@ def _create_test_hass() -> HomeAssistant:
 
     # Store the mock in hass.data for er.async_get(hass) to find
     from homeassistant.helpers import entity_registry as er
+
     hass.data[er.DATA_REGISTRY] = mock_entity_registry
 
     return hass
@@ -397,6 +400,7 @@ def test_hass() -> HomeAssistant:
 
     # Mock config with proper path method for storage
     import tempfile
+
     temp_dir = tempfile.mkdtemp(prefix="ha_test_")
     hass.config = MagicMock()
     hass.config.config_dir = temp_dir
@@ -438,6 +442,7 @@ def test_hass() -> HomeAssistant:
 
     # Store the mock in hass.data for er.async_get(hass) to find
     from homeassistant.helpers import entity_registry as er
+
     hass.data[er.DATA_REGISTRY] = mock_entity_registry
 
     return hass
@@ -538,9 +543,7 @@ async def check_services_health(
         Dictionary mapping service names to health status
     """
     health_status = {
-        "chromadb": await check_chromadb_health(
-            chromadb_config["host"], chromadb_config["port"]
-        ),
+        "chromadb": await check_chromadb_health(chromadb_config["host"], chromadb_config["port"]),
         "llm": await check_llm_health(llm_config["base_url"]),
         "embedding": await check_embedding_health(embedding_config["base_url"]),
     }
@@ -573,9 +576,7 @@ async def skip_if_services_unavailable(
     """
     # Check for service requirement markers and test health on-demand
     if request.node.get_closest_marker("requires_chromadb"):
-        is_healthy = await check_chromadb_health(
-            chromadb_config["host"], chromadb_config["port"]
-        )
+        is_healthy = await check_chromadb_health(chromadb_config["host"], chromadb_config["port"])
         if not is_healthy:
             pytest.skip("ChromaDB service not available")
 
@@ -605,9 +606,7 @@ def pytest_configure(config: Any) -> None:
     # but integration tests need real network access
     config.option.disable_socket = False
 
-    config.addinivalue_line(
-        "markers", "requires_chromadb: mark test as requiring ChromaDB service"
-    )
+    config.addinivalue_line("markers", "requires_chromadb: mark test as requiring ChromaDB service")
     config.addinivalue_line("markers", "requires_llm: mark test as requiring LLM service")
     config.addinivalue_line(
         "markers", "requires_embedding: mark test as requiring embedding service"

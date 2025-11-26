@@ -1,4 +1,5 @@
 """Unit tests for OpenAIStreamingHandler class."""
+
 import pytest
 
 from custom_components.home_agent.streaming import OpenAIStreamingHandler

@@ -205,9 +205,7 @@ async def test_session_persistence_on_load(mock_hass):
 
     with patch("custom_components.home_agent.conversation_session.Store") as mock_store:
         store_instance = MagicMock()
-        store_instance.async_load = AsyncMock(
-            return_value={"sessions": existing_sessions}
-        )
+        store_instance.async_load = AsyncMock(return_value={"sessions": existing_sessions})
         store_instance.async_save = AsyncMock()
         mock_store.return_value = store_instance
 
@@ -241,9 +239,7 @@ async def test_cleanup_expired_sessions_on_load(mock_hass):
 
     with patch("custom_components.home_agent.conversation_session.Store") as mock_store:
         store_instance = MagicMock()
-        store_instance.async_load = AsyncMock(
-            return_value={"sessions": existing_sessions}
-        )
+        store_instance.async_load = AsyncMock(return_value={"sessions": existing_sessions})
         store_instance.async_save = AsyncMock()
         mock_store.return_value = store_instance
 

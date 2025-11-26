@@ -1,4 +1,5 @@
 """Unit tests for ContextManager class."""
+
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -82,7 +83,7 @@ class TestContextManagerInitialization:
         assert manager._max_context_tokens == MAX_CONTEXT_TOKENS
         assert manager._provider is not None
         assert isinstance(manager._provider, DirectContextProvider)
-        assert hasattr(manager._provider, 'get_context')
+        assert hasattr(manager._provider, "get_context")
         assert callable(manager._provider.get_context)
 
     def test_init_with_defaults(self, mock_hass):
@@ -95,7 +96,7 @@ class TestContextManagerInitialization:
         assert manager._max_context_tokens == MAX_CONTEXT_TOKENS
         assert manager._provider is not None
         assert isinstance(manager._provider, ContextProvider)
-        assert hasattr(manager._provider, 'get_context')
+        assert hasattr(manager._provider, "get_context")
         assert callable(manager._provider.get_context)
 
     def test_init_with_cache_enabled(self, mock_hass):
@@ -155,7 +156,7 @@ class TestSetProvider:
 
         assert context_manager._provider == custom_provider
         assert isinstance(context_manager._provider, MockContextProvider)
-        assert hasattr(context_manager._provider, 'get_context')
+        assert hasattr(context_manager._provider, "get_context")
         assert len(context_manager._cache) == 0
         assert len(context_manager._cache_timestamps) == 0
         assert isinstance(context_manager._cache, dict)

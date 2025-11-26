@@ -392,9 +392,7 @@ async def cleanup_test_collections(
                     deleted_count += 1
                     _LOGGER.debug("Deleted test collection: %s", collection.name)
                 except Exception as err:
-                    _LOGGER.warning(
-                        "Failed to delete collection %s: %s", collection.name, err
-                    )
+                    _LOGGER.warning("Failed to delete collection %s: %s", collection.name, err)
 
         _LOGGER.info("Cleaned up %d test collection(s) with prefix '%s'", deleted_count, prefix)
 
@@ -442,14 +440,10 @@ async def wait_for_indexing(
                 current_count = len(result.get("ids", []))
 
                 if current_count >= expected_count:
-                    _LOGGER.info(
-                        "Indexing complete: %d/%d entities", current_count, expected_count
-                    )
+                    _LOGGER.info("Indexing complete: %d/%d entities", current_count, expected_count)
                     return True
 
-                _LOGGER.debug(
-                    "Waiting for indexing: %d/%d entities", current_count, expected_count
-                )
+                _LOGGER.debug("Waiting for indexing: %d/%d entities", current_count, expected_count)
 
         except Exception as err:
             _LOGGER.warning("Error checking indexing status: %s", err)

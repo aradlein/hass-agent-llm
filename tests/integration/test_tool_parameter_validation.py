@@ -608,7 +608,9 @@ async def test_rest_tool_template_rendering_failure(mock_hass, session_manager):
         tool_result = result["result"]
         assert tool_result["success"] is False
         assert tool_result["error"] is not None
-        assert "template" in tool_result["error"].lower() or "render" in tool_result["error"].lower()
+        assert (
+            "template" in tool_result["error"].lower() or "render" in tool_result["error"].lower()
+        )
 
 
 @pytest.mark.asyncio
@@ -659,7 +661,9 @@ async def test_service_tool_template_rendering_failure(mock_hass, session_manage
         tool_result = result["result"]
         assert tool_result["success"] is False
         assert tool_result["error"] is not None
-        assert "template" in tool_result["error"].lower() or "render" in tool_result["error"].lower()
+        assert (
+            "template" in tool_result["error"].lower() or "render" in tool_result["error"].lower()
+        )
 
 
 # ============================================================================

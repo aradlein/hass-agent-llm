@@ -1,4 +1,5 @@
 """Unit tests for RestCustomTool execution."""
+
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -192,9 +193,9 @@ class TestRestCustomToolExecution:
         with patch("custom_components.home_agent.tools.custom.Template") as mock_template_class:
             mock_template = MagicMock()
             mock_template.async_render = MagicMock(
-                side_effect=lambda x: x.get("name", "test")
-                if "name" in x
-                else x.get("value", "123")
+                side_effect=lambda x: (
+                    x.get("name", "test") if "name" in x else x.get("value", "123")
+                )
             )
             mock_template_class.return_value = mock_template
 

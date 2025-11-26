@@ -292,9 +292,7 @@ class TestGracefulDegradation:
         with patch(
             "custom_components.home_agent.context_manager.DirectContextProvider"
         ) as mock_direct_provider:
-            mock_direct_provider.side_effect = Exception(
-                "Context provider initialization failed"
-            )
+            mock_direct_provider.side_effect = Exception("Context provider initialization failed")
 
             # This should raise ContextInjectionError during agent init
             try:
@@ -346,10 +344,7 @@ class TestGracefulDegradation:
         agent._ensure_tools_registered()
 
         # Check that errors were logged for failed tools
-        assert any(
-            "Failed to register custom tool" in record.message
-            for record in caplog.records
-        )
+        assert any("Failed to register custom tool" in record.message for record in caplog.records)
 
         # But core tools should still be registered
         registered_tools = agent.tool_handler.get_registered_tools()
@@ -446,11 +441,12 @@ class TestGracefulDegradation:
         }
 
         # Mock multiple component failures
-        with patch(
-            "custom_components.home_agent.context_providers.vector_db.VectorDBContextProvider"
-        ) as mock_vector_provider, patch(
-            "custom_components.home_agent.agent.ExternalLLMTool"
-        ) as mock_ext_llm:
+        with (
+            patch(
+                "custom_components.home_agent.context_providers.vector_db.VectorDBContextProvider"
+            ) as mock_vector_provider,
+            patch("custom_components.home_agent.agent.ExternalLLMTool") as mock_ext_llm,
+        ):
 
             # Make vector DB and external LLM fail
             mock_vector_provider.side_effect = Exception("Vector DB unavailable")
@@ -467,7 +463,8 @@ class TestGracefulDegradation:
 
                 # Verify errors were logged for failures
                 error_messages = [
-                    record.message for record in caplog.records
+                    record.message
+                    for record in caplog.records
                     if record.levelname in ["ERROR", "WARNING"]
                 ]
                 assert len(error_messages) > 0
@@ -514,10 +511,7 @@ class TestGracefulDegradation:
             assert "LLM API" in str(exc_info.value)
 
             # Verify error was logged
-            assert any(
-                "Error processing message" in record.message
-                for record in caplog.records
-            )
+            assert any("Error processing message" in record.message for record in caplog.records)
 
     async def test_streaming_fallback_to_synchronous(
         self, mock_hass, base_config, mock_llm_response, session_manager, caplog
@@ -597,9 +591,7 @@ class TestGracefulDegradation:
 
         # Mock a memory manager that will be set
         mock_memory_manager = MagicMock()
-        mock_memory_manager.add_memory = AsyncMock(
-            side_effect=Exception("Memory storage failed")
-        )
+        mock_memory_manager.add_memory = AsyncMock(side_effect=Exception("Memory storage failed"))
         agent._memory_manager = mock_memory_manager
 
         # Mock primary LLM to succeed
@@ -679,9 +671,7 @@ class TestGracefulDegradation:
             "execute_tool",
             side_effect=asyncio.TimeoutError("Tool execution timeout"),
         ):
-            with patch.object(
-                agent, "_call_llm", side_effect=[tool_call_response, final_response]
-            ):
+            with patch.object(agent, "_call_llm", side_effect=[tool_call_response, final_response]):
                 # Should handle timeout and continue
                 response = await agent.process_message(
                     text="What's the status of my lights?",
@@ -692,7 +682,4 @@ class TestGracefulDegradation:
                 assert response is not None
 
                 # Tool execution error should be logged
-                assert any(
-                    "Tool execution failed" in record.message
-                    for record in caplog.records
-                )
+                assert any("Tool execution failed" in record.message for record in caplog.records)

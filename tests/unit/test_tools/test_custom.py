@@ -1,4 +1,5 @@
 """Unit tests for CustomToolHandler."""
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -125,7 +126,7 @@ class TestRestCustomToolInitialization:
             "parameters": {},
             "handler": {
                 "type": "rest",
-                "method": "GET"
+                "method": "GET",
                 # Missing 'url'
             },
         }
@@ -144,7 +145,7 @@ class TestRestCustomToolInitialization:
             "parameters": {},
             "handler": {
                 "type": "rest",
-                "url": "https://api.example.com"
+                "url": "https://api.example.com",
                 # Missing 'method'
             },
         }

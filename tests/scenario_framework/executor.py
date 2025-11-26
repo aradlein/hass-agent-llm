@@ -236,6 +236,7 @@ class ScenarioExecutor:
 
         # Track start time for duration calculation
         import time
+
         start_time = time.perf_counter()
 
         # Execute with mocked session
@@ -299,7 +300,9 @@ class ScenarioExecutor:
                     if expected_text in response:
                         found = True
                         break
-                assert found, f"Expected response to contain '{expected_text}', but it was not found in any step response"
+                assert (
+                    found
+                ), f"Expected response to contain '{expected_text}', but it was not found in any step response"
 
             # Check total duration if present
             if "total_duration_ms" in assertion:

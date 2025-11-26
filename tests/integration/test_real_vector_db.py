@@ -51,8 +51,8 @@ class TestRealVectorDB:
 
         # Set up mock states
         mock_hass_integration.states.async_all.return_value = sample_entity_states
-        mock_hass_integration.states.get.side_effect = (
-            lambda entity_id: next((s for s in sample_entity_states if s.entity_id == entity_id), None)
+        mock_hass_integration.states.get.side_effect = lambda entity_id: next(
+            (s for s in sample_entity_states if s.entity_id == entity_id), None
         )
 
         # Create VectorDBManager
@@ -72,23 +72,33 @@ class TestRealVectorDB:
             collection = manager._collection
             assert collection is not None, "Collection should be initialized after setup"
             # Verify collection has the correct name
-            assert collection.name == test_collection_name, f"Collection name should be {test_collection_name}, got {collection.name}"
+            assert (
+                collection.name == test_collection_name
+            ), f"Collection name should be {test_collection_name}, got {collection.name}"
 
             result = await mock_hass_integration.async_add_executor_job(lambda: collection.get())
 
             # Verify entities were indexed
             assert "ids" in result, "Result should contain 'ids' key"
-            assert isinstance(result["ids"], list), f"Result['ids'] should be a list, got {type(result['ids'])}"
+            assert isinstance(
+                result["ids"], list
+            ), f"Result['ids'] should be a list, got {type(result['ids'])}"
             assert len(result["ids"]) > 0, "At least one entity should be indexed"
 
             # Check that we have entities (should have at least some indexed)
             indexed_ids = result["ids"]
-            assert len(indexed_ids) >= 3, f"At least 3 entities should be indexed, got {len(indexed_ids)}"
+            assert (
+                len(indexed_ids) >= 3
+            ), f"At least 3 entities should be indexed, got {len(indexed_ids)}"
 
             # Verify that indexed IDs are valid entity IDs
             for entity_id in indexed_ids[:3]:  # Check first 3
-                assert isinstance(entity_id, str), f"Entity ID should be string, got {type(entity_id)}"
-                assert "." in entity_id, f"Entity ID should contain domain separator, got {entity_id}"
+                assert isinstance(
+                    entity_id, str
+                ), f"Entity ID should be string, got {type(entity_id)}"
+                assert (
+                    "." in entity_id
+                ), f"Entity ID should contain domain separator, got {entity_id}"
 
             # Verify embedding dimensions (mxbai-embed-large = 1024 dimensions)
             if "embeddings" in result and result["embeddings"]:
@@ -134,8 +144,8 @@ class TestRealVectorDB:
 
         # Set up mock states
         mock_hass_integration.states.async_all.return_value = sample_entity_states
-        mock_hass_integration.states.get.side_effect = (
-            lambda entity_id: next((s for s in sample_entity_states if s.entity_id == entity_id), None)
+        mock_hass_integration.states.get.side_effect = lambda entity_id: next(
+            (s for s in sample_entity_states if s.entity_id == entity_id), None
         )
 
         # Create and initialize manager
@@ -156,9 +166,15 @@ class TestRealVectorDB:
 
             # Verify we got results
             assert "ids" in light_results, "Light results should contain 'ids' key"
-            assert isinstance(light_results["ids"], list), f"Light results['ids'] should be a list, got {type(light_results['ids'])}"
-            assert len(light_results["ids"]) > 0, "Light results should have at least one result set"
-            assert len(light_results["ids"][0]) > 0, f"Light search should return at least one result, got {len(light_results['ids'][0])}"
+            assert isinstance(
+                light_results["ids"], list
+            ), f"Light results['ids'] should be a list, got {type(light_results['ids'])}"
+            assert (
+                len(light_results["ids"]) > 0
+            ), "Light results should have at least one result set"
+            assert (
+                len(light_results["ids"][0]) > 0
+            ), f"Light search should return at least one result, got {len(light_results['ids'][0])}"
 
             # Check that light entities are in top results
             top_ids = light_results["ids"][0]
@@ -176,7 +192,9 @@ class TestRealVectorDB:
             # Check for temperature-related entities
             temp_ids = temp_results["ids"][0]
             temp_count = sum(
-                1 for eid in temp_ids if eid.startswith("sensor.temperature") or eid.startswith("climate.")
+                1
+                for eid in temp_ids
+                if eid.startswith("sensor.temperature") or eid.startswith("climate.")
             )
             assert temp_count >= 1  # At least one temp/climate entity
 
@@ -221,8 +239,8 @@ class TestRealVectorDB:
 
         # Set up mock states
         mock_hass_integration.states.async_all.return_value = sample_entity_states
-        mock_hass_integration.states.get.side_effect = (
-            lambda entity_id: next((s for s in sample_entity_states if s.entity_id == entity_id), None)
+        mock_hass_integration.states.get.side_effect = lambda entity_id: next(
+            (s for s in sample_entity_states if s.entity_id == entity_id), None
         )
 
         # Create and initialize manager
@@ -235,7 +253,9 @@ class TestRealVectorDB:
             collection = manager._collection
 
             # Get initial count
-            initial_result = await mock_hass_integration.async_add_executor_job(lambda: collection.get())
+            initial_result = await mock_hass_integration.async_add_executor_job(
+                lambda: collection.get()
+            )
             initial_count = len(initial_result["ids"])
 
             # Update one entity's state
@@ -260,7 +280,9 @@ class TestRealVectorDB:
             await asyncio.sleep(1)
 
             # Get updated results
-            updated_result = await mock_hass_integration.async_add_executor_job(lambda: collection.get())
+            updated_result = await mock_hass_integration.async_add_executor_job(
+                lambda: collection.get()
+            )
 
             # Verify no duplicates (count should be same)
             assert len(updated_result["ids"]) == initial_count
@@ -328,7 +350,9 @@ class TestRealVectorDB:
 
             # Verify first collection is gone
             # ChromaDB raises ValueError when collection doesn't exist
-            with pytest.raises((ValueError, Exception), match=".*[Cc]ollection.*|.*not found.*|.*does not exist.*"):
+            with pytest.raises(
+                (ValueError, Exception), match=".*[Cc]ollection.*|.*not found.*|.*does not exist.*"
+            ):
                 chromadb_client.get_collection(name=collection1_name)
 
         finally:

@@ -87,7 +87,9 @@ def mock_hass_for_integration():
 
 
 @pytest.mark.asyncio
-async def test_external_llm_tool_registration(mock_hass_for_integration, external_llm_config, session_manager):
+async def test_external_llm_tool_registration(
+    mock_hass_for_integration, external_llm_config, session_manager
+):
     """Test that external LLM tool is registered when enabled."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -108,7 +110,9 @@ async def test_external_llm_tool_registration(mock_hass_for_integration, externa
 
 
 @pytest.mark.asyncio
-async def test_external_llm_tool_not_registered_when_disabled(mock_hass_for_integration, session_manager):
+async def test_external_llm_tool_not_registered_when_disabled(
+    mock_hass_for_integration, session_manager
+):
     """Test that external LLM tool is NOT registered when disabled."""
     config = {
         CONF_LLM_BASE_URL: "https://api.primary.com/v1",
@@ -132,7 +136,9 @@ async def test_external_llm_tool_not_registered_when_disabled(mock_hass_for_inte
 
 
 @pytest.mark.asyncio
-async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_llm_config, session_manager):
+async def test_dual_llm_workflow_successful(
+    mock_hass_for_integration, external_llm_config, session_manager
+):
     """Test complete dual-LLM workflow: primary delegates to external LLM."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False
@@ -265,7 +271,9 @@ async def test_dual_llm_workflow_successful(mock_hass_for_integration, external_
 
 
 @pytest.mark.asyncio
-async def test_external_llm_error_propagation(mock_hass_for_integration, external_llm_config, session_manager):
+async def test_external_llm_error_propagation(
+    mock_hass_for_integration, external_llm_config, session_manager
+):
     """Test that external LLM errors are propagated to primary LLM."""
     with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
         mock_expose.return_value = False

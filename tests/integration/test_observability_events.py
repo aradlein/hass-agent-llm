@@ -77,7 +77,12 @@ def event_capture(test_hass: HomeAssistant) -> EventCapture:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_conversation_started_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
+async def test_conversation_started_event(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    session_manager,
+):
     """Test that EVENT_CONVERSATION_STARTED fires when process_message is called.
 
     Verifies:
@@ -142,7 +147,9 @@ async def test_conversation_started_event(test_hass: HomeAssistant, llm_config: 
 
         # Verify EVENT_CONVERSATION_STARTED was fired
         started_events = event_capture.get_events(EVENT_CONVERSATION_STARTED)
-        assert len(started_events) == 1, f"Expected 1 conversation_started event, got {len(started_events)}"
+        assert (
+            len(started_events) == 1
+        ), f"Expected 1 conversation_started event, got {len(started_events)}"
 
         event_data = started_events[0]
 
@@ -154,27 +161,39 @@ async def test_conversation_started_event(test_hass: HomeAssistant, llm_config: 
         assert "context_mode" in event_data, "Event must contain context_mode"
 
         # Verify field values are correct
-        assert event_data["conversation_id"] == conversation_id, \
-            f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
-        assert event_data["user_id"] == user_id, \
-            f"user_id mismatch: expected {user_id}, got {event_data['user_id']}"
-        assert event_data["device_id"] == device_id, \
-            f"device_id mismatch: expected {device_id}, got {event_data['device_id']}"
-        assert event_data["context_mode"] == CONTEXT_MODE_DIRECT, \
-            f"context_mode mismatch: expected {CONTEXT_MODE_DIRECT}, got {event_data['context_mode']}"
+        assert (
+            event_data["conversation_id"] == conversation_id
+        ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+        assert (
+            event_data["user_id"] == user_id
+        ), f"user_id mismatch: expected {user_id}, got {event_data['user_id']}"
+        assert (
+            event_data["device_id"] == device_id
+        ), f"device_id mismatch: expected {device_id}, got {event_data['device_id']}"
+        assert (
+            event_data["context_mode"] == CONTEXT_MODE_DIRECT
+        ), f"context_mode mismatch: expected {CONTEXT_MODE_DIRECT}, got {event_data['context_mode']}"
 
         # Verify timestamp is reasonable (within test execution window)
         timestamp = event_data["timestamp"]
-        assert isinstance(timestamp, (int, float)), f"timestamp should be numeric, got {type(timestamp)}"
-        assert start_time <= timestamp <= end_time, \
-            f"timestamp {timestamp} should be between {start_time} and {end_time}"
+        assert isinstance(
+            timestamp, (int, float)
+        ), f"timestamp should be numeric, got {type(timestamp)}"
+        assert (
+            start_time <= timestamp <= end_time
+        ), f"timestamp {timestamp} should be between {start_time} and {end_time}"
 
         await agent.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_conversation_finished_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
+async def test_conversation_finished_event(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    session_manager,
+):
     """Test that EVENT_CONVERSATION_FINISHED fires with correct metrics.
 
     Verifies:
@@ -235,7 +254,9 @@ async def test_conversation_finished_event(test_hass: HomeAssistant, llm_config:
 
         # Verify EVENT_CONVERSATION_FINISHED was fired
         finished_events = event_capture.get_events(EVENT_CONVERSATION_FINISHED)
-        assert len(finished_events) == 1, f"Expected 1 conversation_finished event, got {len(finished_events)}"
+        assert (
+            len(finished_events) == 1
+        ), f"Expected 1 conversation_finished event, got {len(finished_events)}"
 
         event_data = finished_events[0]
 
@@ -256,10 +277,12 @@ async def test_conversation_finished_event(test_hass: HomeAssistant, llm_config:
             assert field in event_data, f"Event must contain {field}"
 
         # Verify conversation_id and user_id match
-        assert event_data["conversation_id"] == conversation_id, \
-            f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
-        assert event_data["user_id"] == user_id, \
-            f"user_id mismatch: expected {user_id}, got {event_data['user_id']}"
+        assert (
+            event_data["conversation_id"] == conversation_id
+        ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+        assert (
+            event_data["user_id"] == user_id
+        ), f"user_id mismatch: expected {user_id}, got {event_data['user_id']}"
 
         # Verify duration_ms is positive integer
         duration_ms = event_data["duration_ms"]
@@ -276,18 +299,27 @@ async def test_conversation_finished_event(test_hass: HomeAssistant, llm_config:
         assert "total" in tokens, "tokens must contain 'total'"
 
         # Token counts should be non-negative integers
-        assert isinstance(tokens["prompt"], int), f"tokens.prompt should be int, got {type(tokens['prompt'])}"
-        assert isinstance(tokens["completion"], int), f"tokens.completion should be int, got {type(tokens['completion'])}"
-        assert isinstance(tokens["total"], int), f"tokens.total should be int, got {type(tokens['total'])}"
+        assert isinstance(
+            tokens["prompt"], int
+        ), f"tokens.prompt should be int, got {type(tokens['prompt'])}"
+        assert isinstance(
+            tokens["completion"], int
+        ), f"tokens.completion should be int, got {type(tokens['completion'])}"
+        assert isinstance(
+            tokens["total"], int
+        ), f"tokens.total should be int, got {type(tokens['total'])}"
         assert tokens["prompt"] >= 0, f"tokens.prompt should be >= 0, got {tokens['prompt']}"
-        assert tokens["completion"] >= 0, f"tokens.completion should be >= 0, got {tokens['completion']}"
+        assert (
+            tokens["completion"] >= 0
+        ), f"tokens.completion should be >= 0, got {tokens['completion']}"
         assert tokens["total"] >= 0, f"tokens.total should be >= 0, got {tokens['total']}"
 
         # Total should equal sum of prompt + completion (if both are provided)
         if tokens["prompt"] > 0 and tokens["completion"] > 0:
             expected_total = tokens["prompt"] + tokens["completion"]
-            assert tokens["total"] == expected_total, \
-                f"tokens.total ({tokens['total']}) should equal prompt + completion ({expected_total})"
+            assert (
+                tokens["total"] == expected_total
+            ), f"tokens.total ({tokens['total']}) should equal prompt + completion ({expected_total})"
 
         # Verify performance dict structure and values
         performance = event_data["performance"]
@@ -297,19 +329,25 @@ async def test_conversation_finished_event(test_hass: HomeAssistant, llm_config:
         assert "context_latency_ms" in performance, "performance must contain 'context_latency_ms'"
 
         # Latency metrics should be non-negative integers
-        assert isinstance(performance["llm_latency_ms"], int), \
-            f"llm_latency_ms should be int, got {type(performance['llm_latency_ms'])}"
-        assert isinstance(performance["tool_latency_ms"], int), \
-            f"tool_latency_ms should be int, got {type(performance['tool_latency_ms'])}"
-        assert isinstance(performance["context_latency_ms"], int), \
-            f"context_latency_ms should be int, got {type(performance['context_latency_ms'])}"
+        assert isinstance(
+            performance["llm_latency_ms"], int
+        ), f"llm_latency_ms should be int, got {type(performance['llm_latency_ms'])}"
+        assert isinstance(
+            performance["tool_latency_ms"], int
+        ), f"tool_latency_ms should be int, got {type(performance['tool_latency_ms'])}"
+        assert isinstance(
+            performance["context_latency_ms"], int
+        ), f"context_latency_ms should be int, got {type(performance['context_latency_ms'])}"
 
-        assert performance["llm_latency_ms"] >= 0, \
-            f"llm_latency_ms should be >= 0, got {performance['llm_latency_ms']}"
-        assert performance["tool_latency_ms"] >= 0, \
-            f"tool_latency_ms should be >= 0, got {performance['tool_latency_ms']}"
-        assert performance["context_latency_ms"] >= 0, \
-            f"context_latency_ms should be >= 0, got {performance['context_latency_ms']}"
+        assert (
+            performance["llm_latency_ms"] >= 0
+        ), f"llm_latency_ms should be >= 0, got {performance['llm_latency_ms']}"
+        assert (
+            performance["tool_latency_ms"] >= 0
+        ), f"tool_latency_ms should be >= 0, got {performance['tool_latency_ms']}"
+        assert (
+            performance["context_latency_ms"] >= 0
+        ), f"context_latency_ms should be >= 0, got {performance['context_latency_ms']}"
 
         # Verify context is a dict
         context = event_data["context"]
@@ -322,19 +360,27 @@ async def test_conversation_finished_event(test_hass: HomeAssistant, llm_config:
 
         # Verify tool_breakdown is a dict
         tool_breakdown = event_data["tool_breakdown"]
-        assert isinstance(tool_breakdown, dict), f"tool_breakdown should be dict, got {type(tool_breakdown)}"
+        assert isinstance(
+            tool_breakdown, dict
+        ), f"tool_breakdown should be dict, got {type(tool_breakdown)}"
 
         # Verify used_external_llm is boolean
         used_external_llm = event_data["used_external_llm"]
-        assert isinstance(used_external_llm, bool), \
-            f"used_external_llm should be bool, got {type(used_external_llm)}"
+        assert isinstance(
+            used_external_llm, bool
+        ), f"used_external_llm should be bool, got {type(used_external_llm)}"
 
         await agent.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_error_event_on_exception(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
+async def test_error_event_on_exception(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    session_manager,
+):
     """Test that EVENT_ERROR fires when exceptions occur.
 
     Verifies:
@@ -369,8 +415,7 @@ async def test_error_event_on_exception(test_hass: HomeAssistant, llm_config: di
 
         # Mock _call_llm to raise an error
         with patch.object(
-            agent, "_call_llm",
-            side_effect=HomeAgentError("Simulated LLM API error for testing")
+            agent, "_call_llm", side_effect=HomeAgentError("Simulated LLM API error for testing")
         ):
             # Try to process message (should fail due to mocked error)
             with pytest.raises(HomeAgentError):
@@ -393,40 +438,53 @@ async def test_error_event_on_exception(test_hass: HomeAssistant, llm_config: di
         assert "context" in event_data, "Event must contain context"
 
         # Verify conversation_id matches
-        assert event_data["conversation_id"] == conversation_id, \
-            f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+        assert (
+            event_data["conversation_id"] == conversation_id
+        ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
 
         # Verify error_type is a string (class name)
         error_type = event_data["error_type"]
         assert isinstance(error_type, str), f"error_type should be str, got {type(error_type)}"
         assert len(error_type) > 0, "error_type should not be empty"
         # Should be a valid exception class name (contains "Error" typically)
-        assert error_type.endswith("Error") or "Exception" in error_type, \
-            f"error_type should be an exception class name, got: {error_type}"
+        assert (
+            error_type.endswith("Error") or "Exception" in error_type
+        ), f"error_type should be an exception class name, got: {error_type}"
 
         # Verify error_message is a string
         error_message = event_data["error_message"]
-        assert isinstance(error_message, str), f"error_message should be str, got {type(error_message)}"
+        assert isinstance(
+            error_message, str
+        ), f"error_message should be str, got {type(error_message)}"
         assert len(error_message) > 0, "error_message should not be empty"
 
         # Verify component is set to "agent"
-        assert event_data["component"] == "agent", \
-            f"component should be 'agent', got {event_data['component']}"
+        assert (
+            event_data["component"] == "agent"
+        ), f"component should be 'agent', got {event_data['component']}"
 
         # Verify context is a dict with text_length
         context = event_data["context"]
         assert isinstance(context, dict), f"context should be dict, got {type(context)}"
         assert "text_length" in context, "context must contain text_length"
-        assert isinstance(context["text_length"], int), \
-            f"text_length should be int, got {type(context['text_length'])}"
-        assert context["text_length"] > 0, f"text_length should be > 0, got {context['text_length']}"
+        assert isinstance(
+            context["text_length"], int
+        ), f"text_length should be int, got {type(context['text_length'])}"
+        assert (
+            context["text_length"] > 0
+        ), f"text_length should be > 0, got {context['text_length']}"
 
         await agent.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_events_disabled_when_config_false(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
+async def test_events_disabled_when_config_false(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    session_manager,
+):
     """Test that events DON'T fire when CONF_EMIT_EVENTS is False.
 
     Verifies:
@@ -480,10 +538,12 @@ async def test_events_disabled_when_config_false(test_hass: HomeAssistant, llm_c
         started_events = event_capture.get_events(EVENT_CONVERSATION_STARTED)
         finished_events = event_capture.get_events(EVENT_CONVERSATION_FINISHED)
 
-        assert len(started_events) == 0, \
-            f"Expected 0 conversation_started events when disabled, got {len(started_events)}"
-        assert len(finished_events) == 0, \
-            f"Expected 0 conversation_finished events when disabled, got {len(finished_events)}"
+        assert (
+            len(started_events) == 0
+        ), f"Expected 0 conversation_started events when disabled, got {len(started_events)}"
+        assert (
+            len(finished_events) == 0
+        ), f"Expected 0 conversation_finished events when disabled, got {len(finished_events)}"
 
         await agent_disabled.close()
 
@@ -518,17 +578,25 @@ async def test_events_disabled_when_config_false(test_hass: HomeAssistant, llm_c
         started_events = event_capture.get_events(EVENT_CONVERSATION_STARTED)
         finished_events = event_capture.get_events(EVENT_CONVERSATION_FINISHED)
 
-        assert len(started_events) == 1, \
-            f"Expected 1 conversation_started event when enabled, got {len(started_events)}"
-        assert len(finished_events) == 1, \
-            f"Expected 1 conversation_finished event when enabled, got {len(finished_events)}"
+        assert (
+            len(started_events) == 1
+        ), f"Expected 1 conversation_started event when enabled, got {len(started_events)}"
+        assert (
+            len(finished_events) == 1
+        ), f"Expected 1 conversation_finished event when enabled, got {len(finished_events)}"
 
         await agent_enabled.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_context_injected_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, sample_entity_states: list[State], session_manager):
+async def test_context_injected_event(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    sample_entity_states: list[State],
+    session_manager,
+):
     """Test that EVENT_CONTEXT_INJECTED fires when context is retrieved.
 
     Verifies:
@@ -587,25 +655,30 @@ async def test_context_injected_event(test_hass: HomeAssistant, llm_config: dict
         context_events = event_capture.get_events(EVENT_CONTEXT_INJECTED)
 
         # Context injection may happen once per conversation
-        assert len(context_events) >= 1, \
-            f"Expected at least 1 context_injected event, got {len(context_events)}"
+        assert (
+            len(context_events) >= 1
+        ), f"Expected at least 1 context_injected event, got {len(context_events)}"
 
         event_data = context_events[0]
 
         # Verify event contains conversation_id
         assert "conversation_id" in event_data, "Event must contain conversation_id"
-        assert event_data["conversation_id"] == conversation_id, \
-            f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+        assert (
+            event_data["conversation_id"] == conversation_id
+        ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
 
         # Verify event contains context_mode
         if "context_mode" in event_data:
-            assert event_data["context_mode"] == CONTEXT_MODE_DIRECT, \
-                f"context_mode mismatch: expected {CONTEXT_MODE_DIRECT}, got {event_data['context_mode']}"
+            assert (
+                event_data["context_mode"] == CONTEXT_MODE_DIRECT
+            ), f"context_mode mismatch: expected {CONTEXT_MODE_DIRECT}, got {event_data['context_mode']}"
 
         # Verify event contains entity metrics (if provided)
         if "entity_count" in event_data:
             entity_count = event_data["entity_count"]
-            assert isinstance(entity_count, int), f"entity_count should be int, got {type(entity_count)}"
+            assert isinstance(
+                entity_count, int
+            ), f"entity_count should be int, got {type(entity_count)}"
             assert entity_count >= 0, f"entity_count should be >= 0, got {entity_count}"
 
         await agent.close()
@@ -613,7 +686,12 @@ async def test_context_injected_event(test_hass: HomeAssistant, llm_config: dict
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_history_saved_event(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
+async def test_history_saved_event(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    session_manager,
+):
     """Test that EVENT_HISTORY_SAVED fires when history is saved.
 
     Verifies:
@@ -679,14 +757,16 @@ async def test_history_saved_event(test_hass: HomeAssistant, llm_config: dict[st
 
             # Verify required fields
             assert "conversation_id" in event_data, "Event must contain conversation_id"
-            assert event_data["conversation_id"] == conversation_id, \
-                f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+            assert (
+                event_data["conversation_id"] == conversation_id
+            ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
 
             # Verify message_count if provided
             if "message_count" in event_data:
                 message_count = event_data["message_count"]
-                assert isinstance(message_count, int), \
-                    f"message_count should be int, got {type(message_count)}"
+                assert isinstance(
+                    message_count, int
+                ), f"message_count should be int, got {type(message_count)}"
                 assert message_count > 0, f"message_count should be > 0, got {message_count}"
 
         await agent_with_history.close()
@@ -720,15 +800,21 @@ async def test_history_saved_event(test_hass: HomeAssistant, llm_config: dict[st
 
         # Verify NO history_saved events when history is disabled
         history_events = event_capture.get_events(EVENT_HISTORY_SAVED)
-        assert len(history_events) == 0, \
-            f"Expected 0 history_saved events when history disabled, got {len(history_events)}"
+        assert (
+            len(history_events) == 0
+        ), f"Expected 0 history_saved events when history disabled, got {len(history_events)}"
 
         await agent_no_history.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_multiple_events_in_single_conversation(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, session_manager):
+async def test_multiple_events_in_single_conversation(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    session_manager,
+):
     """Test that multiple event types fire correctly in a single conversation.
 
     Verifies:
@@ -803,29 +889,39 @@ async def test_multiple_events_in_single_conversation(test_hass: HomeAssistant, 
         assert finished_idx is not None, "EVENT_CONVERSATION_FINISHED should fire"
 
         # Verify ordering: started comes before finished
-        assert started_idx < finished_idx, \
-            f"EVENT_CONVERSATION_STARTED (idx={started_idx}) should fire before EVENT_CONVERSATION_FINISHED (idx={finished_idx})"
+        assert (
+            started_idx < finished_idx
+        ), f"EVENT_CONVERSATION_STARTED (idx={started_idx}) should fire before EVENT_CONVERSATION_FINISHED (idx={finished_idx})"
 
         # If context event fired, it should be between started and finished
         if context_idx is not None:
-            assert started_idx < context_idx < finished_idx, \
-                f"EVENT_CONTEXT_INJECTED (idx={context_idx}) should fire between started (idx={started_idx}) and finished (idx={finished_idx})"
+            assert (
+                started_idx < context_idx < finished_idx
+            ), f"EVENT_CONTEXT_INJECTED (idx={context_idx}) should fire between started (idx={started_idx}) and finished (idx={finished_idx})"
 
         # Verify all events have the same conversation_id
         started_events = event_capture.get_events(EVENT_CONVERSATION_STARTED)
         finished_events = event_capture.get_events(EVENT_CONVERSATION_FINISHED)
 
-        assert started_events[0]["conversation_id"] == conversation_id, \
-            "Started event should have correct conversation_id"
-        assert finished_events[0]["conversation_id"] == conversation_id, \
-            "Finished event should have correct conversation_id"
+        assert (
+            started_events[0]["conversation_id"] == conversation_id
+        ), "Started event should have correct conversation_id"
+        assert (
+            finished_events[0]["conversation_id"] == conversation_id
+        ), "Finished event should have correct conversation_id"
 
         await agent.close()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_conversation_finished_metrics_accuracy(test_hass: HomeAssistant, llm_config: dict[str, Any], event_capture: EventCapture, sample_entity_states: list[State], session_manager):
+async def test_conversation_finished_metrics_accuracy(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    sample_entity_states: list[State],
+    session_manager,
+):
     """Test that EVENT_CONVERSATION_FINISHED metrics are accurate and useful.
 
     Verifies:
@@ -928,20 +1024,22 @@ async def test_conversation_finished_metrics_accuracy(test_hass: HomeAssistant, 
         # Allow 10% margin for event processing overhead, but at least 5ms to account for OS scheduling jitter
         duration_diff = abs(reported_duration_ms - actual_duration_ms)
         duration_margin = max(actual_duration_ms * 0.1, 5)
-        assert duration_diff <= duration_margin, \
-            f"Reported duration {reported_duration_ms}ms differs too much from actual {actual_duration_ms}ms (diff: {duration_diff}ms, margin: {duration_margin}ms)"
+        assert (
+            duration_diff <= duration_margin
+        ), f"Reported duration {reported_duration_ms}ms differs too much from actual {actual_duration_ms}ms (diff: {duration_diff}ms, margin: {duration_margin}ms)"
 
         # Verify performance metrics sum to reasonable portion of total duration
         performance = event_data["performance"]
         total_latency = (
-            performance["llm_latency_ms"] +
-            performance["tool_latency_ms"] +
-            performance["context_latency_ms"]
+            performance["llm_latency_ms"]
+            + performance["tool_latency_ms"]
+            + performance["context_latency_ms"]
         )
 
         # Total latency should not exceed reported duration
-        assert total_latency <= reported_duration_ms, \
-            f"Sum of latencies ({total_latency}ms) should not exceed total duration ({reported_duration_ms}ms)"
+        assert (
+            total_latency <= reported_duration_ms
+        ), f"Sum of latencies ({total_latency}ms) should not exceed total duration ({reported_duration_ms}ms)"
 
         # LLM latency should be >= 0 (can be 0 for mocked LLM call)
         assert performance["llm_latency_ms"] >= 0, "LLM latency should be >= 0"
@@ -961,11 +1059,13 @@ async def test_conversation_finished_metrics_accuracy(test_hass: HomeAssistant, 
         tool_breakdown = event_data["tool_breakdown"]
 
         breakdown_total = sum(tool_breakdown.values())
-        assert tool_calls == breakdown_total, \
-            f"tool_calls ({tool_calls}) should match sum of tool_breakdown ({breakdown_total})"
+        assert (
+            tool_calls == breakdown_total
+        ), f"tool_calls ({tool_calls}) should match sum of tool_breakdown ({breakdown_total})"
 
         # Verify used_external_llm is False (we didn't enable external LLM)
-        assert event_data["used_external_llm"] is False, \
-            "used_external_llm should be False when external LLM is not enabled"
+        assert (
+            event_data["used_external_llm"] is False
+        ), "used_external_llm should be False when external LLM is not enabled"
 
         await agent.close()

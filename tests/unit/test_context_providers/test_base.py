@@ -522,6 +522,7 @@ class TestMakeJsonSerializable:
 
         # Verify it's JSON serializable
         import json
+
         json_str = json.dumps(result)
         assert "media_player.speaker" in json_str
         assert "2025-11-24T13:18:07.730000" in json_str

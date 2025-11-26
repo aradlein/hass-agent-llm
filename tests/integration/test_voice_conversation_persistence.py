@@ -155,9 +155,9 @@ async def test_conversation_persistence_across_messages(
 
             # Verify same conversation ID was reused
             conversation_id_2 = session_manager.get_conversation_id(device_id="kitchen_satellite")
-            assert conversation_id_2 == conversation_id_1, (
-                "Second message should reuse the same conversation_id"
-            )
+            assert (
+                conversation_id_2 == conversation_id_1
+            ), "Second message should reuse the same conversation_id"
 
             # Verify both messages are in the same conversation history
             history = agent.conversation_manager.get_history(conversation_id_1)
@@ -214,17 +214,19 @@ async def test_device_isolation(
             assert bedroom_conv_id is not None, "Bedroom device should get conversation_id"
 
             # Verify devices have different conversation IDs
-            assert kitchen_conv_id != bedroom_conv_id, (
-                "Different devices should have independent conversation contexts"
-            )
+            assert (
+                kitchen_conv_id != bedroom_conv_id
+            ), "Different devices should have independent conversation contexts"
 
             # Verify session manager has both mappings
-            assert session_manager.get_conversation_id(
-                device_id="kitchen_satellite"
-            ) == kitchen_conv_id
-            assert session_manager.get_conversation_id(
-                device_id="bedroom_satellite"
-            ) == bedroom_conv_id
+            assert (
+                session_manager.get_conversation_id(device_id="kitchen_satellite")
+                == kitchen_conv_id
+            )
+            assert (
+                session_manager.get_conversation_id(device_id="bedroom_satellite")
+                == bedroom_conv_id
+            )
 
             # Verify each device maintains separate history
             kitchen_history = agent.conversation_manager.get_history(kitchen_conv_id)
@@ -295,9 +297,9 @@ async def test_explicit_conversation_id_honored(
 
             # Verify the session still has the original conversation_id (not updated)
             session_conv_id = session_manager.get_conversation_id(device_id="test_device")
-            assert session_conv_id == initial_conv_id, (
-                "Session should maintain original conversation_id when explicit ID is used"
-            )
+            assert (
+                session_conv_id == initial_conv_id
+            ), "Session should maintain original conversation_id when explicit ID is used"
 
 
 @pytest.mark.integration
@@ -373,9 +375,7 @@ async def test_session_activity_updates(
             age_2 = our_session_2["age_seconds"]
 
             # Age should be very small (recently updated)
-            assert age_2 < age_1 + 2, (
-                "Activity update should refresh the session timestamp"
-            )
+            assert age_2 < age_1 + 2, "Activity update should refresh the session timestamp"
 
 
 @pytest.mark.integration
@@ -431,14 +431,14 @@ async def test_clear_conversation_service(
             assert cleared is True, "clear_session should return True when session exists"
 
             # Verify device_1's session is gone
-            assert session_manager.get_conversation_id(device_id="device_1") is None, (
-                "Device 1 session should be cleared"
-            )
+            assert (
+                session_manager.get_conversation_id(device_id="device_1") is None
+            ), "Device 1 session should be cleared"
 
             # Verify device_2's session still exists
-            assert session_manager.get_conversation_id(device_id="device_2") == conv_id_2, (
-                "Device 2 session should still exist"
-            )
+            assert (
+                session_manager.get_conversation_id(device_id="device_2") == conv_id_2
+            ), "Device 2 session should still exist"
 
             # Send new message from device_1 - should get NEW conversation_id
             response_1_new = await agent.process_message(
@@ -450,9 +450,9 @@ async def test_clear_conversation_service(
             assert response_1_new is not None, "Device 1 new message should get response"
             conv_id_1_new = session_manager.get_conversation_id(device_id="device_1")
 
-            assert conv_id_1_new != conv_id_1, (
-                "After clearing session, device should get new conversation_id"
-            )
+            assert (
+                conv_id_1_new != conv_id_1
+            ), "After clearing session, device should get new conversation_id"
 
             # Test clear_all_sessions
             count = await session_manager.clear_all_sessions()
@@ -460,9 +460,7 @@ async def test_clear_conversation_service(
 
             # Verify all sessions are cleared
             session_info_after = session_manager.get_session_info()
-            assert session_info_after["total_sessions"] == 0, (
-                "All sessions should be cleared"
-            )
+            assert session_info_after["total_sessions"] == 0, "All sessions should be cleared"
 
 
 @pytest.mark.integration
@@ -504,9 +502,9 @@ async def test_conversation_persistence_in_streaming_mode(
 
             # Verify session was created
             conv_id_1 = session_manager.get_conversation_id(device_id="streaming_device")
-            assert conv_id_1 is not None, (
-                "Session manager should store conversation_id in streaming mode"
-            )
+            assert (
+                conv_id_1 is not None
+            ), "Session manager should store conversation_id in streaming mode"
 
             # Second streaming message (should reuse same conversation_id)
             stream_response_2 = await agent.process_message(
@@ -518,9 +516,9 @@ async def test_conversation_persistence_in_streaming_mode(
             assert stream_response_2 is not None, "Second streaming message should return response"
 
             conv_id_2 = session_manager.get_conversation_id(device_id="streaming_device")
-            assert conv_id_2 == conv_id_1, (
-                "Streaming mode should reuse conversation_id from session"
-            )
+            assert (
+                conv_id_2 == conv_id_1
+            ), "Streaming mode should reuse conversation_id from session"
 
             # Verify session activity was updated
             session_info = session_manager.get_session_info()
@@ -530,9 +528,7 @@ async def test_conversation_persistence_in_streaming_mode(
             )
 
             assert our_session is not None, "Session should exist after streaming"
-            assert our_session["age_seconds"] < 5, (
-                "Session should have been recently updated"
-            )
+            assert our_session["age_seconds"] < 5, "Session should have been recently updated"
 
 
 @pytest.mark.integration
@@ -592,9 +588,9 @@ async def test_session_timeout_behavior(
             conv_id_2 = short_timeout_manager.get_conversation_id(device_id="timeout_device")
 
             # Should have new conversation_id (different from expired one)
-            assert conv_id_2 != conv_id_1, (
-                "New conversation_id should be created after session expires"
-            )
+            assert (
+                conv_id_2 != conv_id_1
+            ), "New conversation_id should be created after session expires"
 
 
 @pytest.mark.integration
@@ -648,12 +644,12 @@ async def test_user_id_fallback_when_no_device_id(
                 user_id="test_user_123",
                 device_id="test_device",
             )
-            assert retrieved_device == device_conv_id, (
-                "device_id should take precedence over user_id"
-            )
+            assert (
+                retrieved_device == device_conv_id
+            ), "device_id should take precedence over user_id"
 
             # Verify user_id still works when device_id not provided
             retrieved_user = session_manager.get_conversation_id(user_id="test_user_123")
-            assert retrieved_user == test_conv_id, (
-                "user_id lookup should still work for sessions without device_id"
-            )
+            assert (
+                retrieved_user == test_conv_id
+            ), "user_id lookup should still work for sessions without device_id"

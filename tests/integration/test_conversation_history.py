@@ -69,11 +69,15 @@ async def test_history_persistence(test_hass, llm_config, session_manager):
 
         assert response1 is not None, "First response should not be None"
         assert isinstance(response1, str), f"Response should be a string, got {type(response1)}"
-        assert len(response1) > 10, f"Response should be meaningful (>10 chars), got {len(response1)} chars: {response1[:100]}"
+        assert (
+            len(response1) > 10
+        ), f"Response should be meaningful (>10 chars), got {len(response1)} chars: {response1[:100]}"
         # Response should be conversational and acknowledge the input
         response1_lower = response1.lower()
-        assert any(word in response1_lower for word in ["purple", "color", "favorite", "thanks", "great", "noted", "understand"]), \
-            f"Response should acknowledge the color preference, got: {response1[:200]}"
+        assert any(
+            word in response1_lower
+            for word in ["purple", "color", "favorite", "thanks", "great", "noted", "understand"]
+        ), f"Response should acknowledge the color preference, got: {response1[:200]}"
 
         test_message2 = "I live in New York"
         response2 = await agent1.process_message(
@@ -94,10 +98,12 @@ async def test_history_persistence(test_hass, llm_config, session_manager):
         assert len(user_messages) >= 2, "Should have at least 2 user messages"
 
         message_texts = [msg.get("content", "") for msg in user_messages]
-        assert any(test_message1 in text for text in message_texts), \
-            "First message not found in history"
-        assert any(test_message2 in text for text in message_texts), \
-            "Second message not found in history"
+        assert any(
+            test_message1 in text for text in message_texts
+        ), "First message not found in history"
+        assert any(
+            test_message2 in text for text in message_texts
+        ), "Second message not found in history"
 
         # Save and close first agent
         await agent1.conversation_manager.save_to_storage()
@@ -116,18 +122,23 @@ async def test_history_persistence(test_hass, llm_config, session_manager):
         assert len(history2) > 0, "History should be loaded from storage"
         assert isinstance(history2, list), f"History should be a list, got {type(history2)}"
         # Verify history contains message dictionaries
-        assert all(isinstance(msg, dict) for msg in history2), "All history entries should be dictionaries"
-        assert len(history2) == len(history1), \
-            f"Loaded history length {len(history2)} doesn't match saved {len(history1)}"
+        assert all(
+            isinstance(msg, dict) for msg in history2
+        ), "All history entries should be dictionaries"
+        assert len(history2) == len(
+            history1
+        ), f"Loaded history length {len(history2)} doesn't match saved {len(history1)}"
 
         # Verify message content matches
         user_messages2 = [msg for msg in history2 if msg.get("role") == "user"]
         message_texts2 = [msg.get("content", "") for msg in user_messages2]
 
-        assert any(test_message1 in text for text in message_texts2), \
-            "First message not found in loaded history"
-        assert any(test_message2 in text for text in message_texts2), \
-            "Second message not found in loaded history"
+        assert any(
+            test_message1 in text for text in message_texts2
+        ), "First message not found in loaded history"
+        assert any(
+            test_message2 in text for text in message_texts2
+        ), "Second message not found in loaded history"
 
         await agent2.close()
 
@@ -196,16 +207,18 @@ async def test_history_token_limits(test_hass, llm_config, session_manager):
 
         # Should be under or close to limit (allowing for some overhead)
         # Note: The actual truncation may not be exact due to estimation
-        assert estimated_tokens < 300, \
-            f"History token count {estimated_tokens} should be near limit of 200"
+        assert (
+            estimated_tokens < 300
+        ), f"History token count {estimated_tokens} should be near limit of 200"
 
         # Most recent message should still be in history
         user_messages = [msg for msg in history if msg.get("role") == "user"]
         latest_message_content = [msg.get("content", "") for msg in user_messages]
 
         # At minimum, the last message should be present
-        assert any(messages[-1] in content for content in latest_message_content), \
-            "Most recent message should be preserved"
+        assert any(
+            messages[-1] in content for content in latest_message_content
+        ), "Most recent message should be preserved"
 
         await agent.close()
 
@@ -267,21 +280,24 @@ async def test_history_message_limits(test_hass, llm_config, session_manager):
             history = agent.conversation_manager.get_history(conversation_id)
 
             # History should never exceed max_messages
-            assert len(history) <= max_messages, \
-                f"History length {len(history)} exceeds max_messages {max_messages} after message {i+1}"
+            assert (
+                len(history) <= max_messages
+            ), f"History length {len(history)} exceeds max_messages {max_messages} after message {i+1}"
 
         # Final check
         final_history = agent.conversation_manager.get_history(conversation_id)
-        assert len(final_history) <= max_messages, \
-            f"Final history length {len(final_history)} exceeds max_messages {max_messages}"
+        assert (
+            len(final_history) <= max_messages
+        ), f"Final history length {len(final_history)} exceeds max_messages {max_messages}"
 
         # Most recent messages should be in history
         user_messages = [msg for msg in final_history if msg.get("role") == "user"]
         message_contents = [msg.get("content", "") for msg in user_messages]
 
         # Last message should definitely be present
-        assert any(messages[-1] in content for content in message_contents), \
-            "Most recent message should be in history"
+        assert any(
+            messages[-1] in content for content in message_contents
+        ), "Most recent message should be in history"
 
         # First message should likely be gone (truncated)
         # Note: Depending on how many messages are generated by the LLM,
@@ -351,8 +367,7 @@ async def test_history_disabled(test_hass, llm_config, session_manager):
 
         # With history disabled, the agent shouldn't remember previous context
         # This means the history length should not accumulate
-        assert len(history2) <= initial_length + 2, \
-            "History should not grow when disabled"
+        assert len(history2) <= initial_length + 2, "History should not grow when disabled"
 
         # The response likely won't contain "Bob" since history is disabled
         # (unless the LLM hallucinates it), but we can't assert that reliably

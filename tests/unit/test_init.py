@@ -192,9 +192,7 @@ class TestAsyncSetupEntry:
 
         # Add YAML config with custom tools
         custom_tools = [{"name": "yaml_tool"}]
-        mock_hass.data[DOMAIN] = {
-            "yaml_config": {CONF_TOOLS_CUSTOM: custom_tools}
-        }
+        mock_hass.data[DOMAIN] = {"yaml_config": {CONF_TOOLS_CUSTOM: custom_tools}}
 
         result = await async_setup_entry(mock_hass, mock_config_entry)
 
@@ -555,9 +553,7 @@ class TestAsyncReloadEntry:
         """Test reloading a config entry."""
         await async_reload_entry(mock_hass, mock_config_entry)
 
-        mock_hass.config_entries.async_reload.assert_called_once_with(
-            mock_config_entry.entry_id
-        )
+        mock_hass.config_entries.async_reload.assert_called_once_with(mock_config_entry.entry_id)
 
 
 class TestAsyncUnloadEntry:
@@ -568,9 +564,7 @@ class TestAsyncUnloadEntry:
         self, mock_unset_agent, mock_hass, mock_config_entry, mock_agent
     ):
         """Test unloading entry with only agent."""
-        mock_hass.data[DOMAIN] = {
-            mock_config_entry.entry_id: {"agent": mock_agent}
-        }
+        mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: {"agent": mock_agent}}
 
         result = await async_unload_entry(mock_hass, mock_config_entry)
 
@@ -663,9 +657,7 @@ class TestAsyncUnloadEntry:
     ):
         """Test that services are removed when last entry is unloaded."""
         mock_remove_services.return_value = AsyncMock()
-        mock_hass.data[DOMAIN] = {
-            mock_config_entry.entry_id: {"agent": mock_agent}
-        }
+        mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: {"agent": mock_agent}}
 
         result = await async_unload_entry(mock_hass, mock_config_entry)
 
@@ -878,9 +870,7 @@ class TestServiceHandlers:
         assert result["result"] == {"result": "success"}
         mock_agent.execute_tool_debug.assert_called_once()
 
-    async def test_handle_reindex_entities_service(
-        self, mock_hass, mock_vector_manager
-    ):
+    async def test_handle_reindex_entities_service(self, mock_hass, mock_vector_manager):
         """Test reindex_entities service handler."""
         entry_id = "test_entry"
         mock_hass.data[DOMAIN] = {entry_id: {"vector_manager": mock_vector_manager}}
@@ -945,9 +935,7 @@ class TestServiceHandlers:
 
         assert result["entity_id"] == "light.living_room"
         assert result["status"] == "indexed"
-        mock_vector_manager.async_index_entity.assert_called_once_with(
-            "light.living_room"
-        )
+        mock_vector_manager.async_index_entity.assert_called_once_with("light.living_room")
 
     async def test_handle_index_entity_no_entity_id(self, mock_hass):
         """Test index_entity without entity_id."""
@@ -1005,9 +993,7 @@ class TestServiceHandlers:
         assert result["total"] == 1
         assert result["memories"][0]["id"] == "mem1"
         assert result["memories"][0]["type"] == "fact"
-        mock_memory_manager.list_all_memories.assert_called_once_with(
-            limit=10, memory_type="fact"
-        )
+        mock_memory_manager.list_all_memories.assert_called_once_with(limit=10, memory_type="fact")
 
     async def test_handle_list_memories_no_manager(self, mock_hass):
         """Test list_memories when memory manager not enabled."""
@@ -1374,9 +1360,7 @@ class TestServiceErrorHandling:
         with pytest.raises(ValueError, match="Agent not found"):
             await process_handler(service_call)
 
-    async def test_memory_manager_error_propagates(
-        self, mock_hass, mock_memory_manager
-    ):
+    async def test_memory_manager_error_propagates(self, mock_hass, mock_memory_manager):
         """Test that memory manager errors are propagated."""
         entry_id = "test_entry"
         mock_memory_manager.add_memory.side_effect = Exception("Database error")
@@ -1396,14 +1380,10 @@ class TestServiceErrorHandling:
         with pytest.raises(Exception, match="Database error"):
             await add_handler(service_call)
 
-    async def test_vector_manager_error_propagates(
-        self, mock_hass, mock_vector_manager
-    ):
+    async def test_vector_manager_error_propagates(self, mock_hass, mock_vector_manager):
         """Test that vector manager errors are propagated."""
         entry_id = "test_entry"
-        mock_vector_manager.async_reindex_all_entities.side_effect = Exception(
-            "Index error"
-        )
+        mock_vector_manager.async_reindex_all_entities.side_effect = Exception("Index error")
         mock_hass.data[DOMAIN] = {entry_id: {"vector_manager": mock_vector_manager}}
 
         await async_setup_services(mock_hass, entry_id)

@@ -362,7 +362,10 @@ async def test_memory_metadata_integrity(
             # Verify local storage metadata
             assert local_memory["id"] == memory_id
             assert local_memory["type"] == MEMORY_TYPE_FACT
-            assert local_memory["content"] == "User has a morning routine: coffee at 7 AM, exercise at 7:30 AM"
+            assert (
+                local_memory["content"]
+                == "User has a morning routine: coffee at 7 AM, exercise at 7:30 AM"
+            )
             assert local_memory["source_conversation_id"] == "conv_123"
 
             # Importance should be boosted by get_memory
@@ -381,9 +384,7 @@ async def test_memory_metadata_integrity(
 
             # Retrieve from ChromaDB directly
             collection = memory_manager._collection
-            result = await test_hass.async_add_executor_job(
-                lambda: collection.get(ids=[memory_id])
-            )
+            result = await test_hass.async_add_executor_job(lambda: collection.get(ids=[memory_id]))
 
             assert result["ids"][0] == memory_id
             chroma_metadata = result["metadatas"][0]

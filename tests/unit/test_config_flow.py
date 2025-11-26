@@ -1,4 +1,5 @@
 """Unit tests for Home Agent config flow."""
+
 from unittest.mock import Mock
 
 import pytest
@@ -189,7 +190,9 @@ class TestHomeAgentOptionsFlow:
         assert result["data"]["history_enabled"] is True
         assert result["data"]["memory_enabled"] is False
 
-    async def test_history_settings_includes_session_persistence_options(self, mock_config_entry, mock_hass):
+    async def test_history_settings_includes_session_persistence_options(
+        self, mock_config_entry, mock_hass
+    ):
         """Test that history_settings step includes both session_persistence_enabled and session_timeout fields."""
         options_flow = HomeAgentOptionsFlow(mock_config_entry)
         options_flow.hass = mock_hass
@@ -212,7 +215,9 @@ class TestHomeAgentOptionsFlow:
             if hasattr(key, "schema") and key.schema == CONF_SESSION_TIMEOUT:
                 session_timeout_key = key
 
-        assert session_persistence_key is not None, "Session persistence enabled option not found in schema"
+        assert (
+            session_persistence_key is not None
+        ), "Session persistence enabled option not found in schema"
         assert session_timeout_key is not None, "Session timeout option not found in schema"
 
     async def test_session_persistence_defaults(self, mock_config_entry, mock_hass):

@@ -340,9 +340,7 @@ async def test_malformed_sse_data_handling(
             async for delta in delta_stream:
                 processed_deltas.append(delta)
             # Return content
-            yield conversation.AssistantContent(
-                agent_id="test_agent", content="recovered"
-            )
+            yield conversation.AssistantContent(agent_id="test_agent", content="recovered")
 
         mock_chat_log.async_add_delta_content_stream = mock_add_delta_stream
 
@@ -446,9 +444,7 @@ async def test_http_503_during_streaming(
         mock_chat_log.async_add_delta_content_stream = failing_add_delta_stream
         # Mock chat_log.content to have content (avoiding IndexError in fallback)
         mock_chat_log.content = [
-            conversation.AssistantContent(
-                agent_id="test_agent", content="Fallback after 503"
-            )
+            conversation.AssistantContent(agent_id="test_agent", content="Fallback after 503")
         ]
         mock_chat_log.conversation_id = "test_123"
 
@@ -598,9 +594,7 @@ async def test_invalid_json_in_sse_events(
             """Mock that captures deltas."""
             async for delta in delta_stream:
                 processed_deltas.append(delta)
-            yield conversation.AssistantContent(
-                agent_id="test_agent", content="recovered"
-            )
+            yield conversation.AssistantContent(agent_id="test_agent", content="recovered")
 
         mock_chat_log.async_add_delta_content_stream = mock_add_delta_stream
 
@@ -764,9 +758,7 @@ async def test_empty_stream_response(
             async for delta in delta_stream:
                 processed_deltas.append(delta)
             # Return minimal content
-            yield conversation.AssistantContent(
-                agent_id="test_agent", content=""
-            )
+            yield conversation.AssistantContent(agent_id="test_agent", content="")
 
         mock_chat_log.async_add_delta_content_stream = mock_add_delta_stream
 
@@ -829,9 +821,7 @@ async def test_network_error_before_streaming_starts(
         # Mock response that fails on enter
         mock_response = MagicMock()
         mock_response.status = 200
-        mock_response.__aenter__ = AsyncMock(
-            side_effect=aiohttp.ClientError("Connection refused")
-        )
+        mock_response.__aenter__ = AsyncMock(side_effect=aiohttp.ClientError("Connection refused"))
         mock_response.__aexit__ = AsyncMock(return_value=None)
 
         # Mock synchronous fallback
@@ -915,9 +905,7 @@ async def test_stream_with_only_done_marker(
             """Mock that captures deltas."""
             async for delta in delta_stream:
                 processed_deltas.append(delta)
-            yield conversation.AssistantContent(
-                agent_id="test_agent", content=""
-            )
+            yield conversation.AssistantContent(agent_id="test_agent", content="")
 
         mock_chat_log.async_add_delta_content_stream = mock_add_delta_stream
 

@@ -1,4 +1,5 @@
 """Unit tests for ToolHandler class."""
+
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
@@ -441,11 +442,7 @@ class TestExecuteTool:
         assert len(calls) == 3  # started, completed, executed
 
         # Find the EVENT_TOOL_EXECUTED event and verify result handling
-        executed_events = [
-            call
-            for call in calls
-            if call[0][0] == EVENT_TOOL_EXECUTED
-        ]
+        executed_events = [call for call in calls if call[0][0] == EVENT_TOOL_EXECUTED]
 
         assert len(executed_events) == 1
         event_data = executed_events[0][0][1]

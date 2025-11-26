@@ -29,9 +29,9 @@ def mock_hass():
     mock.data = {}
     # Fix async_add_executor_job to handle both callable and positional args
     mock.async_add_executor_job = AsyncMock(
-        side_effect=lambda func, *args, **kwargs: func(*args, **kwargs)
-        if args or kwargs
-        else func()
+        side_effect=lambda func, *args, **kwargs: (
+            func(*args, **kwargs) if args or kwargs else func()
+        )
     )
     mock.bus = MagicMock()
     mock.bus.async_listen = MagicMock(return_value=lambda: None)
