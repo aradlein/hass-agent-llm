@@ -4,6 +4,8 @@ This module provides fixtures for integration tests that interact with real serv
 (ChromaDB, LLM endpoints, etc.) configured via environment variables.
 """
 
+import json
+import logging
 import os
 import uuid
 from typing import Any, AsyncGenerator
@@ -53,14 +55,28 @@ def llm_config() -> dict[str, Any]:
         TEST_LLM_BASE_URL: LLM API base URL (default: http://localhost:11434)
         TEST_LLM_API_KEY: LLM API key (optional)
         TEST_LLM_MODEL: LLM model name (default: qwen2.5:3b)
+        TEST_LLM_PROXY_HEADERS: Custom headers as JSON (optional)
 
     Returns:
         Dictionary with LLM configuration
     """
+    # Parse proxy headers from environment variable
+    proxy_headers = {}
+    proxy_headers_str = os.getenv("TEST_LLM_PROXY_HEADERS", "")
+    if proxy_headers_str:
+        try:
+            proxy_headers = json.loads(proxy_headers_str)
+        except json.JSONDecodeError as e:
+            logging.warning(
+                f"Failed to parse TEST_LLM_PROXY_HEADERS as JSON: {e}. Using empty dict."
+            )
+            proxy_headers = {}
+
     return {
         "base_url": os.getenv("TEST_LLM_BASE_URL", DEFAULT_TEST_LLM_BASE_URL),
         "api_key": os.getenv("TEST_LLM_API_KEY", ""),
         "model": os.getenv("TEST_LLM_MODEL", DEFAULT_TEST_LLM_MODEL),
+        "proxy_headers": proxy_headers,
     }
 
 

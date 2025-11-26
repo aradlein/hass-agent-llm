@@ -331,6 +331,7 @@ All external service connections are configured via `.env.test`:
 TEST_LLM_BASE_URL=http://llm.inorganic.me:8080/v1
 TEST_LLM_API_KEY=your-api-key
 TEST_LLM_MODEL=Qwen2.5-7B-Instruct-Q5_K_L.gguf
+# TEST_LLM_PROXY_HEADERS={"X-Ollama-Backend": "llama-cpp"}
 
 # ChromaDB Configuration
 TEST_CHROMADB_HOST=db.inorganic.me
@@ -342,7 +343,7 @@ TEST_EMBEDDING_MODEL=mxbai-embed-large
 ```
 
 Tests access these via fixtures in `conftest.py`:
-- `llm_config` - Returns dict with `base_url`, `api_key`, `model`
+- `llm_config` - Returns dict with `base_url`, `api_key`, `model`, `proxy_headers`
 - `chromadb_config` - Returns dict with `host`, `port`
 - `embedding_config` - Returns dict with `base_url`, `model`, `provider`
 
