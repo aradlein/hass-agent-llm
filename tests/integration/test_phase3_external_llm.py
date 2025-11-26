@@ -583,6 +583,335 @@ async def test_external_llm_context_not_included_automatically(
 
 
 @pytest.mark.asyncio
+async def test_external_llm_explicit_context_passing(
+    mock_hass_for_integration, external_llm_config, session_manager
+):
+    """Test that explicit context parameter is properly passed to external LLM.
+
+    This test verifies that when the primary LLM decides to delegate to the external LLM
+    and includes relevant context (like conversation history, entity states, or other
+    data) in the 'context' parameter, that context is properly formatted and sent to
+    the external LLM.
+    """
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
+        mock_expose.return_value = False
+
+        agent = HomeAgent(mock_hass_for_integration, external_llm_config, session_manager)
+
+        # Simulate a scenario where primary LLM includes conversation context
+        # in the external LLM call
+        conversation_context = {
+            "previous_conversation": [
+                {"user": "What's the temperature in the living room?"},
+                {"assistant": "The temperature in the living room is 72.5°F."},
+                {"user": "Is that optimal for energy efficiency?"},
+            ],
+            "relevant_entities": {
+                "sensor.living_room_temperature": {"state": "72.5", "unit": "°F"},
+                "climate.thermostat": {"state": "heat", "target_temp": 72},
+            },
+            "user_preferences": {
+                "preferred_temp_range": [68, 73],
+                "energy_saving_mode": True,
+            },
+        }
+
+        primary_llm_response = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_context_test",
+                                "type": "function",
+                                "function": {
+                                    "name": TOOL_QUERY_EXTERNAL_LLM,
+                                    "arguments": json.dumps(
+                                        {
+                                            "prompt": (
+                                                "Based on the conversation history and current "
+                                                "temperature settings, provide recommendations "
+                                                "for optimal energy efficiency."
+                                            ),
+                                            "context": conversation_context,
+                                        }
+                                    ),
+                                },
+                            }
+                        ],
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 150, "completion_tokens": 75, "total_tokens": 225},
+        }
+
+        external_llm_response = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            "Based on the context provided, your current temperature "
+                            "of 72.5°F is within your preferred range and optimal for "
+                            "energy efficiency. Since energy saving mode is enabled, "
+                            "consider lowering the target to 70°F during sleep hours."
+                        ),
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 250, "completion_tokens": 80, "total_tokens": 330},
+        }
+
+        final_response = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            "Your current temperature is optimal. To improve energy "
+                            "efficiency, try lowering it to 70°F during sleep hours."
+                        ),
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 175, "completion_tokens": 50, "total_tokens": 225},
+        }
+
+        # Track the context sent to external LLM
+        received_context = {}
+
+        with patch("aiohttp.ClientSession") as mock_session_class:
+
+            def mock_post_side_effect(url, **kwargs):
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+                mock_response.__aexit__ = AsyncMock(return_value=None)
+                mock_response.raise_for_status = MagicMock()
+                mock_response.text = AsyncMock(return_value="")
+
+                if "api.external.com" in url:
+                    # Capture the payload sent to external LLM
+                    payload = kwargs.get("json", {})
+                    messages = payload.get("messages", [])
+
+                    # Verify we have a message
+                    assert len(messages) == 1
+                    assert messages[0]["role"] == "user"
+
+                    # The message should contain both prompt and formatted context
+                    message_content = messages[0]["content"]
+                    received_context["message"] = message_content
+
+                    # Verify the prompt is in the message
+                    assert "optimal energy efficiency" in message_content
+
+                    # Verify context was included - check for key elements
+                    assert "Additional Context:" in message_content
+                    assert "previous_conversation" in message_content
+                    assert "relevant_entities" in message_content
+                    assert "user_preferences" in message_content
+                    assert "72.5" in message_content  # Temperature value
+                    assert "energy_saving_mode" in message_content
+
+                    mock_response.json = AsyncMock(return_value=external_llm_response)
+                else:
+                    # Primary LLM calls
+                    if not received_context:
+                        mock_response.json = AsyncMock(return_value=primary_llm_response)
+                    else:
+                        mock_response.json = AsyncMock(return_value=final_response)
+
+                return mock_response
+
+            mock_session = MagicMock()
+            mock_session.post = MagicMock(side_effect=mock_post_side_effect)
+            mock_session.closed = False
+            mock_session_class.return_value = mock_session
+
+            # Execute conversation
+            response = await agent.process_message(
+                text="Should I adjust my thermostat for better energy efficiency?",
+                conversation_id="test_conv_context",
+            )
+
+            # Verify response includes external LLM recommendations
+            assert response is not None
+            assert len(received_context) > 0, "External LLM should have been called"
+
+            # Verify the context was properly formatted and sent
+            assert "message" in received_context
+            message = received_context["message"]
+
+            # Check that all context elements are present in the formatted message
+            assert "previous_conversation" in message
+            assert "sensor.living_room_temperature" in message
+            assert "preferred_temp_range" in message
+
+
+@pytest.mark.asyncio
+async def test_external_llm_context_with_multi_turn_conversation(
+    mock_hass_for_integration, external_llm_config, session_manager
+):
+    """Test that primary LLM can include conversation history in context for external LLM.
+
+    This test simulates a multi-turn conversation where the primary LLM decides
+    to delegate to the external LLM and explicitly includes relevant conversation
+    history in the context parameter.
+    """
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
+        mock_expose.return_value = False
+
+        agent = HomeAgent(mock_hass_for_integration, external_llm_config, session_manager)
+
+        # First turn: Simple question
+        first_response = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "The lights in the living room and bedroom are currently on.",
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 50, "completion_tokens": 15, "total_tokens": 65},
+        }
+
+        # Second turn: Complex analysis that needs external LLM with conversation context
+        second_llm_call_with_tool = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_multiturn",
+                                "type": "function",
+                                "function": {
+                                    "name": TOOL_QUERY_EXTERNAL_LLM,
+                                    "arguments": json.dumps(
+                                        {
+                                            "prompt": (
+                                                "Provide detailed energy saving recommendations "
+                                                "for this lighting situation."
+                                            ),
+                                            "context": {
+                                                "conversation_summary": (
+                                                    "User asked which lights are on. "
+                                                    "Living room and bedroom lights are on."
+                                                ),
+                                                "current_state": {
+                                                    "light.living_room": "on",
+                                                    "light.bedroom": "on",
+                                                },
+                                                "time_of_day": "evening",
+                                            },
+                                        }
+                                    ),
+                                },
+                            }
+                        ],
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+        }
+
+        external_response = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            "Based on the conversation context showing both living room "
+                            "and bedroom lights are on in the evening, I recommend: "
+                            "1) Use motion sensors to auto-off when rooms are empty, "
+                            "2) Consider dimming living room lights by 30% for ambiance, "
+                            "3) Switch bedroom to warm lighting for better sleep."
+                        ),
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 180, "completion_tokens": 90, "total_tokens": 270},
+        }
+
+        final_response = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            "Here are energy saving tips: use motion sensors, "
+                            "dim living room lights, and use warm bedroom lighting."
+                        ),
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 40, "total_tokens": 160},
+        }
+
+        call_count = [0]
+        external_call_made = [False]
+
+        with patch("aiohttp.ClientSession") as mock_session_class:
+
+            def mock_post_side_effect(url, **kwargs):
+                call_count[0] += 1
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+                mock_response.__aexit__ = AsyncMock(return_value=None)
+                mock_response.raise_for_status = MagicMock()
+                mock_response.text = AsyncMock(return_value="")
+
+                if "api.external.com" in url:
+                    external_call_made[0] = True
+                    payload = kwargs.get("json", {})
+                    messages = payload.get("messages", [])
+
+                    # Verify context is present
+                    assert len(messages) == 1
+                    content = messages[0]["content"]
+                    assert "conversation_summary" in content
+                    assert "current_state" in content
+                    assert "Living room and bedroom lights are on" in content
+
+                    mock_response.json = AsyncMock(return_value=external_response)
+                else:
+                    # Primary LLM calls
+                    if call_count[0] == 1:
+                        mock_response.json = AsyncMock(return_value=first_response)
+                    elif call_count[0] == 2:
+                        mock_response.json = AsyncMock(return_value=second_llm_call_with_tool)
+                    else:
+                        mock_response.json = AsyncMock(return_value=final_response)
+
+                return mock_response
+
+            mock_session = MagicMock()
+            mock_session.post = MagicMock(side_effect=mock_post_side_effect)
+            mock_session.closed = False
+            mock_session_class.return_value = mock_session
+
+            # First turn
+            await agent.process_message(
+                text="Which lights are on?", conversation_id="test_multiturn"
+            )
+
+            # Second turn - should trigger external LLM with context
+            response = await agent.process_message(
+                text="How can I save energy with my lighting?", conversation_id="test_multiturn"
+            )
+
+            # Verify external LLM was called with context
+            assert external_call_made[0], "External LLM should have been called"
+            assert "motion sensors" in response.lower() or "energy" in response.lower()
+
+
+@pytest.mark.asyncio
 async def test_external_llm_configuration_validation(mock_hass_for_integration, session_manager):
     """Test that proper configuration is required for external LLM tool."""
     # Config missing external LLM settings
