@@ -353,6 +353,13 @@ Extract memories as a JSON array. Each memory should have:
 - "entities": List of Home Assistant entity IDs mentioned (if any)
 - "topics": List of topic tags (e.g., ["temperature", "bedroom"])
 
+**Importance Score Guidelines:**
+- 0.9-1.0: Critical personal info (birthdays, allergies, security codes, medical needs)
+- 0.7-0.8: Strong preferences with specific values (temperature 68°F, lights at 50%)
+- 0.5-0.6: General preferences and useful context (prefers dim lights, works from home)
+- 0.3-0.4: Minor details mentioned in passing (asked about a feature once)
+- 0.1-0.2: Trivial or uncertain information (might want something someday)
+
 **Critical Rules:**
 - Only extract genuinely useful, long-term information
 - Each memory must be at least 7 words long
@@ -498,8 +505,11 @@ Return ONLY valid JSON, no other text:
                 _LOGGER.debug("No memories extracted from conversation")
                 return 0
 
-            # Store each memory
+            # Store each memory and track rejection reasons
             stored_count = 0
+            rejection_counts: dict[str, int] = {}
+            total_count = len(memories)
+
             for memory_data in memories:
                 try:
                     # Validate memory using MemoryValidator
@@ -516,6 +526,8 @@ Return ONLY valid JSON, no other text:
                             rejection_reason,
                             content,
                         )
+                        # Track rejection reason
+                        rejection_counts[rejection_reason] = rejection_counts.get(rejection_reason, 0) + 1
                         continue
 
                     content = memory_data["content"]
@@ -539,11 +551,25 @@ Return ONLY valid JSON, no other text:
                     _LOGGER.error("Failed to store memory: %s", err)
                     continue
 
-            if stored_count > 0:
+            # Log summary statistics
+            rejected_count = total_count - stored_count
+            if rejected_count > 0:
+                # Format rejection reasons as "reason1: count1, reason2: count2"
+                rejection_summary = ", ".join(
+                    f"{reason}: {count}" for reason, count in sorted(rejection_counts.items())
+                )
                 _LOGGER.info(
-                    "Extracted and stored %d memories from conversation %s",
+                    "Memory extraction: %d/%d stored, %d rejected (reasons: %s)",
                     stored_count,
-                    conversation_id,
+                    total_count,
+                    rejected_count,
+                    rejection_summary,
+                )
+            elif stored_count > 0:
+                _LOGGER.info(
+                    "Memory extraction: %d/%d stored, 0 rejected",
+                    stored_count,
+                    total_count,
                 )
 
             return stored_count

@@ -332,7 +332,7 @@
           "memory_extraction_enabled": "Automatically extract memories after each conversation",
           "memory_extraction_llm": "Choose which LLM to use for extracting memories (external is more accurate but requires External LLM to be enabled)",
           "memory_max_memories": "Maximum number of memories to store (oldest/least important are removed when limit is reached)",
-          "memory_min_importance": "Ignore memories below this importance score",
+          "memory_min_importance": "Filter memories by LLM-assigned importance score. Lower values (0.2-0.3) keep most memories including casual mentions. Medium values (0.4-0.5) filter out minor details. Higher values (0.6-0.8) only keep significant preferences and facts. Default 0.4 provides balanced filtering.",
           "memory_min_words": "Minimum number of meaningful words (>2 characters) required for a memory to be stored. Helps filter out short, low-value memories.",
           "memory_context_top_k": "How many relevant memories to include in each conversation",
           "memory_collection_name": "Name of the ChromaDB collection for memory indexing"
