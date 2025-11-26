@@ -6,21 +6,23 @@
         "description": "Configure your Home Agent integration with an OpenAI-compatible LLM endpoint.",
         "data": {
           "name": "Integration Name",
-          "base_url": "LLM API Base URL",
-          "api_key": "API Key",
-          "model": "Model Name",
-          "temperature": "Temperature",
-          "max_tokens": "Max Tokens",
-          "top_p": "Top P"
+          "llm_base_url": "LLM API Base URL",
+          "llm_api_key": "API Key",
+          "llm_model": "Model Name",
+          "llm_temperature": "Temperature",
+          "llm_max_tokens": "Max Tokens",
+          "llm_keep_alive": "Keep Alive",
+          "llm_proxy_headers": "Proxy Headers"
         },
         "data_description": {
           "name": "A friendly name for this Home Agent instance",
-          "base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
-          "api_key": "API key for authentication (leave empty if not required)",
-          "model": "The model to use (e.g., gpt-4o-mini, llama3.1, etc.)",
-          "temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
-          "max_tokens": "Maximum tokens per response",
-          "top_p": "Nucleus sampling parameter (0.0-1.0)"
+          "llm_base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
+          "llm_api_key": "API key for authentication (leave empty if not required)",
+          "llm_model": "The model to use (e.g., gpt-4o-mini, llama3.1, etc.)",
+          "llm_temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
+          "llm_max_tokens": "Maximum tokens per response",
+          "llm_keep_alive": "How long Ollama keeps model in memory (e.g., 5m, 24h). Use -1 for indefinite.",
+          "llm_proxy_headers": "Optional custom HTTP headers as JSON, e.g. X-Ollama-Backend: llama-cpp"
         }
       },
       "context": {
@@ -159,6 +161,7 @@
       "invalid_tool_timeout": "Tool timeout must be a positive number.",
       "invalid_max_tool_calls": "Max tool calls must be a positive integer.",
       "external_llm_connection_failed": "Failed to connect to external LLM API. Please check the configuration.",
+      "invalid_proxy_headers": "Invalid proxy headers format. Must be valid JSON object with string keys and values.",
       "unknown": "An unexpected error occurred. Please check the logs for details."
     },
     "abort": {
@@ -191,14 +194,18 @@
           "llm_api_key": "API Key",
           "llm_model": "Model Name",
           "llm_temperature": "Temperature",
-          "llm_max_tokens": "Max Tokens"
+          "llm_max_tokens": "Max Tokens",
+          "llm_keep_alive": "Keep Alive",
+          "llm_proxy_headers": "Proxy Headers"
         },
         "data_description": {
           "llm_base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
           "llm_api_key": "API key for authentication",
           "llm_model": "Model to use (e.g., gpt-4o-mini, llama3.1)",
           "llm_temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
-          "llm_max_tokens": "Maximum tokens per response"
+          "llm_max_tokens": "Maximum tokens per response",
+          "llm_keep_alive": "How long Ollama keeps model in memory (e.g., 5m, 24h). Use -1 for indefinite.",
+          "llm_proxy_headers": "Optional custom HTTP headers as JSON, e.g. X-Ollama-Backend: llama-cpp"
         }
       },
       "context_settings": {
@@ -247,12 +254,16 @@
         "data": {
           "history_enabled": "Enable Conversation History",
           "history_max_messages": "Max Messages",
-          "history_max_tokens": "Max Tokens"
+          "history_max_tokens": "Max Tokens",
+          "session_persistence_enabled": "Enable Voice Session Persistence",
+          "session_timeout": "Session Timeout (minutes)"
         },
         "data_description": {
           "history_enabled": "Include previous conversation turns in LLM context",
           "history_max_messages": "Maximum number of conversation turns to retain",
-          "history_max_tokens": "Token-based limit for history"
+          "history_max_tokens": "Token-based limit for history",
+          "session_persistence_enabled": "Maintain conversation context across multiple voice interactions from the same device. When disabled, each voice request starts a fresh conversation.",
+          "session_timeout": "Time in minutes before voice sessions expire and start fresh (1-120 minutes)"
         }
       },
       "prompt_settings": {
@@ -303,6 +314,28 @@
           "external_llm_auto_include_context": "Automatically pass context to external LLM"
         }
       },
+      "memory_settings": {
+        "title": "Memory System Configuration",
+        "description": "Configure the long-term memory system for persistent learning across conversations.",
+        "data": {
+          "memory_enabled": "Enable Memory System",
+          "memory_extraction_enabled": "Enable Automatic Memory Extraction",
+          "memory_extraction_llm": "LLM for Memory Extraction",
+          "memory_max_memories": "Maximum Stored Memories",
+          "memory_min_importance": "Minimum Importance (0.0-1.0)",
+          "memory_context_top_k": "Memories to Inject in Context",
+          "memory_collection_name": "ChromaDB Collection Name"
+        },
+        "data_description": {
+          "memory_enabled": "Privacy toggle - enable or disable the entire memory system",
+          "memory_extraction_enabled": "Automatically extract memories after each conversation",
+          "memory_extraction_llm": "Choose which LLM to use for extracting memories (external is more accurate but requires External LLM to be enabled)",
+          "memory_max_memories": "Maximum number of memories to store (oldest/least important are removed when limit is reached)",
+          "memory_min_importance": "Ignore memories below this importance score",
+          "memory_context_top_k": "How many relevant memories to include in each conversation",
+          "memory_collection_name": "Name of the ChromaDB collection for memory indexing"
+        }
+      },
       "debug_settings": {
         "title": "Debug Settings",
         "description": "Configure debugging and logging options.",
@@ -335,6 +368,8 @@
       "invalid_tool_timeout": "Tool timeout must be a positive number.",
       "invalid_max_tool_calls": "Max tool calls must be a positive integer.",
       "external_llm_connection_failed": "Failed to connect to external LLM API. Please check the configuration.",
+      "external_llm_required": "Memory extraction with external LLM requires the external LLM tool to be enabled in External LLM settings.",
+      "invalid_proxy_headers": "Invalid proxy headers format. Must be valid JSON object with string keys and values.",
       "unknown": "An unexpected error occurred. Please check the logs for details."
     }
   },
@@ -372,6 +407,10 @@
           "description": "The entity ID to index."
         }
       }
+    },
+    "clear_conversation": {
+      "name": "Clear conversation",
+      "description": "Clear conversation session and start fresh with no previous context. Allows users to reset voice conversations for a specific user or device, or all conversations at once."
     }
   }
 }

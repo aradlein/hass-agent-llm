@@ -6,23 +6,23 @@
         "description": "Configure your Home Agent integration with an OpenAI-compatible LLM endpoint.",
         "data": {
           "name": "Integration Name",
-          "base_url": "LLM API Base URL",
-          "api_key": "API Key",
-          "model": "Model Name",
-          "llm_backend": "Backend",
-          "temperature": "Temperature",
-          "max_tokens": "Max Tokens",
-          "top_p": "Top P"
+          "llm_base_url": "LLM API Base URL",
+          "llm_api_key": "API Key",
+          "llm_model": "Model Name",
+          "llm_temperature": "Temperature",
+          "llm_max_tokens": "Max Tokens",
+          "llm_keep_alive": "Keep Alive",
+          "llm_proxy_headers": "Proxy Headers"
         },
         "data_description": {
           "name": "A friendly name for this Home Agent instance",
-          "base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
-          "api_key": "API key for authentication (leave empty if not required)",
-          "model": "The model to use (e.g., gpt-4o-mini, llama3.1, etc.)",
-          "llm_backend": "Specify which backend to use for Ollama (Default for standard behavior, or select a specific backend like llama-cpp, vllm-server, or ollama-gpu)",
-          "temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
-          "max_tokens": "Maximum tokens per response",
-          "top_p": "Nucleus sampling parameter (0.0-1.0)"
+          "llm_base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
+          "llm_api_key": "API key for authentication (leave empty if not required)",
+          "llm_model": "The model to use (e.g., gpt-4o-mini, llama3.1, etc.)",
+          "llm_temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
+          "llm_max_tokens": "Maximum tokens per response",
+          "llm_keep_alive": "How long Ollama keeps model in memory (e.g., 5m, 24h). Use -1 for indefinite.",
+          "llm_proxy_headers": "Optional custom HTTP headers as JSON, e.g. X-Ollama-Backend: llama-cpp"
         }
       },
       "context": {
@@ -161,6 +161,7 @@
       "invalid_tool_timeout": "Tool timeout must be a positive number.",
       "invalid_max_tool_calls": "Max tool calls must be a positive integer.",
       "external_llm_connection_failed": "Failed to connect to external LLM API. Please check the configuration.",
+      "invalid_proxy_headers": "Invalid proxy headers format. Must be valid JSON object with string keys and values.",
       "unknown": "An unexpected error occurred. Please check the logs for details."
     },
     "abort": {
@@ -192,17 +193,19 @@
           "llm_base_url": "LLM Base URL",
           "llm_api_key": "API Key",
           "llm_model": "Model Name",
-          "llm_backend": "Backend",
           "llm_temperature": "Temperature",
-          "llm_max_tokens": "Max Tokens"
+          "llm_max_tokens": "Max Tokens",
+          "llm_keep_alive": "Keep Alive",
+          "llm_proxy_headers": "Proxy Headers"
         },
         "data_description": {
           "llm_base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
           "llm_api_key": "API key for authentication",
           "llm_model": "Model to use (e.g., gpt-4o-mini, llama3.1)",
-          "llm_backend": "Specify which backend to use for Ollama (Default for standard behavior, or select a specific backend like llama-cpp, vllm-server, or ollama-gpu)",
           "llm_temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
-          "llm_max_tokens": "Maximum tokens per response"
+          "llm_max_tokens": "Maximum tokens per response",
+          "llm_keep_alive": "How long Ollama keeps model in memory (e.g., 5m, 24h). Use -1 for indefinite.",
+          "llm_proxy_headers": "Optional custom HTTP headers as JSON, e.g. X-Ollama-Backend: llama-cpp"
         }
       },
       "context_settings": {
@@ -366,6 +369,7 @@
       "invalid_max_tool_calls": "Max tool calls must be a positive integer.",
       "external_llm_connection_failed": "Failed to connect to external LLM API. Please check the configuration.",
       "external_llm_required": "Memory extraction with external LLM requires the external LLM tool to be enabled in External LLM settings.",
+      "invalid_proxy_headers": "Invalid proxy headers format. Must be valid JSON object with string keys and values.",
       "unknown": "An unexpected error occurred. Please check the logs for details."
     }
   },
@@ -386,14 +390,6 @@
       "options": {
         "openai": "OpenAI (Cloud)",
         "ollama": "Ollama (Local)"
-      }
-    },
-    "llm_backend": {
-      "options": {
-        "default": "Default",
-        "llama-cpp": "Llama.cpp",
-        "vllm-server": "vLLM Server",
-        "ollama-gpu": "Ollama GPU"
       }
     }
   },

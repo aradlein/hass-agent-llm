@@ -57,9 +57,9 @@ def agent_config():
 @pytest.fixture
 def home_agent(mock_hass, agent_config):
     """Create a HomeAgent instance for testing."""
-    with patch("custom_components.home_agent.agent.ContextManager"):
-        with patch("custom_components.home_agent.agent.ConversationHistoryManager"):
-            with patch("custom_components.home_agent.agent.ToolHandler"):
+    with patch("custom_components.home_agent.agent.core.ContextManager"):
+        with patch("custom_components.home_agent.agent.core.ConversationHistoryManager"):
+            with patch("custom_components.home_agent.agent.core.ToolHandler"):
                 from custom_components.home_agent.conversation_session import (
                     ConversationSessionManager,
                 )

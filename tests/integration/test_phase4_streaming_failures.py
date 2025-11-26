@@ -221,7 +221,7 @@ async def test_partial_sse_stream_connection_drop(
     - Appropriate error event is fired
     - User receives error response (not partial data)
     """
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
@@ -315,7 +315,7 @@ async def test_malformed_sse_data_handling(
     - No crash on malformed input
     - Partial valid content is processed
     """
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
@@ -388,7 +388,7 @@ async def test_http_503_during_streaming(
     - Error event is fired
     - User receives fallback response
     """
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
@@ -485,7 +485,7 @@ async def test_timeout_during_streaming(
     - Error event is fired with timeout context
     - Resources are cleaned up properly
     """
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
@@ -570,7 +570,7 @@ async def test_invalid_json_in_sse_events(
     - Valid chunks continue to be processed
     - Stream completes successfully with partial data
     """
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
@@ -642,7 +642,7 @@ async def test_invalid_tool_call_json_in_stream(
     - Tool call continues with empty args
     - Stream processing continues
     """
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
@@ -729,7 +729,7 @@ async def test_empty_stream_response(
     - System handles gracefully
     - Appropriate default response is generated
     """
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
@@ -803,7 +803,7 @@ async def test_network_error_before_streaming_starts(
     - Error event is fired
     - Fallback succeeds
     """
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
@@ -879,7 +879,7 @@ async def test_stream_with_only_done_marker(
     - No content results in appropriate behavior
     - No crashes occur
     """
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)
@@ -948,7 +948,7 @@ async def test_stream_handler_exception_propagation(
     - Error is logged with traceback
     - System falls back appropriately
     """
-    with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+    with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
         mock_expose.return_value = False
 
         agent = HomeAgent(mock_hass_for_streaming, streaming_config, session_manager)

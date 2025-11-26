@@ -2,11 +2,21 @@
 
 This module implements the configuration UI for the Home Agent custom component,
 providing multi-step configuration flows for initial setup and options management.
+
+NOTE: A refactored modular version of this code is available in the config/ package:
+- config/flow.py - ConfigFlow and OptionsFlow classes
+- config/schemas.py - Schema definitions
+- config/validators.py - Validation logic
+- config/utils.py - Helper functions
+
+The refactored version can be adopted by replacing this file's imports when ready.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -43,6 +53,7 @@ from .const import (
     CONF_LLM_KEEP_ALIVE,
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
+    CONF_LLM_PROXY_HEADERS,
     CONF_LLM_TEMPERATURE,
     CONF_MEMORY_COLLECTION_NAME,
     CONF_MEMORY_CONTEXT_TOP_K,
@@ -89,7 +100,6 @@ from .const import (
     DEFAULT_HISTORY_ENABLED,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
-    DEFAULT_LLM_BACKEND,
     DEFAULT_LLM_KEEP_ALIVE,
     DEFAULT_LLM_MODEL,
     DEFAULT_MAX_TOKENS,
@@ -132,6 +142,80 @@ _LOGGER = logging.getLogger(__name__)
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 
 
+def _validate_proxy_headers(headers_input: str | dict[str, str] | None) -> dict[str, str]:
+    """Validate proxy headers configuration.
+
+    Args:
+        headers_input: Either a JSON string or dict of headers
+
+    Returns:
+        Validated headers dictionary
+
+    Raises:
+        ValidationError: If headers are invalid
+    """
+    # Handle None or empty string
+    if not headers_input:
+        return {}
+
+    # Parse JSON string if needed
+    if isinstance(headers_input, str):
+        headers_input = headers_input.strip()
+        if not headers_input:
+            return {}
+        try:
+            headers = json.loads(headers_input)
+        except json.JSONDecodeError as err:
+            raise ValidationError(f"Invalid JSON format for proxy headers: {err}") from err
+    else:
+        headers = headers_input
+
+    # Validate it's a dictionary
+    if not isinstance(headers, dict):
+        raise ValidationError("Proxy headers must be a JSON object (dictionary)")
+
+    # Validate each header
+    for key, value in headers.items():
+        # RFC 7230 header name validation
+        # Header names must be tokens (alphanumeric and -_)
+        if not re.match(r"^[a-zA-Z0-9\-_]+$", key):
+            raise ValidationError(
+                f"Invalid header name '{key}'. Header names must contain only "
+                "alphanumeric characters, hyphens, and underscores (RFC 7230)"
+            )
+
+        # Ensure values are strings
+        if not isinstance(value, str):
+            raise ValidationError(
+                f"Header value for '{key}' must be a string, got {type(value).__name__}"
+            )
+
+    return headers
+
+
+def _migrate_legacy_backend(config: dict[str, Any]) -> dict[str, Any]:
+    """Migrate legacy llm_backend setting to llm_proxy_headers.
+
+    Args:
+        config: Configuration dictionary
+
+    Returns:
+        Updated configuration with migrated settings
+    """
+    # If proxy_headers already exist, don't migrate
+    if CONF_LLM_PROXY_HEADERS in config:
+        return config
+
+    # Check for legacy backend setting
+    backend = config.get(CONF_LLM_BACKEND)
+    if backend and backend != LLM_BACKEND_DEFAULT:
+        # Migrate to proxy headers
+        config[CONF_LLM_PROXY_HEADERS] = {"X-Ollama-Backend": backend}
+        _LOGGER.info("Migrated legacy llm_backend setting '%s' to llm_proxy_headers", backend)
+
+    return config
+
+
 class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Home Agent.
 
@@ -169,8 +253,16 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
 
         if user_input is not None:
             try:
+                # Parse and validate proxy headers
+                if CONF_LLM_PROXY_HEADERS in user_input:
+                    validated_headers = _validate_proxy_headers(user_input[CONF_LLM_PROXY_HEADERS])
+                    user_input[CONF_LLM_PROXY_HEADERS] = validated_headers
+
                 # Validate the configuration
                 await self._validate_llm_config(user_input)
+
+                # Migrate legacy backend setting if needed
+                user_input = _migrate_legacy_backend(user_input)
 
                 # Store the configuration
                 self._data.update(user_input)
@@ -208,20 +300,6 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                         default=DEFAULT_LLM_MODEL,
                     ): str,
                     vol.Optional(
-                        CONF_LLM_BACKEND,
-                        default=DEFAULT_LLM_BACKEND,
-                    ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                LLM_BACKEND_DEFAULT,
-                                LLM_BACKEND_LLAMA_CPP,
-                                LLM_BACKEND_VLLM,
-                                LLM_BACKEND_OLLAMA_GPU,
-                            ],
-                            translation_key="llm_backend",
-                        )
-                    ),
-                    vol.Optional(
                         CONF_LLM_TEMPERATURE,
                         default=DEFAULT_TEMPERATURE,
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
@@ -232,6 +310,10 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                     vol.Optional(
                         CONF_LLM_KEEP_ALIVE,
                         default=DEFAULT_LLM_KEEP_ALIVE,
+                    ): str,
+                    vol.Optional(
+                        CONF_LLM_PROXY_HEADERS,
+                        description={"suggested_value": ""},
                     ): str,
                 }
             ),
@@ -292,6 +374,10 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
         max_tokens = config.get(CONF_LLM_MAX_TOKENS, DEFAULT_MAX_TOKENS)
         if max_tokens < 1:
             raise ValidationError(f"Max tokens must be at least 1, got: {max_tokens}")
+
+        # Validate proxy headers if provided
+        if CONF_LLM_PROXY_HEADERS in config:
+            _validate_proxy_headers(config[CONF_LLM_PROXY_HEADERS])
 
     async def _test_llm_connection(self, config: dict[str, Any]) -> bool:
         """Test connection to LLM API.
@@ -440,6 +526,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             # Validate LLM configuration
             try:
+                # Parse and validate proxy headers
+                if CONF_LLM_PROXY_HEADERS in user_input:
+                    validated_headers = _validate_proxy_headers(user_input[CONF_LLM_PROXY_HEADERS])
+                    user_input[CONF_LLM_PROXY_HEADERS] = validated_headers
+
                 # Merge user input with entry data (not options)
                 # LLM settings should update the entry.data
                 test_config = dict(self._config_entry.data) | user_input
@@ -448,6 +539,9 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 temp_flow = HomeAgentConfigFlow()
                 temp_flow.hass = self.hass
                 await temp_flow._validate_llm_config(test_config)
+
+                # Migrate legacy backend setting if needed
+                user_input = _migrate_legacy_backend(user_input)
 
                 # Update the config entry data with new LLM settings
                 self.hass.config_entries.async_update_entry(
@@ -470,6 +564,10 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
         # Get current values from entry.data (not options)
         current_data = self._config_entry.data
 
+        # Convert proxy headers dict to JSON string for display
+        proxy_headers = current_data.get(CONF_LLM_PROXY_HEADERS, {})
+        proxy_headers_str = json.dumps(proxy_headers, indent=2) if proxy_headers else ""
+
         return self.async_show_form(
             step_id="llm_settings",
             data_schema=vol.Schema(
@@ -487,20 +585,6 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         default=current_data.get(CONF_LLM_MODEL, DEFAULT_LLM_MODEL),
                     ): str,
                     vol.Optional(
-                        CONF_LLM_BACKEND,
-                        default=current_data.get(CONF_LLM_BACKEND, DEFAULT_LLM_BACKEND),
-                    ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                LLM_BACKEND_DEFAULT,
-                                LLM_BACKEND_LLAMA_CPP,
-                                LLM_BACKEND_VLLM,
-                                LLM_BACKEND_OLLAMA_GPU,
-                            ],
-                            translation_key="llm_backend",
-                        )
-                    ),
-                    vol.Optional(
                         CONF_LLM_TEMPERATURE,
                         default=current_data.get(CONF_LLM_TEMPERATURE, DEFAULT_TEMPERATURE),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
@@ -511,6 +595,10 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_LLM_KEEP_ALIVE,
                         default=current_data.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
+                    ): str,
+                    vol.Optional(
+                        CONF_LLM_PROXY_HEADERS,
+                        description={"suggested_value": proxy_headers_str},
                     ): str,
                 }
             ),

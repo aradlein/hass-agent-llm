@@ -57,7 +57,7 @@ async def test_basic_conversation(test_hass, llm_config, session_manager):
     # Mock entity exposure to return no entities (simple test)
     # async_should_expose is actually a sync function despite the name
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)
@@ -126,7 +126,7 @@ async def test_tool_calling(test_hass, llm_config, sample_entity_states, session
 
     # Mock entity exposure to return False (avoid entity registry calls)
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         # Setup test states
@@ -237,7 +237,7 @@ async def test_multi_turn_context(test_hass, llm_config, session_manager):
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)
@@ -308,7 +308,7 @@ async def test_streaming_response(test_hass, llm_config, session_manager):
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)
@@ -384,7 +384,7 @@ async def test_error_handling(test_hass, llm_config, session_manager):
     }
 
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         agent = HomeAgent(test_hass, config, session_manager)
@@ -453,7 +453,7 @@ async def test_llm_with_complex_tools(test_hass, llm_config, sample_entity_state
 
     # Mock entity exposure to return False (avoid entity registry calls)
     with patch(
-        "custom_components.home_agent.agent.async_should_expose",
+        "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
@@ -556,7 +556,7 @@ async def test_tool_execution_with_correct_entity(
     # Mock entity exposure
     with (
         patch(
-            "custom_components.home_agent.agent.async_should_expose",
+            "custom_components.home_agent.agent.core.async_should_expose",
             return_value=False,
         ),
         patch(

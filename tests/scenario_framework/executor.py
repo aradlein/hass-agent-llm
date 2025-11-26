@@ -166,7 +166,7 @@ class ScenarioExecutor:
         await session_manager.async_load()
 
         # Create agent
-        with patch("custom_components.home_agent.agent.async_should_expose") as mock_expose:
+        with patch("custom_components.home_agent.agent.core.async_should_expose") as mock_expose:
             mock_expose.return_value = False
             self.agent = HomeAgent(self.hass, config, session_manager)
 

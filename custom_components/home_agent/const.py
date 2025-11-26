@@ -16,6 +16,7 @@ CONF_LLM_MAX_TOKENS: Final = "llm_max_tokens"
 CONF_LLM_TOP_P: Final = "llm_top_p"
 CONF_LLM_KEEP_ALIVE: Final = "llm_keep_alive"
 CONF_LLM_BACKEND: Final = "llm_backend"
+CONF_LLM_PROXY_HEADERS: Final = "llm_proxy_headers"
 
 # Configuration keys - Context Injection
 CONF_CONTEXT_MODE: Final = "context_mode"
