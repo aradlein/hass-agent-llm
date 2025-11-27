@@ -1,0 +1,176 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*.*.*-beta'
+      - 'v*.*.*-alpha'
+      - 'v*.*.*-rc*'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: extract_version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          echo "tag_version=$TAG" >> $GITHUB_OUTPUT
+          echo "Tag version: $TAG"
+
+      - name: Extract version from manifest
+        id: extract_manifest
+        run: |
+          MANIFEST_VERSION=$(jq -r '.version' custom_components/home_agent/manifest.json)
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "Manifest version: $MANIFEST_VERSION"
+
+      - name: Validate version match
+        run: |
+          TAG_VERSION="${{ steps.extract_version.outputs.tag_version }}"
+          MANIFEST_VERSION="${{ steps.extract_manifest.outputs.manifest_version }}"
+
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "❌ Error: Tag version ($TAG_VERSION) does not match manifest.json version ($MANIFEST_VERSION)"
+            echo "Please update manifest.json to version $TAG_VERSION before creating the release."
+            exit 1
+          fi
+
+          echo "✓ Version validation passed: $TAG_VERSION"
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: extract_version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          echo "tag_version=$TAG" >> $GITHUB_OUTPUT
+          echo "Version: $TAG"
+
+      - name: Determine if pre-release
+        id: prerelease
+        run: |
+          VERSION="${{ steps.extract_version.outputs.tag_version }}"
+          if [[ $VERSION =~ -(beta|alpha|rc) ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "This is a pre-release version"
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "This is a stable release"
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found, generating full changelog"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            echo "Generating changelog since $PREV_TAG"
+            CHANGELOG=$(git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          # Save changelog to file
+          echo "$CHANGELOG" > CHANGELOG.tmp
+          echo "changelog_file=CHANGELOG.tmp" >> $GITHUB_OUTPUT
+
+      - name: Create Release Notes
+        run: |
+          VERSION="${{ steps.extract_version.outputs.tag_version }}"
+          IS_PRERELEASE="${{ steps.prerelease.outputs.is_prerelease }}"
+
+          cat > RELEASE_NOTES.md << EOF
+          # Home Agent v$VERSION
+
+          $(if [ "$IS_PRERELEASE" = "true" ]; then echo "**⚠️ This is a pre-release version**"; echo ""; fi)
+          ## What's Changed
+
+          $(cat CHANGELOG.tmp)
+
+          ## Installation
+
+          ### Via HACS (Recommended)
+
+          For private repository installation with Personal Access Token:
+          1. Generate a GitHub PAT with \`repo\` scope
+          2. In HACS → Integrations → Custom repositories
+          3. Add: \`https://YOUR_TOKEN@github.com/YOUR_USERNAME/home-agent\`
+          4. Install Home Agent from HACS
+
+          See [HACS Installation Guide](docs/HACS_PRIVATE_INSTALL.md) for detailed instructions.
+
+          ### Manual Installation
+
+          1. Download the \`home-agent-$VERSION.zip\` file below
+          2. Extract to \`config/custom_components/home_agent\`
+          3. Restart Home Assistant
+          4. Add the Home Agent integration
+
+          ## Documentation
+
+          - [Installation Guide](docs/INSTALLATION.md)
+          - [Configuration Guide](docs/CONFIGURATION.md)
+          - [API Reference](docs/API_REFERENCE.md)
+          - [Examples](docs/EXAMPLES.md)
+
+          ## Requirements
+
+          - Home Assistant 2024.1.0 or later
+          - Python 3.11+
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: RELEASE_NOTES.md
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+          generate_release_notes: false
+          files: |
+            custom_components/home_agent/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release ZIP
+        run: |
+          VERSION="${{ steps.extract_version.outputs.tag_version }}"
+          mkdir -p dist
+          cd custom_components
+          zip -r ../dist/home-agent-$VERSION.zip home_agent/
+          cd ..
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  validate-hacs:
+    name: Validate HACS Compatibility
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
