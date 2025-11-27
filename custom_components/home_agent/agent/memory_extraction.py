@@ -378,7 +378,7 @@ Extract memories as a JSON array. Each memory should have:
 
 **ALWAYS extract (these are valuable):**
 - ✅ User preferences with values: "user prefers bedroom temperature at 68°F for sleeping"
-- ✅ Permanent facts: "user's birthday is September 28th, 1982", "kitchen has 3 ceiling lights"
+- ✅ Permanent facts: "user's birthday is March 15th", "kitchen has 3 ceiling lights"
 - ✅ Patterns and routines: "user wants kitchen lights at 50% brightness during daytime"
 - ✅ Device capabilities (not states): "bedroom thermostat supports heating and cooling modes"
 - ✅ Important context: "user works night shifts and sleeps during the day"
@@ -386,12 +386,12 @@ Extract memories as a JSON array. Each memory should have:
 **Examples of REJECTED memories:**
 - "The kitchen lights are currently on" → REJECT: transient state
 - "Conversation occurred at 20:59 PM" → REJECT: conversation metadata
-- "There is no bed sensor for Candace" → REJECT: negative statement
+- "There is no bed sensor in the guest room" → REJECT: negative statement
 - "User asked about lights" → REJECT: question without answer, too brief
 
 **Examples of GOOD memories:**
 - "User prefers kitchen lights at 50% brightness during daytime hours" → GOOD: preference with value
-- "Royce's birthday is September 28th, 1982" → GOOD: permanent fact
+- "User's birthday is March 15th" → GOOD: permanent fact
 - "User works night shifts from Monday to Friday and sleeps during daytime" → GOOD: important routine
 
 Return ONLY valid JSON, no other text:
