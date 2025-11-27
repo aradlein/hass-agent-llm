@@ -1,6 +1,6 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.6.4--beta-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.7.2--beta-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1.0+-blue.svg)](https://www.home-assistant.io/)
@@ -8,13 +8,13 @@
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.6.4-beta
+## What's New in v0.7.2-beta
 
-🔧 **Streaming Tool Execution Fix** - Fixed "No LLM API configured" error during streaming with tool calls
-🎯 **Improved Reliability** - Tools now execute seamlessly when LLM returns tool calls in streaming mode
-⚡ **Backend Selection** - Support for Ollama backend selection (llama.cpp, vLLM, Ollama GPU)
-🧠 **Memory System Enhancements** - Optimized memory search and extraction quality
-📝 **Context Optimization** - Parallel entity and memory context retrieval for reduced latency
+🎙️ **Voice Conversation Persistence** - Multi-turn conversations with automatic session management across devices
+🛡️ **Reliability & Resource Management** - Custom exceptions, retry logic with exponential backoff, startup health checks
+🏗️ **Architecture Improvements** - Modular agent design, extracted memory validator, comprehensive documentation
+📊 **Quality Enhancements** - Configurable memory word count, improved importance scoring, better filtering
+🧪 **Comprehensive Testing** - 400+ tests with integration test framework for real service validation
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
@@ -70,20 +70,15 @@ Home Agent extends Home Assistant's native conversation platform to enable natur
 
 ### HACS (Recommended)
 
-**For private repository installation:**
-
-1. Generate a GitHub Personal Access Token with `repo` scope
-2. In HACS, go to **Integrations** → **⋮** → **Custom repositories**
-3. Add repository: `https://YOUR_TOKEN@github.com/YOUR_USERNAME/hass-agent-llm`
-4. Category: **Integration**
-5. Click **Add**
-6. Search for "Home Agent" in HACS
-7. Click Install
-8. Restart Home Assistant
-9. Go to Settings > Devices & Services > Add Integration
-10. Search for "Home Agent" and follow the setup wizard
-
-**See [HACS Private Installation Guide](docs/HACS_PRIVATE_INSTALL.md) for detailed instructions.**
+1. In HACS, go to **Integrations** → **⋮** → **Custom repositories**
+2. Add repository: `https://github.com/aradlein/hass-agent-llm`
+3. Category: **Integration**
+4. Click **Add**
+5. Search for "Home Agent" in HACS
+6. Click **Install**
+7. Restart Home Assistant
+8. Go to Settings > Devices & Services > Add Integration
+9. Search for "Home Agent" and follow the setup wizard
 
 ### Manual Installation
 
@@ -150,17 +145,9 @@ Access Settings > Devices & Services > Home Agent > Configure to:
 ### Reference
 - [Architecture Overview](docs/ARCHITECTURE.md) - Component diagrams and system design
 - [API Reference](docs/API_REFERENCE.md) - Services, events, and tools
-- [Observability](observability/README.md) - Monitoring with Prometheus, InfluxDB, and Grafana
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Quick fixes for common issues
 - [Examples](docs/EXAMPLES.md) - 10 ready-to-use examples
 - [Migration Guide](docs/MIGRATION.md) - Moving from extended_openai_conversation
-
-### Complete Reference
-For comprehensive documentation, see [docs/reference/](docs/reference/) for detailed guides covering all configuration options, advanced scenarios, and troubleshooting.
-
-### For Developers
-- [Project Specification](.claude/docs/PROJECT_SPEC.md) - Technical specs and roadmap
-- [Development Standards](.claude/docs/DEVELOPMENT.md) - Code quality and testing
 
 ## Usage Examples
 
@@ -320,7 +307,23 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.6.4-beta (Latest)
+### v0.7.2-beta (Latest)
+- **Feature**: Voice conversation persistence with automatic session management
+- **Feature**: Reliability & resource management (custom exceptions, retry logic, health checks)
+- **Feature**: Configurable memory minimum word count in UI
+- **Enhancement**: Improved memory importance score usability with better descriptions
+- **Enhancement**: Comprehensive integration test framework for real service validation
+- **Docs**: Architecture diagrams and example configurations
+
+### v0.7.0-beta
+- **Feature**: Agent modularization with extracted components
+- **Feature**: LLM proxy headers support for backend selection
+- **Feature**: Memory validator extraction for cleaner architecture
+- **Enhancement**: UI configuration for session persistence settings
+- **Enhancement**: Datetime serialization fixes in entity context
+- **Docs**: Comprehensive HACS submission preparation
+
+### v0.6.4-beta
 - **Fix**: Streaming tool execution error - "No LLM API configured"
 - **Enhancement**: Register agent as llm_api with ChatLog for seamless tool execution
 - **Feature**: Ollama backend selection support (llama.cpp, vLLM, Ollama GPU)
