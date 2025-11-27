@@ -425,7 +425,7 @@ DOMAIN_SERVICE_MAPPINGS: Final = {
     },
     # Media Player entities
     "media_player": {
-        "base_services": ["turn_on", "turn_off", "toggle"],
+        "base_services": ["turn_on", "turn_off", "toggle", "play_media"],
         "feature_services": {
             # MediaPlayerEntityFeature.PAUSE (1)
             1: ["media_pause"],
@@ -439,8 +439,6 @@ DOMAIN_SERVICE_MAPPINGS: Final = {
             16: ["media_previous_track"],
             # MediaPlayerEntityFeature.NEXT_TRACK (32)
             32: ["media_next_track"],
-            # MediaPlayerEntityFeature.PLAY_MEDIA (512)
-            512: ["play_media"],
             # MediaPlayerEntityFeature.VOLUME_STEP (1024)
             1024: ["volume_up", "volume_down"],
             # MediaPlayerEntityFeature.SELECT_SOURCE (2048)
@@ -802,7 +800,7 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {%- set services = 'open_cover,close_cover,stop_cover,set_cover_position,toggle' %}
 {%- elif domain == 'media_player' %}
 {%- set services =
-    'turn_on,turn_off,media_play,media_pause,media_stop,volume_set,volume_up,volume_down' %}
+    'turn_on,turn_off,media_play,media_pause,media_stop,volume_set,volume_up,volume_down,play_media' %}
 {%- elif domain == 'lock' %}
 {%- set services = 'lock,unlock' %}
 {%- elif domain == 'vacuum' %}
