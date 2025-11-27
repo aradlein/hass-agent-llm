@@ -630,3 +630,110 @@ class TestEdgeCases:
         result = optimizer.compress_entity_context(sample_entities, target_tokens=-100)
         # Should handle gracefully
         assert isinstance(result, list)
+
+
+class TestPreserveImportantFields:
+    """Test that important fields like available_services and aliases are preserved."""
+
+    @pytest.fixture
+    def optimizer(self):
+        """Create a context optimizer for testing."""
+        return ContextOptimizer(compression_level="medium")
+
+    @pytest.fixture
+    def entities_with_services_and_aliases(self):
+        """Provide entities with available_services and aliases."""
+        return [
+            {
+                "entity_id": "light.living_room",
+                "state": "on",
+                "attributes": {
+                    "friendly_name": "Living Room Light",
+                    "brightness": 180,
+                },
+                "available_services": ["turn_on", "turn_off", "toggle"],
+                "aliases": ["living room lamp", "main light"],
+            },
+            {
+                "entity_id": "fan.bedroom",
+                "state": "on",
+                "attributes": {
+                    "friendly_name": "Bedroom Fan",
+                    "percentage": 67,
+                },
+                "available_services": [
+                    "turn_on",
+                    "turn_off",
+                    "set_percentage[percentage]",
+                    "toggle",
+                ],
+                "aliases": ["bedroom ceiling fan"],
+            },
+        ]
+
+    def test_remove_redundant_preserves_available_services(
+        self, optimizer, entities_with_services_and_aliases
+    ):
+        """Test that remove_redundant_attributes preserves available_services."""
+        result = optimizer.remove_redundant_attributes(entities_with_services_and_aliases)
+
+        assert len(result) == 2
+        for entity in result:
+            assert "available_services" in entity
+            assert isinstance(entity["available_services"], list)
+            assert len(entity["available_services"]) > 0
+
+    def test_remove_redundant_preserves_aliases(
+        self, optimizer, entities_with_services_and_aliases
+    ):
+        """Test that remove_redundant_attributes preserves aliases."""
+        result = optimizer.remove_redundant_attributes(entities_with_services_and_aliases)
+
+        assert len(result) == 2
+        for entity in result:
+            assert "aliases" in entity
+            assert isinstance(entity["aliases"], list)
+            assert len(entity["aliases"]) > 0
+
+    def test_compression_preserves_available_services(
+        self, optimizer, entities_with_services_and_aliases
+    ):
+        """Test that compression preserves available_services with parameter hints."""
+        result = optimizer.compress_entity_context(
+            entities_with_services_and_aliases, target_tokens=5000
+        )
+
+        assert len(result) == 2
+        # Check first entity (light)
+        assert "available_services" in result[0]
+        assert "turn_on" in result[0]["available_services"]
+        # Check second entity (fan) - should have parameter hint
+        assert "available_services" in result[1]
+        assert "set_percentage[percentage]" in result[1]["available_services"]
+
+    def test_compression_preserves_aliases(
+        self, optimizer, entities_with_services_and_aliases
+    ):
+        """Test that compression preserves aliases."""
+        result = optimizer.compress_entity_context(
+            entities_with_services_and_aliases, target_tokens=5000
+        )
+
+        assert len(result) == 2
+        for entity in result:
+            assert "aliases" in entity
+            assert isinstance(entity["aliases"], list)
+
+    def test_all_compression_levels_preserve_services_and_aliases(
+        self, entities_with_services_and_aliases
+    ):
+        """Test that all compression levels preserve available_services and aliases."""
+        for level in ["none", "low", "medium", "high"]:
+            optimizer = ContextOptimizer(compression_level=level)
+            result = optimizer._apply_compression_level(
+                entities_with_services_and_aliases, level
+            )
+
+            for entity in result:
+                assert "available_services" in entity, f"Level {level} lost available_services"
+                assert "aliases" in entity, f"Level {level} lost aliases"

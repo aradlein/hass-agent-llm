@@ -68,6 +68,7 @@ def mock_entity_states(mock_hass):
         "friendly_name": "Ceiling Fan",
         "percentage": 67,
         "preset_mode": None,
+        "supported_features": 1,  # FanEntityFeature.SET_SPEED
     }
 
     fan2_state = Mock(spec=State)
@@ -76,6 +77,7 @@ def mock_entity_states(mock_hass):
     fan2_state.attributes = {
         "friendly_name": "Living Room Fan",
         "percentage": 0,
+        "supported_features": 1,  # FanEntityFeature.SET_SPEED
     }
 
     light_state = Mock(spec=State)
@@ -96,23 +98,27 @@ def mock_entity_states(mock_hass):
 
     mock_hass.states.get.side_effect = get_state_side_effect
 
-    # Mock services
+    # Mock services with proper schema structure
     mock_hass.services.async_services.return_value = {
         "fan": {
-            "turn_on": {},
-            "turn_off": {},
-            "set_percentage": {},
-            "toggle": {},
+            "turn_on": {"fields": {}},
+            "turn_off": {"fields": {}},
+            "set_percentage": {
+                "fields": {
+                    "percentage": {"required": True, "description": "Percentage speed"}
+                }
+            },
+            "toggle": {"fields": {}},
         },
         "light": {
-            "turn_on": {},
-            "turn_off": {},
-            "toggle": {},
+            "turn_on": {"fields": {}},
+            "turn_off": {"fields": {}},
+            "toggle": {"fields": {}},
         },
         "homeassistant": {
-            "turn_on": {},
-            "turn_off": {},
-            "toggle": {},
+            "turn_on": {"fields": {}},
+            "turn_off": {"fields": {}},
+            "toggle": {"fields": {}},
         },
     }
 
@@ -184,10 +190,10 @@ class TestPhase2VectorDBIntegration:
         assert "attributes" in entity
         assert entity["attributes"]["percentage"] == 67
 
-        # Verify available_services are included
+        # Verify available_services are included with parameter hints
         assert "available_services" in entity
         assert "turn_on" in entity["available_services"]
-        assert "set_percentage" in entity["available_services"]
+        assert "set_percentage[percentage]" in entity["available_services"]
 
     @pytest.mark.requires_chromadb
     @pytest.mark.requires_embedding
@@ -297,7 +303,7 @@ class TestPhase2VectorDBIntegration:
             domain = entity["entity_id"].split(".")[0]
             if domain == "fan":
                 assert "turn_on" in entity["available_services"]
-                assert "set_percentage" in entity["available_services"]
+                assert "set_percentage[percentage]" in entity["available_services"]
             elif domain == "light":
                 assert "turn_on" in entity["available_services"]
                 assert "toggle" in entity["available_services"]

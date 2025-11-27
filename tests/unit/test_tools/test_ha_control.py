@@ -463,49 +463,54 @@ class TestHomeAssistantControlTool:
         """Test determining set_value service for light domain."""
         tool = HomeAssistantControlTool(mock_hass)
 
-        service = tool._get_set_value_service("light", {"brightness_pct": 50})
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "light", "light.living_room", {"brightness_pct": 50})
         assert service == SERVICE_TURN_ON
 
     def test_get_set_value_service_for_climate_temperature(self, mock_hass):
         """Test determining set_value service for climate temperature."""
         tool = HomeAssistantControlTool(mock_hass)
 
-        service = tool._get_set_value_service("climate", {"temperature": 72})
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "climate", "climate.thermostat", {"temperature": 72})
         assert service == "set_temperature"
 
     def test_get_set_value_service_for_climate_hvac_mode(self, mock_hass):
         """Test determining set_value service for climate HVAC mode."""
         tool = HomeAssistantControlTool(mock_hass)
 
-        service = tool._get_set_value_service("climate", {"hvac_mode": "cool"})
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "climate", "climate.thermostat", {"hvac_mode": "cool"})
         assert service == "set_hvac_mode"
 
     def test_get_set_value_service_for_cover(self, mock_hass):
         """Test determining set_value service for cover."""
         tool = HomeAssistantControlTool(mock_hass)
 
-        service = tool._get_set_value_service("cover", {"position": 50})
+        # Mock a cover with position support
+        mock_state = MagicMock()
+        mock_state.attributes = {"supported_features": 4}  # CoverEntityFeature.SET_POSITION
+        mock_hass.states.get.return_value = mock_state
+
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "cover", "cover.living_room", {"position": 50})
         assert service == "set_cover_position"
 
     def test_get_set_value_service_for_input_number(self, mock_hass):
         """Test determining set_value service for input_number."""
         tool = HomeAssistantControlTool(mock_hass)
 
-        service = tool._get_set_value_service("input_number", {"value": 42})
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "input_number", "input_number.slider", {"value": 42})
         assert service == "set_value"
 
     def test_get_set_value_service_for_fan_percentage(self, mock_hass):
         """Test determining set_value service for fan percentage."""
         tool = HomeAssistantControlTool(mock_hass)
 
-        service = tool._get_set_value_service("fan", {"percentage": 75})
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "fan", "fan.bedroom", {"percentage": 75})
         assert service == "set_percentage"
 
     def test_get_set_value_service_unknown_domain(self, mock_hass):
         """Test determining set_value service for unknown domain defaults to turn_on."""
         tool = HomeAssistantControlTool(mock_hass)
 
-        service = tool._get_set_value_service("unknown_domain", {"param": "value"})
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "unknown_domain", "unknown.entity", {"param": "value"})
         assert service == SERVICE_TURN_ON
 
     def test_extract_relevant_attributes_light(self, mock_hass):
@@ -569,3 +574,174 @@ class TestHomeAssistantControlTool:
             # Verify blocking=True was passed
             call_kwargs = mock_hass.services.async_call.call_args[1]
             assert call_kwargs.get("blocking") is True
+
+    # Parameter normalization tests
+    def test_normalize_parameters_cover_current_position(self, mock_hass):
+        """Test normalizing current_position to position for cover."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        normalized = tool._normalize_parameters("cover", {"current_position": 50})
+        assert "position" in normalized
+        assert normalized["position"] == 50
+        assert "current_position" not in normalized
+
+    def test_normalize_parameters_cover_current_tilt_position(self, mock_hass):
+        """Test normalizing current_tilt_position to tilt_position for cover."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        normalized = tool._normalize_parameters("cover", {"current_tilt_position": 75})
+        assert "tilt_position" in normalized
+        assert normalized["tilt_position"] == 75
+        assert "current_tilt_position" not in normalized
+
+    def test_normalize_parameters_cover_preserves_position(self, mock_hass):
+        """Test that existing position parameter is preserved."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        # If position already exists, don't normalize current_position
+        normalized = tool._normalize_parameters("cover", {"position": 30, "current_position": 50})
+        assert normalized["position"] == 30  # Original preserved
+        assert "current_position" in normalized  # Not removed
+
+    def test_normalize_parameters_climate_current_temperature(self, mock_hass):
+        """Test normalizing current_temperature to temperature for climate."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        normalized = tool._normalize_parameters("climate", {"current_temperature": 72})
+        assert "temperature" in normalized
+        assert normalized["temperature"] == 72
+        assert "current_temperature" not in normalized
+
+    def test_normalize_parameters_no_change_for_other_domains(self, mock_hass):
+        """Test that normalization doesn't affect other domains."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        params = {"brightness_pct": 50}
+        normalized = tool._normalize_parameters("light", params)
+        assert normalized == params
+
+    @pytest.mark.asyncio
+    async def test_execute_set_value_cover_with_current_position(self, mock_hass):
+        """Test set_value with current_position parameter gets normalized and uses correct service."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        # Create a mock cover state with position support
+        cover_state = MagicMock()
+        cover_state.state = "open"
+        cover_state.attributes = {
+            "friendly_name": "Kitchen Window",
+            "current_position": 0,
+            "supported_features": 4,  # CoverEntityFeature.SET_POSITION
+        }
+
+        with patch("custom_components.home_agent.tools.ha_control.er.async_get") as mock_er:
+            mock_registry = MagicMock()
+            mock_registry.async_get.return_value = MagicMock()
+            mock_er.return_value = mock_registry
+
+            mock_hass.states.get.return_value = cover_state
+            mock_hass.services.async_call = AsyncMock()
+
+            result = await tool.execute(
+                action=ACTION_SET_VALUE,
+                entity_id="cover.kitchen_window",
+                parameters={"current_position": 50},  # Using attribute name
+            )
+
+            assert result["success"] is True
+
+            # Verify the correct service was called
+            call_args = mock_hass.services.async_call.call_args
+            assert call_args[0][0] == "cover"
+            assert call_args[0][1] == "set_cover_position"  # Not turn_on!
+
+            # Verify parameter was normalized
+            service_data = call_args[0][2]
+            assert "position" in service_data
+            assert service_data["position"] == 50
+            assert "current_position" not in service_data
+
+    def test_get_set_value_service_for_media_player_volume(self, mock_hass):
+        """Test determining set_value service for media_player volume."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "media_player", "media_player.tv", {"volume_level": 0.5})
+        assert service == "volume_set"
+
+    def test_get_set_value_service_for_media_player_source(self, mock_hass):
+        """Test determining set_value service for media_player source."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "media_player", "media_player.tv", {"source": "TV"})
+        assert service == "select_source"
+
+    def test_get_set_value_service_for_humidifier(self, mock_hass):
+        """Test determining set_value service for humidifier."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "humidifier", "humidifier.bedroom", {"humidity": 60})
+        assert service == "set_humidity"
+
+    def test_get_set_value_service_for_water_heater(self, mock_hass):
+        """Test determining set_value service for water_heater."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "water_heater", "water_heater.tank", {"temperature": 120})
+        assert service == "set_temperature"
+
+    def test_get_set_value_service_for_number(self, mock_hass):
+        """Test determining set_value service for number."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "number", "number.value", {"value": 42})
+        assert service == "set_value"
+
+    def test_get_set_value_service_for_select(self, mock_hass):
+        """Test determining set_value service for select."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "select", "select.option", {"option": "option1"})
+        assert service == "select_option"
+
+    def test_get_set_value_service_for_cover_tilt(self, mock_hass):
+        """Test determining set_value service for cover tilt."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        # Mock a cover with tilt support
+        mock_state = MagicMock()
+        mock_state.attributes = {"supported_features": 128}  # CoverEntityFeature.SET_TILT_POSITION
+        mock_hass.states.get.return_value = mock_state
+
+        service = tool._get_service_for_action(ACTION_SET_VALUE, "cover", "cover.window", {"tilt_position": 45})
+        assert service == "set_cover_tilt_position"
+
+    def test_cover_binary_position_not_supported(self, mock_hass):
+        """Test that binary covers raise error when trying to set position."""
+        from custom_components.home_agent.exceptions import ToolExecutionError
+        tool = HomeAssistantControlTool(mock_hass)
+
+        # Mock a binary cover (no position support)
+        mock_state = MagicMock()
+        mock_state.attributes = {"supported_features": 3}  # OPEN + CLOSE only
+        mock_hass.states.get.return_value = mock_state
+
+        with pytest.raises(ToolExecutionError) as exc_info:
+            tool._get_service_for_action(ACTION_SET_VALUE, "cover", "cover.kitchen_window", {"position": 50})
+
+        assert "does not support position control" in str(exc_info.value)
+        assert "binary cover" in str(exc_info.value)
+
+    def test_cover_tilt_not_supported(self, mock_hass):
+        """Test that covers without tilt raise error when trying to set tilt."""
+        from custom_components.home_agent.exceptions import ToolExecutionError
+        tool = HomeAssistantControlTool(mock_hass)
+
+        # Mock cover with position but no tilt support
+        mock_state = MagicMock()
+        mock_state.attributes = {"supported_features": 4}  # Only SET_POSITION
+        mock_hass.states.get.return_value = mock_state
+
+        with pytest.raises(ToolExecutionError) as exc_info:
+            tool._get_service_for_action(ACTION_SET_VALUE, "cover", "cover.window", {"tilt_position": 30})
+
+        assert "does not support tilt" in str(exc_info.value)

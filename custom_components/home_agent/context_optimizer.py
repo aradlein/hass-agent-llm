@@ -78,13 +78,43 @@ class ContextOptimizer:
         """
         result = []
 
-        # Attributes to remove
+        # Attributes to remove (must match BLOAT_ATTRIBUTES in base.py)
         bloat_attrs = {
+            # UI/Internal metadata
             "supported_features",
             "icon",
             "entity_picture",
-            "context_id",
             "entity_picture_local",
+            "context_id",
+            "attribution",
+            "assumed_state",
+            "restore",
+            "editable",
+            # Color-related attributes (rarely needed)
+            "min_color_temp_kelvin",
+            "max_color_temp_kelvin",
+            "min_mireds",
+            "max_mireds",
+            "supported_color_modes",
+            "color_mode",
+            "color_temp_kelvin",
+            "color_temp",
+            "hs_color",
+            "rgb_color",
+            "xy_color",
+            "rgbw_color",
+            "rgbww_color",
+            "effect_list",
+            "effect",
+            # Technical metadata
+            "last_changed",
+            "last_updated",
+            "device_id",
+            "unique_id",
+            "platform",
+            "integration",
+            "linkquality",
+            "update_available",
         }
 
         for entity in entities:
@@ -92,6 +122,12 @@ class ContextOptimizer:
                 "entity_id": entity.get("entity_id", ""),
                 "state": entity.get("state", ""),
             }
+
+            # Preserve important fields that are not attributes
+            if "available_services" in entity:
+                cleaned["available_services"] = entity["available_services"]
+            if "aliases" in entity:
+                cleaned["aliases"] = entity["aliases"]
 
             if "attributes" in entity and isinstance(entity["attributes"], dict):
                 cleaned_attrs = {}
@@ -525,6 +561,12 @@ class ContextOptimizer:
                 "state": entity.get("state", ""),
             }
 
+            # Preserve important fields that are not attributes
+            if "available_services" in entity:
+                compressed["available_services"] = entity["available_services"]
+            if "aliases" in entity:
+                compressed["aliases"] = entity["aliases"]
+
             if "attributes" not in entity or not isinstance(entity["attributes"], dict):
                 result.append(compressed)
                 continue
@@ -533,8 +575,16 @@ class ContextOptimizer:
             compressed_attrs = {}
 
             if level == "low":
-                # Keep most attributes except bloat
-                bloat = {"supported_features", "icon", "entity_picture"}
+                # Keep most attributes except bloat (must match BLOAT_ATTRIBUTES in base.py)
+                bloat = {
+                    "supported_features", "icon", "entity_picture", "entity_picture_local",
+                    "context_id", "attribution", "assumed_state", "restore", "editable",
+                    "min_color_temp_kelvin", "max_color_temp_kelvin", "min_mireds", "max_mireds",
+                    "supported_color_modes", "color_mode", "color_temp_kelvin", "color_temp",
+                    "hs_color", "rgb_color", "xy_color", "rgbw_color", "rgbww_color",
+                    "effect_list", "effect", "last_changed", "last_updated", "device_id",
+                    "unique_id", "platform", "integration", "linkquality", "update_available",
+                }
                 for key, value in attrs.items():
                     if not key.startswith("_") and key not in bloat:
                         compressed_attrs[key] = value

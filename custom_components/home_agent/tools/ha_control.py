@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.components.cover import CoverEntityFeature
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TOGGLE, SERVICE_TURN_OFF, SERVICE_TURN_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -19,6 +20,7 @@ from ..const import (
     ACTION_TOGGLE,
     ACTION_TURN_OFF,
     ACTION_TURN_ON,
+    DOMAIN_SERVICE_MAPPINGS,
     TOOL_HA_CONTROL,
 )
 from ..exceptions import PermissionDenied, ToolExecutionError, ValidationError
@@ -92,7 +94,8 @@ class HomeAssistantControlTool(BaseTool):
         return (
             "Control Home Assistant devices and services. Use this to turn on/off "
             "lights, adjust brightness, set thermostat temperatures, lock doors, "
-            "control switches, and perform other device control actions. "
+            "control switches, operate covers/blinds, and perform other device control actions. "
+            "Check the entity's available_services field to see what actions are supported. "
             "Always use ha_query first to check the current state before making "
             "changes."
         )
@@ -106,6 +109,7 @@ class HomeAssistantControlTool(BaseTool):
                 "action": {
                     "type": "string",
                     "description": (
+                        "Check the entity's available_services field to see supported actions. "
                         "The action to perform on the entity. "
                         "Use 'turn_on' to turn on devices, 'turn_off' to turn them off, "
                         "'toggle' to switch between states, or 'set_value' to set "
@@ -129,10 +133,15 @@ class HomeAssistantControlTool(BaseTool):
                 "parameters": {
                     "type": "object",
                     "description": (
-                        "Additional parameters for the action. Common parameters: "
-                        "brightness_pct (0-100 for lights), temperature (for climate), "
-                        "rgb_color ([R, G, B] for lights), hvac_mode (for climate). "
-                        "Parameters depend on the entity domain and action."
+                        "Additional parameters for the action. Common parameters by domain: "
+                        "Lights: brightness_pct (0-100), rgb_color ([R, G, B]); "
+                        "Climate: temperature, hvac_mode, fan_mode; "
+                        "Covers: position (0-100, accepts 'current_position' too), tilt_position; "
+                        "Media Players: volume_level (0.0-1.0), source; "
+                        "Humidifiers: humidity (0-100); "
+                        "Fans: percentage (0-100), preset_mode. "
+                        "Note: Both attribute names (e.g., 'current_position') and service "
+                        "parameter names (e.g., 'position') are accepted and automatically normalized."
                     ),
                 },
             },
@@ -291,23 +300,19 @@ class HomeAssistantControlTool(BaseTool):
         """
         domain = entity_id.split(".")[0]
 
+        # Normalize parameters (e.g., current_position -> position)
+        normalized_parameters = self._normalize_parameters(domain, parameters)
+
         # Build service data
         service_data = {ATTR_ENTITY_ID: entity_id}
-        service_data.update(parameters)
+        service_data.update(normalized_parameters)
 
-        # Map action to service
-        if action == ACTION_TURN_ON:
-            service = SERVICE_TURN_ON
-        elif action == ACTION_TURN_OFF:
-            service = SERVICE_TURN_OFF
-        elif action == ACTION_TOGGLE:
-            service = SERVICE_TOGGLE
-        elif action == ACTION_SET_VALUE:
-            # For set_value, we use the domain-specific service
-            # This typically requires custom handling per domain
-            service = self._get_set_value_service(domain, parameters)
-        else:
-            raise ToolExecutionError(f"Unknown action: {action}")
+        # Map action to service using the domain service mappings
+        service = self._get_service_for_action(action, domain, entity_id, normalized_parameters)
+        if service is None:
+            raise ToolExecutionError(
+                f"Action '{action}' is not supported for domain '{domain}'"
+            )
 
         # Execute the service call
         _LOGGER.debug(
@@ -324,65 +329,193 @@ class HomeAssistantControlTool(BaseTool):
             blocking=True,
         )
 
-    def _get_set_value_service(
+    def _normalize_parameters(
         self,
         domain: str,
         parameters: dict[str, Any],
-    ) -> str:
-        """Determine the appropriate service for set_value action.
+    ) -> dict[str, Any]:
+        """Normalize attribute names to service parameter names.
 
-        Different domains use different services for setting values.
-        This method maps domain and parameters to the correct service.
+        Users/LLMs often provide attribute names (e.g., 'current_position')
+        when they should use service parameter names (e.g., 'position').
+        This method normalizes common mismatches to improve usability.
 
         Args:
-            domain: Entity domain (e.g., 'light', 'climate')
-            parameters: Parameters being set
+            domain: Entity domain (e.g., 'light', 'climate', 'cover')
+            parameters: Original parameters dict
 
         Returns:
-            Service name to call
+            Normalized parameters dict with corrected parameter names
+        """
+        normalized = parameters.copy()
+
+        # Cover domain: Normalize position-related attributes
+        if domain == "cover":
+            # Normalize current_position -> position
+            if "current_position" in normalized and "position" not in normalized:
+                _LOGGER.debug(
+                    "Normalizing cover parameter 'current_position' -> 'position'"
+                )
+                normalized["position"] = normalized.pop("current_position")
+
+            # Normalize current_tilt_position -> tilt_position
+            if "current_tilt_position" in normalized and "tilt_position" not in normalized:
+                _LOGGER.debug(
+                    "Normalizing cover parameter 'current_tilt_position' -> 'tilt_position'"
+                )
+                normalized["tilt_position"] = normalized.pop("current_tilt_position")
+
+        # Climate domain: Warn about current_temperature confusion
+        elif domain == "climate":
+            if "current_temperature" in normalized and "temperature" not in normalized:
+                _LOGGER.warning(
+                    "User provided 'current_temperature' but likely meant 'temperature' "
+                    "(target temperature). Normalizing to 'temperature'."
+                )
+                normalized["temperature"] = normalized.pop("current_temperature")
+
+        return normalized
+
+    def _entity_supports_feature(
+        self,
+        entity_id: str,
+        feature: int,
+    ) -> bool:
+        """Check if an entity supports a specific feature.
+
+        Args:
+            entity_id: The entity to check
+            feature: The feature bitmask to check for
+
+        Returns:
+            True if entity supports the feature, False otherwise
+        """
+        state = self.hass.states.get(entity_id)
+        if not state:
+            return False
+
+        supported_features = state.attributes.get("supported_features", 0)
+        return bool(supported_features & feature)
+
+    def _get_service_for_action(
+        self,
+        action: str,
+        domain: str,
+        entity_id: str,
+        parameters: dict[str, Any],
+    ) -> str | None:
+        """Determine the appropriate service for an action using domain mappings.
+
+        Uses the DOMAIN_SERVICE_MAPPINGS to map actions to services,
+        validating entity capabilities when necessary.
+
+        Args:
+            action: The action to perform (turn_on, turn_off, toggle, set_value)
+            domain: Entity domain (e.g., 'light', 'climate')
+            entity_id: Entity ID being controlled (for capability checks)
+            parameters: Parameters being set (used for set_value action)
+
+        Returns:
+            Service name to call, or None if action not supported
 
         Raises:
-            ToolExecutionError: If no appropriate service found
+            ToolExecutionError: If entity doesn't support requested capability
         """
-        # For lights, use turn_on with parameters
-        if domain == "light":
-            return SERVICE_TURN_ON  # type: ignore[no-any-return]
+        # Get the domain's service mapping
+        domain_mapping = DOMAIN_SERVICE_MAPPINGS.get(domain)
+        if not domain_mapping:
+            # Fallback to generic mapping for unmapped domains
+            _LOGGER.warning(
+                "No service mapping found for domain '%s', using generic mapping",
+                domain,
+            )
+            if action == ACTION_TURN_ON:
+                return SERVICE_TURN_ON
+            elif action == ACTION_TURN_OFF:
+                return SERVICE_TURN_OFF
+            elif action == ACTION_TOGGLE:
+                return SERVICE_TOGGLE
+            elif action == ACTION_SET_VALUE:
+                # Default to turn_on for set_value on unknown domains
+                return SERVICE_TURN_ON
+            else:
+                return None
 
-        # For climate, use set_temperature, set_hvac_mode, etc.
-        if domain == "climate":
-            if "temperature" in parameters or "target_temp_high" in parameters:
-                return "set_temperature"
-            if "hvac_mode" in parameters:
-                return "set_hvac_mode"
-            if "fan_mode" in parameters:
-                return "set_fan_mode"
+        # Get the action mapping for this domain
+        action_map = domain_mapping.get("action_service_map", {})
+        service_or_map = action_map.get(action)
 
-        # For covers, use set_cover_position
-        if domain == "cover" and "position" in parameters:
-            return "set_cover_position"
+        if service_or_map is None:
+            return None
 
-        # For input_number, use set_value
-        if domain == "input_number" and "value" in parameters:
-            return "set_value"
+        # Handle SET_VALUE action (requires parameter-based mapping)
+        if action == ACTION_SET_VALUE:
+            if isinstance(service_or_map, dict):
+                # Parameter-based mapping (e.g., {"position": "set_cover_position"})
+                # Find which parameter is present and map to the correct service
+                for param_name, service_name in service_or_map.items():
+                    if param_name in parameters:
+                        # Check if this service requires a specific feature
+                        service = self._validate_feature_for_service(
+                            entity_id, domain, service_name
+                        )
+                        return service
+                # No matching parameter found
+                _LOGGER.warning(
+                    "No matching parameter found for %s set_value with params %s",
+                    domain,
+                    list(parameters.keys()),
+                )
+                return None
+            else:
+                # Simple service name (e.g., "set_datetime")
+                return service_or_map  # type: ignore[return-value]
+        else:
+            # Direct action mapping (turn_on, turn_off, toggle)
+            return service_or_map  # type: ignore[return-value]
 
-        # For input_select, use select_option
-        if domain == "input_select" and "option" in parameters:
-            return "select_option"
+    def _validate_feature_for_service(
+        self,
+        entity_id: str,
+        domain: str,
+        service_name: str,
+    ) -> str:
+        """Validate that an entity supports the feature required for a service.
 
-        # For fans, use set_percentage or set_preset_mode
-        if domain == "fan":
-            if "percentage" in parameters:
-                return "set_percentage"
-            if "preset_mode" in parameters:
-                return "set_preset_mode"
+        Args:
+            entity_id: The entity to validate
+            domain: Entity domain
+            service_name: The service being called
 
-        # Default to turn_on for most domains
-        # This works for lights with brightness, color, etc.
-        _LOGGER.warning(
-            "No specific set_value service found for domain %s, using turn_on",
-            domain,
-        )
-        return SERVICE_TURN_ON  # type: ignore[no-any-return]
+        Returns:
+            The service name if validation passes
+
+        Raises:
+            ToolExecutionError: If entity doesn't support the required feature
+        """
+        # Cover domain feature validation
+        if domain == "cover":
+            if service_name == "set_cover_position":
+                if not self._entity_supports_feature(entity_id, CoverEntityFeature.SET_POSITION):
+                    _LOGGER.warning(
+                        "Entity %s does not support position control (binary cover only)",
+                        entity_id,
+                    )
+                    raise ToolExecutionError(
+                        f"Entity '{entity_id}' does not support position control. "
+                        f"This is a binary cover (open/close only). "
+                        f"Use action='turn_on' to open or action='turn_off' to close."
+                    )
+            elif service_name == "set_cover_tilt_position":
+                if not self._entity_supports_feature(entity_id, CoverEntityFeature.SET_TILT_POSITION):
+                    raise ToolExecutionError(
+                        f"Entity '{entity_id}' does not support tilt position control."
+                    )
+
+        # Add other domain-specific feature validations here as needed
+        # For now, most other domains don't require strict feature validation
+
+        return service_name
 
     def _build_success_message(
         self,

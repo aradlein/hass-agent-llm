@@ -125,6 +125,8 @@ class DirectContextProvider(ContextProvider):
                 state_data = self._get_entity_state(matched_entity_id, attributes_filter)
 
                 if state_data:
+                    # Add available services for consistency with vector DB mode
+                    state_data["available_services"] = self._get_entity_services(matched_entity_id)
                     entity_states.append(state_data)
 
         self._logger.debug("Gathered state for %d entities", len(entity_states))

@@ -10,13 +10,16 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
+
+from ..const import DOMAIN_SERVICE_MAPPINGS
 
 _LOGGER = logging.getLogger(__name__)
 
 # Bloat attributes to filter out from entity context
 BLOAT_ATTRIBUTES = {
+    # UI/Internal metadata
     "supported_features",  # Internal bitmask
     "icon",  # UI metadata
     "entity_picture",  # Image URL
@@ -26,7 +29,224 @@ BLOAT_ATTRIBUTES = {
     "assumed_state",  # UI flag
     "restore",  # Restart behavior flag
     "editable",  # UI editability flag
+    # Color-related attributes (rarely needed)
+    "min_color_temp_kelvin",
+    "max_color_temp_kelvin",
+    "min_mireds",
+    "max_mireds",
+    "supported_color_modes",
+    "color_mode",
+    "color_temp_kelvin",
+    "color_temp",
+    "hs_color",
+    "rgb_color",
+    "xy_color",
+    "rgbw_color",
+    "rgbww_color",
+    "effect_list",
+    "effect",
+    # Technical metadata
+    "last_changed",
+    "last_updated",
+    "device_id",
+    "unique_id",
+    "platform",
+    "integration",
+    "linkquality",
+    "update_available",
 }
+
+
+# Hardcoded parameter hints for services where HA doesn't mark params as required
+# but they're practically required for the service to work
+CRITICAL_SERVICE_PARAMS = {
+    "media_player": {
+        "play_media": ["media_content_id", "media_content_type"],
+        "volume_set": ["volume_level"],
+    },
+    "cover": {
+        "set_cover_position": ["position"],
+        "set_cover_tilt_position": ["tilt_position"],
+    },
+    "climate": {
+        "set_temperature": ["temperature"],
+        "set_hvac_mode": ["hvac_mode"],
+    },
+    "fan": {
+        "set_percentage": ["percentage"],
+    },
+    "humidifier": {
+        "set_humidity": ["humidity"],
+    },
+    "input_number": {
+        "set_value": ["value"],
+    },
+    "input_select": {
+        "select_option": ["option"],
+    },
+    "input_text": {
+        "set_value": ["value"],
+    },
+    "number": {
+        "set_value": ["value"],
+    },
+    "select": {
+        "select_option": ["option"],
+    },
+}
+
+
+def _add_parameter_hints_to_services(
+    hass: HomeAssistant,
+    domain: str,
+    services: list[str],
+) -> list[str]:
+    """Add parameter hints to service names showing required parameters.
+
+    Args:
+        hass: Home Assistant instance
+        domain: The domain to get service schemas for
+        services: List of service names
+
+    Returns:
+        List of service names with parameter hints (e.g., "play_media[media_content_id,media_content_type]")
+    """
+    # Get all service schemas for the domain
+    try:
+        all_schemas = hass.services.async_services()
+        domain_schemas = all_schemas.get(domain, {})
+    except Exception:
+        # If we can't get schemas (e.g., during testing with mocks), return services as-is
+        return services
+
+    services_with_hints = []
+    for service in services:
+        # Check hardcoded critical parameters first
+        if domain in CRITICAL_SERVICE_PARAMS and service in CRITICAL_SERVICE_PARAMS[domain]:
+            params = CRITICAL_SERVICE_PARAMS[domain][service]
+            params_str = ",".join(params[:3])  # Limit to 3 params
+            services_with_hints.append(f"{service}[{params_str}]")
+            continue
+
+        if service in domain_schemas:
+            try:
+                # Get the service fields/parameters
+                service_data = domain_schemas[service]
+                fields = service_data.get("fields", {})
+
+                # Check if fields is a dict (not a Mock or other object)
+                if not isinstance(fields, dict):
+                    services_with_hints.append(service)
+                    continue
+
+                # Extract required parameters only
+                required_params = [
+                    param_name
+                    for param_name, param_def in fields.items()
+                    if isinstance(param_def, dict) and param_def.get("required", False)
+                ]
+
+                # Add parameter hints if there are required parameters
+                if required_params:
+                    # Limit to first 3 required params to avoid bloat
+                    params_str = ",".join(required_params[:3])
+                    services_with_hints.append(f"{service}[{params_str}]")
+                else:
+                    services_with_hints.append(service)
+            except Exception:
+                # If we encounter any error processing this service, just use the name as-is
+                services_with_hints.append(service)
+        else:
+            # Service not in schema, return as-is
+            services_with_hints.append(service)
+
+    return services_with_hints
+
+
+def get_entity_available_services(
+    hass: HomeAssistant,
+    entity_id: str,
+    state: State | None = None,
+    include_parameter_hints: bool = True,
+) -> list[str]:
+    """Get available services for an entity based on its domain and supported features.
+
+    This is the unified function used by both context providers and ha_control
+    to determine which services are actually available for a specific entity.
+
+    Args:
+        hass: Home Assistant instance
+        entity_id: The entity ID to get services for
+        state: Optional state object (if not provided, will be fetched)
+        include_parameter_hints: Whether to include parameter hints like "service[param1,param2]"
+
+    Returns:
+        List of available service names for this entity, filtered by supported_features.
+        If include_parameter_hints is True, services with required parameters will have
+        hints like "play_media[media_content_id,media_content_type]".
+    """
+    domain = entity_id.split(".")[0]
+
+    # Get the domain's service mapping
+    domain_mapping = DOMAIN_SERVICE_MAPPINGS.get(domain)
+    if not domain_mapping:
+        # Fallback: return all services for the domain if no mapping exists
+        _LOGGER.debug(
+            "No service mapping found for domain '%s', falling back to all domain services",
+            domain,
+        )
+        services = hass.services.async_services().get(domain, {})
+        service_list = list(services.keys())
+
+        # Add parameter hints if requested
+        if include_parameter_hints:
+            return _add_parameter_hints_to_services(hass, domain, service_list)
+        return service_list
+
+    # Start with base services (always available)
+    available_services = list(domain_mapping.get("base_services", []))
+
+    # Get entity state to check supported_features
+    if state is None:
+        state = hass.states.get(entity_id)
+
+    if state is None:
+        _LOGGER.warning("Could not find state for entity %s", entity_id)
+        # Add parameter hints if requested
+        if include_parameter_hints:
+            return _add_parameter_hints_to_services(hass, domain, available_services)
+        return available_services
+
+    # Get supported_features bitmask
+    supported_features = state.attributes.get("supported_features", 0)
+
+    # Add feature-based services using bitwise checks
+    feature_services = domain_mapping.get("feature_services", {})
+    for feature_flag, services in feature_services.items():
+        # Check if entity supports this feature using bitwise AND
+        if supported_features & feature_flag:
+            available_services.extend(services)
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_services = []
+    for service in available_services:
+        if service not in seen:
+            seen.add(service)
+            unique_services.append(service)
+
+    _LOGGER.debug(
+        "Entity %s (supported_features=%s) has services: %s",
+        entity_id,
+        supported_features,
+        unique_services,
+    )
+
+    # Add parameter hints if requested
+    if include_parameter_hints:
+        unique_services = _add_parameter_hints_to_services(hass, domain, unique_services)
+
+    return unique_services
 
 
 def _make_json_serializable(value: Any) -> Any:
@@ -197,34 +417,15 @@ class ContextProvider(ABC):
         return matching
 
     def _get_entity_services(self, entity_id: str) -> list[str]:
-        """Get available services for an entity based on its domain.
+        """Get available services for an entity based on its domain and features.
+
+        This method uses the unified get_entity_available_services function
+        to filter services based on the entity's supported_features.
 
         Args:
             entity_id: The entity ID to get services for
 
         Returns:
-            List of available service names for this entity
+            List of available service names for this entity, filtered by capabilities
         """
-        domain = entity_id.split(".")[0]
-
-        # Get all services for the entity's domain
-        services = self.hass.services.async_services().get(domain, {})
-
-        # Common service mapping by domain
-        service_list = list(services.keys())
-
-        # Add homeassistant domain services that work on all entities
-        homeassistant_services = self.hass.services.async_services().get("homeassistant", {})
-        common_services = [
-            "turn_on",
-            "turn_off",
-            "toggle",
-            "update_entity",
-            "reload_config_entry",
-        ]
-
-        for service in common_services:
-            if service in homeassistant_services:
-                service_list.append(f"homeassistant.{service}")
-
-        return service_list
+        return get_entity_available_services(self.hass, entity_id)

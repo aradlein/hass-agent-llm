@@ -295,6 +295,404 @@ CUSTOM_TOOL_HANDLER_SERVICE: Final = "service"
 CUSTOM_TOOL_HANDLER_SCRIPT: Final = "script"
 CUSTOM_TOOL_HANDLER_TEMPLATE: Final = "template"
 
+# Domain service mappings - defines which services are available for each domain
+# and which services require specific entity features.
+# This is used by both context providers (to advertise accurate available_services)
+# and ha_control (to determine the correct service to call).
+#
+# Structure:
+# {
+#   "domain": {
+#     "base_services": [list of services always available],
+#     "feature_services": {
+#       feature_flag: [list of services requiring this feature]
+#     },
+#     "action_service_map": {
+#       "action_name": {
+#         "param_to_service": {
+#           "parameter_name": "service_name"
+#         }
+#       }
+#     }
+#   }
+# }
+#
+# Note: Feature flags are imported from homeassistant.components.<domain>.EntityFeature
+# and must be imported in the code that uses this mapping.
+
+DOMAIN_SERVICE_MAPPINGS: Final = {
+    # Cover entities (blinds, shades, garage doors, etc.)
+    "cover": {
+        "base_services": ["toggle"],  # Always available
+        "feature_services": {
+            # CoverEntityFeature.OPEN (1)
+            1: ["open_cover"],
+            # CoverEntityFeature.CLOSE (2)
+            2: ["close_cover"],
+            # CoverEntityFeature.SET_POSITION (4)
+            4: ["set_cover_position"],
+            # CoverEntityFeature.STOP (8)
+            8: ["stop_cover"],
+            # CoverEntityFeature.OPEN_TILT (16)
+            16: ["open_cover_tilt"],
+            # CoverEntityFeature.CLOSE_TILT (32)
+            32: ["close_cover_tilt"],
+            # CoverEntityFeature.STOP_TILT (64)
+            64: ["stop_cover_tilt"],
+            # CoverEntityFeature.SET_TILT_POSITION (128)
+            128: ["set_cover_tilt_position"],
+        },
+        "action_service_map": {
+            "turn_on": "open_cover",
+            "turn_off": "close_cover",
+            "toggle": "toggle",
+            "set_value": {
+                "position": "set_cover_position",  # Requires feature 4
+                "tilt_position": "set_cover_tilt_position",  # Requires feature 128
+            },
+        },
+    },
+    # Fan entities
+    "fan": {
+        "base_services": ["turn_on", "turn_off", "toggle"],
+        "feature_services": {
+            # FanEntityFeature.SET_SPEED (1) - legacy, now use percentage
+            1: ["set_percentage", "increase_speed", "decrease_speed"],
+            # FanEntityFeature.OSCILLATE (2)
+            2: ["oscillate"],
+            # FanEntityFeature.DIRECTION (4)
+            4: ["set_direction"],
+            # FanEntityFeature.PRESET_MODE (8)
+            8: ["set_preset_mode"],
+        },
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+            "toggle": "toggle",
+            "set_value": {
+                "percentage": "set_percentage",
+                "preset_mode": "set_preset_mode",
+                "oscillating": "oscillate",
+                "direction": "set_direction",
+            },
+        },
+    },
+    # Light entities
+    "light": {
+        "base_services": ["turn_on", "turn_off", "toggle"],
+        "feature_services": {},  # Lights don't use feature flags for basic services
+        "action_service_map": {
+            "turn_on": "turn_on",  # Accepts brightness, color, etc.
+            "turn_off": "turn_off",
+            "toggle": "toggle",
+            "set_value": "turn_on",  # Set brightness, color via turn_on
+        },
+    },
+    # Climate entities (thermostats, AC, heating)
+    "climate": {
+        "base_services": ["turn_on", "turn_off"],
+        "feature_services": {
+            # ClimateEntityFeature.TARGET_TEMPERATURE (1)
+            1: ["set_temperature"],
+            # ClimateEntityFeature.TARGET_TEMPERATURE_RANGE (2)
+            2: ["set_temperature"],  # Same service, different params
+            # ClimateEntityFeature.TARGET_HUMIDITY (4)
+            4: ["set_humidity"],
+            # ClimateEntityFeature.FAN_MODE (8)
+            8: ["set_fan_mode"],
+            # ClimateEntityFeature.PRESET_MODE (16)
+            16: ["set_preset_mode"],
+            # ClimateEntityFeature.SWING_MODE (32)
+            32: ["set_swing_mode"],
+            # ClimateEntityFeature.SWING_HORIZONTAL_MODE (512)
+            512: ["set_swing_mode"],  # Uses same service
+        },
+        "action_service_map": {
+            "turn_on": "set_hvac_mode",  # Special: needs hvac_mode parameter
+            "turn_off": "set_hvac_mode",  # Special: hvac_mode = "off"
+            "toggle": "toggle",
+            "set_value": {
+                "temperature": "set_temperature",
+                "target_temp_high": "set_temperature",
+                "target_temp_low": "set_temperature",
+                "hvac_mode": "set_hvac_mode",
+                "fan_mode": "set_fan_mode",
+                "preset_mode": "set_preset_mode",
+                "swing_mode": "set_swing_mode",
+                "humidity": "set_humidity",
+            },
+        },
+    },
+    # Media Player entities
+    "media_player": {
+        "base_services": ["turn_on", "turn_off", "toggle"],
+        "feature_services": {
+            # MediaPlayerEntityFeature.PAUSE (1)
+            1: ["media_pause"],
+            # MediaPlayerEntityFeature.SEEK (2)
+            2: ["media_seek"],
+            # MediaPlayerEntityFeature.VOLUME_SET (4)
+            4: ["volume_set"],
+            # MediaPlayerEntityFeature.VOLUME_MUTE (8)
+            8: ["volume_mute"],
+            # MediaPlayerEntityFeature.PREVIOUS_TRACK (16)
+            16: ["media_previous_track"],
+            # MediaPlayerEntityFeature.NEXT_TRACK (32)
+            32: ["media_next_track"],
+            # MediaPlayerEntityFeature.PLAY_MEDIA (512)
+            512: ["play_media"],
+            # MediaPlayerEntityFeature.VOLUME_STEP (1024)
+            1024: ["volume_up", "volume_down"],
+            # MediaPlayerEntityFeature.SELECT_SOURCE (2048)
+            2048: ["select_source"],
+            # MediaPlayerEntityFeature.STOP (4096)
+            4096: ["media_stop"],
+            # MediaPlayerEntityFeature.CLEAR_PLAYLIST (8192)
+            8192: ["clear_playlist"],
+            # MediaPlayerEntityFeature.PLAY (16384)
+            16384: ["media_play"],
+            # MediaPlayerEntityFeature.SHUFFLE_SET (32768)
+            32768: ["shuffle_set"],
+            # MediaPlayerEntityFeature.SELECT_SOUND_MODE (65536)
+            65536: ["select_sound_mode"],
+            # MediaPlayerEntityFeature.BROWSE_MEDIA (131072)
+            131072: ["browse_media"],
+            # MediaPlayerEntityFeature.REPEAT_SET (262144)
+            262144: ["repeat_set"],
+            # MediaPlayerEntityFeature.GROUPING (524288)
+            524288: ["join", "unjoin"],
+        },
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+            "toggle": "toggle",
+            "set_value": {
+                "volume_level": "volume_set",
+                "is_volume_muted": "volume_mute",
+                "source": "select_source",
+                "sound_mode": "select_sound_mode",
+                "media_content_id": "play_media",
+                "shuffle": "shuffle_set",
+                "repeat": "repeat_set",
+            },
+        },
+    },
+    # Lock entities
+    "lock": {
+        "base_services": ["lock", "unlock"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "lock",
+            "turn_off": "unlock",
+            "toggle": "toggle",
+        },
+    },
+    # Switch entities (simple on/off)
+    "switch": {
+        "base_services": ["turn_on", "turn_off", "toggle"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+            "toggle": "toggle",
+        },
+    },
+    # Input helpers
+    "input_boolean": {
+        "base_services": ["turn_on", "turn_off", "toggle"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+            "toggle": "toggle",
+        },
+    },
+    "input_number": {
+        "base_services": ["set_value", "increment", "decrement"],
+        "feature_services": {},
+        "action_service_map": {
+            "set_value": {"value": "set_value"},
+        },
+    },
+    "input_select": {
+        "base_services": ["select_option", "select_next", "select_previous"],
+        "feature_services": {},
+        "action_service_map": {
+            "set_value": {"option": "select_option"},
+        },
+    },
+    "input_text": {
+        "base_services": ["set_value"],
+        "feature_services": {},
+        "action_service_map": {
+            "set_value": {"value": "set_value"},
+        },
+    },
+    "input_datetime": {
+        "base_services": ["set_datetime"],
+        "feature_services": {},
+        "action_service_map": {
+            "set_value": "set_datetime",
+        },
+    },
+    # Number helper
+    "number": {
+        "base_services": ["set_value"],
+        "feature_services": {},
+        "action_service_map": {
+            "set_value": {"value": "set_value"},
+        },
+    },
+    # Select helper
+    "select": {
+        "base_services": ["select_option", "select_next", "select_previous"],
+        "feature_services": {},
+        "action_service_map": {
+            "set_value": {"option": "select_option"},
+        },
+    },
+    # Text helper
+    "text": {
+        "base_services": ["set_value"],
+        "feature_services": {},
+        "action_service_map": {
+            "set_value": {"value": "set_value"},
+        },
+    },
+    # Humidifier
+    "humidifier": {
+        "base_services": ["turn_on", "turn_off", "toggle", "set_humidity"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+            "toggle": "toggle",
+            "set_value": {"humidity": "set_humidity"},
+        },
+    },
+    # Water heater
+    "water_heater": {
+        "base_services": ["turn_on", "turn_off", "set_temperature"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+            "set_value": {"temperature": "set_temperature"},
+        },
+    },
+    # Vacuum
+    "vacuum": {
+        "base_services": ["start", "pause", "stop", "return_to_base", "locate"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "start",
+            "turn_off": "return_to_base",
+            "toggle": "toggle",
+        },
+    },
+    # Scene (only turn_on makes sense)
+    "scene": {
+        "base_services": ["turn_on"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "turn_on",
+        },
+    },
+    # Script
+    "script": {
+        "base_services": ["turn_on", "turn_off", "toggle"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+            "toggle": "toggle",
+        },
+    },
+    # Automation
+    "automation": {
+        "base_services": ["turn_on", "turn_off", "toggle", "trigger"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+            "toggle": "toggle",
+        },
+    },
+    # Button
+    "button": {
+        "base_services": ["press"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "press",
+        },
+    },
+    # Siren
+    "siren": {
+        "base_services": ["turn_on", "turn_off", "toggle"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+            "toggle": "toggle",
+        },
+    },
+    # Alarm Control Panel
+    "alarm_control_panel": {
+        "base_services": ["alarm_arm_home", "alarm_arm_away", "alarm_arm_night", "alarm_disarm"],
+        "feature_services": {},
+        "action_service_map": {
+            # Note: alarm control panel uses specific arm services, not generic turn_on/off
+            "turn_on": "alarm_arm_home",  # Default to arm_home
+            "turn_off": "alarm_disarm",
+        },
+    },
+    # Valve
+    "valve": {
+        "base_services": ["open_valve", "close_valve", "toggle"],
+        "feature_services": {
+            # ValveEntityFeature.SET_POSITION (4)
+            4: ["set_valve_position"],
+            # ValveEntityFeature.STOP (8)
+            8: ["stop_valve"],
+        },
+        "action_service_map": {
+            "turn_on": "open_valve",
+            "turn_off": "close_valve",
+            "toggle": "toggle",
+            "set_value": {"position": "set_valve_position"},
+        },
+    },
+    # Lawn Mower
+    "lawn_mower": {
+        "base_services": ["start_mowing", "pause", "dock"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "start_mowing",
+            "turn_off": "dock",
+            "toggle": "toggle",
+        },
+    },
+    # Camera
+    "camera": {
+        "base_services": ["turn_on", "turn_off"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+        },
+    },
+    # Group (aggregates multiple entities)
+    "group": {
+        "base_services": ["turn_on", "turn_off", "toggle"],
+        "feature_services": {},
+        "action_service_map": {
+            "turn_on": "turn_on",
+            "turn_off": "turn_off",
+            "toggle": "toggle",
+        },
+    },
+}
+
 # Default system prompt
 DEFAULT_SYSTEM_PROMPT: Final = """You are a brief, friendly voice assistant for Home Assistant.
 Answer questions about device states directly from the CSV, and use tools ONLY when needed.
