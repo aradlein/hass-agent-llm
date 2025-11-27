@@ -15,6 +15,7 @@ tests/scenario_framework/ export-ignore
 docs/TESTING_QUICK_START.md export-ignore
 docs/TESTING_STRATEGY.md export-ignore
 docs/HACS_PRIVATE_INSTALL.md export-ignore
+docs/ISSUE_57_BRANDS_SUBMISSION.md export-ignore
 docs/reference/ export-ignore
 docs/images/README.md export-ignore
 
