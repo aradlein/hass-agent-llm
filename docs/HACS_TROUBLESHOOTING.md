@@ -34,13 +34,13 @@ If HACS isn't working, install manually:
 
 1. **Download the latest release**:
    ```bash
-   wget https://github.com/aradlein/hass-agent-llm/archive/refs/tags/v0.8.2.zip
+   wget https://github.com/aradlein/hass-agent-llm/archive/refs/tags/v0.8.3.zip
    ```
 
 2. **Extract to custom_components**:
    ```bash
-   unzip v0.8.2.zip
-   mv hass-agent-llm-0.8.2/custom_components/home_agent config/custom_components/
+   unzip v0.8.3.zip
+   mv hass-agent-llm-0.8.3/custom_components/home_agent config/custom_components/
    ```
 
 3. **Restart Home Assistant**

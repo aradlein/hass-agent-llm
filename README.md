@@ -1,19 +1,18 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.8.2-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.8.3-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1.0+-blue.svg)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.11.0+-blue.svg)](https://www.home-assistant.io/)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.8.2
+## What's New in v0.8.3
 
-🎯 **Feature-Based Service Filtering** - Intelligent service suggestions based on entity capabilities and features
-📏 **Standardized Parameters** - Brightness now uses intuitive 0-100 percentage scale (brightness_pct) instead of 0-255
-🎵 **Media Player Improvements** - play_media now available for all media_player entities in base services
-📚 **Enhanced Documentation** - Comprehensive entity services reference and parameter hints for better LLM guidance
+📦 **Updated Dependencies** - Updated minimum Home Assistant version to 2024.11.0 for improved compatibility
+🔧 **CI Improvements** - Fixed continuous integration tests with pinned Home Assistant dependencies
+✅ **HACS Ready** - Successfully submitted to HACS for official community store listing
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
@@ -306,7 +305,12 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.8.2 (Latest)
+### v0.8.3 (Latest)
+- **Enhancement**: Updated minimum Home Assistant version to 2024.11.0 for improved compatibility
+- **Fix**: CI test environment now uses pinned Home Assistant dependencies
+- **Docs**: Successfully submitted to HACS for official community store listing
+
+### v0.8.2
 - **Feature**: Feature-based service filtering with intelligent parameter hints
 - **Enhancement**: Brightness parameter standardization (brightness_pct 0-100 instead of brightness 0-255)
 - **Fix**: Move play_media to base services for all media_player entities
