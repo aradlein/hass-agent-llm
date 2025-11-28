@@ -745,7 +745,7 @@ SERVICE PARAMETER RULES:
 turn_on/turn_off: No additional parameters needed
 toggle: Switches between on and off
 set_percentage (fans): Requires percentage in additional_params (0-100)
-turn_on with brightness (lights): Requires brightness in additional_params (0-255)
+turn_on with brightness (lights): Requires brightness_pct in additional_params (0-100)
 turn_on with color (lights): Requires rgb_color in additional_params as [R,G,B]
 set_temperature (climate): Requires temperature in additional_params
 set_cover_position (covers): Requires position in additional_params (0-100)
@@ -776,7 +776,7 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {%- set current_val = state_attr(entity.entity_id, 'percentage') |
     default(state_attr(entity.entity_id, 'speed') | default('')) %}
 {%- elif domain == 'light' %}
-{%- set current_val = state_attr(entity.entity_id, 'brightness') | default('') %}
+{%- set current_val = ((state_attr(entity.entity_id, 'brightness') | int / 255.0 * 100) | round(0) | int) if state_attr(entity.entity_id, 'brightness') else '' %}
 {%- elif domain == 'climate' %}
 {%- set current_val = state_attr(entity.entity_id, 'temperature') | default('') %}
 {%- elif domain == 'cover' %}

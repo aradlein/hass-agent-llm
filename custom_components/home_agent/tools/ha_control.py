@@ -374,6 +374,19 @@ class HomeAssistantControlTool(BaseTool):
                 )
                 normalized["temperature"] = normalized.pop("current_temperature")
 
+        # Light domain: Convert brightness_pct (0-100) to brightness (0-255)
+        elif domain == "light":
+            if "brightness_pct" in normalized:
+                brightness_pct = normalized.pop("brightness_pct")
+                if brightness_pct is not None:
+                    # Convert percentage to 0-255 range
+                    normalized["brightness"] = int(brightness_pct * 255 / 100)
+                    _LOGGER.debug(
+                        "Converting brightness_pct=%s to brightness=%s",
+                        brightness_pct,
+                        normalized["brightness"],
+                    )
+
         return normalized
 
     def _entity_supports_feature(
@@ -610,5 +623,11 @@ class HomeAssistantControlTool(BaseTool):
             ]:
                 if attr in attributes:
                     relevant_attrs[attr] = attributes[attr]
+
+        # Convert brightness (0-255) to brightness_pct (0-100) for light entities
+        if domain == "light" and "brightness" in relevant_attrs:
+            brightness = relevant_attrs.pop("brightness")
+            if brightness is not None:
+                relevant_attrs["brightness_pct"] = int(brightness / 255 * 100)
 
         return relevant_attrs

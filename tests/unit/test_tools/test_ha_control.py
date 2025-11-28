@@ -180,10 +180,10 @@ class TestHomeAssistantControlTool:
 
             assert result["success"] is True
 
-            # Verify parameters were passed to service call
+            # Verify parameters were passed to service call (brightness_pct converted to brightness)
             call_args = mock_hass.services.async_call.call_args
             service_data = call_args[0][2]
-            assert service_data["brightness_pct"] == 50
+            assert service_data["brightness"] == int(50 * 255 / 100)  # Converted from brightness_pct
             assert service_data["color_temp"] == 370
 
     @pytest.mark.asyncio
@@ -429,7 +429,7 @@ class TestHomeAssistantControlTool:
 
             assert "attributes" in result
             assert "friendly_name" in result["attributes"]
-            assert "brightness" in result["attributes"]  # Light-specific attribute
+            assert "brightness_pct" in result["attributes"]  # Light-specific attribute (converted from brightness)
 
     @pytest.mark.asyncio
     async def test_climate_attributes_extraction(self, mock_hass, sample_climate_state):
@@ -529,7 +529,8 @@ class TestHomeAssistantControlTool:
         relevant = tool._extract_relevant_attributes("light.living_room", attrs)
 
         assert "friendly_name" in relevant
-        assert "brightness" in relevant
+        assert "brightness_pct" in relevant  # Converted from brightness
+        assert relevant["brightness_pct"] == int(128 / 255 * 100)  # Should be 50
         assert "color_temp" in relevant
         assert "rgb_color" in relevant
         assert "irrelevant_attr" not in relevant
@@ -612,13 +613,14 @@ class TestHomeAssistantControlTool:
         assert normalized["temperature"] == 72
         assert "current_temperature" not in normalized
 
-    def test_normalize_parameters_no_change_for_other_domains(self, mock_hass):
-        """Test that normalization doesn't affect other domains."""
+    def test_normalize_parameters_converts_brightness_pct_for_lights(self, mock_hass):
+        """Test that brightness_pct is converted to brightness for light domain."""
         tool = HomeAssistantControlTool(mock_hass)
 
         params = {"brightness_pct": 50}
         normalized = tool._normalize_parameters("light", params)
-        assert normalized == params
+        assert "brightness_pct" not in normalized
+        assert normalized["brightness"] == int(50 * 255 / 100)  # Should be 127
 
     @pytest.mark.asyncio
     async def test_execute_set_value_cover_with_current_position(self, mock_hass):

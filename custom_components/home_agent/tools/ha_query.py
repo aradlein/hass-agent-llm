@@ -138,7 +138,7 @@ class HomeAssistantQueryTool(BaseTool):
                     "description": (
                         "Specific attributes to retrieve. If not specified, returns "
                         "all attributes. Common attributes: 'state', 'friendly_name', "
-                        "'temperature', 'brightness', 'battery_level'. Use this to "
+                        "'temperature', 'brightness_pct', 'battery_level'. Use this to "
                         "reduce response size when only specific data is needed."
                     ),
                 },
@@ -404,6 +404,14 @@ class HomeAssistantQueryTool(BaseTool):
         else:
             # Include all attributes
             entity_data["attributes"] = dict(state.attributes)
+
+        # Convert brightness (0-255) to brightness_pct (0-100) for light entities
+        domain = state.entity_id.split('.')[0]
+        if domain == 'light' and 'brightness' in entity_data["attributes"]:
+            brightness = entity_data["attributes"]['brightness']
+            if brightness is not None:
+                entity_data["attributes"]['brightness_pct'] = int(brightness / 255 * 100)
+                del entity_data["attributes"]['brightness']
 
         # Add available services
         entity_data["available_services"] = self._get_entity_services(state.entity_id)

@@ -154,8 +154,7 @@ The following domains now have comprehensive service mapping for `set_value` act
 ```json
 {
   "turn_on": {
-    "brightness_pct": "0-100 (preferred)",
-    "brightness": "0-255 (alternative)",
+    "brightness_pct": "0-100",
     "transition": "float (seconds, optional)"
   },
   "turn_off": {

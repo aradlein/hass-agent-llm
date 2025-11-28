@@ -166,8 +166,8 @@ class TestHomeAssistantQueryTool:
         assert result["success"] is True
         entity = result["entities"][0]
 
-        # Only requested attributes should be present
-        assert "brightness" in entity["attributes"]
+        # Only requested attributes should be present (brightness converted to brightness_pct)
+        assert "brightness_pct" in entity["attributes"]
         assert "color_temp" in entity["attributes"]
         # rgb_color should not be included (not requested)
         assert "rgb_color" not in entity["attributes"]
@@ -272,7 +272,7 @@ class TestHomeAssistantQueryTool:
         assert "last_changed" in formatted
         assert "last_updated" in formatted
         assert "attributes" in formatted
-        assert formatted["attributes"]["brightness"] == 128
+        assert formatted["attributes"]["brightness_pct"] == int(128 / 255 * 100)  # Converted from brightness
 
     def test_format_entity_state_with_attribute_filter(self, mock_hass, sample_light_state):
         """Test formatting entity state with attribute filter."""
@@ -280,7 +280,7 @@ class TestHomeAssistantQueryTool:
 
         formatted = tool._format_entity_state(sample_light_state, attributes_filter=["brightness"])
 
-        assert "brightness" in formatted["attributes"]
+        assert "brightness_pct" in formatted["attributes"]  # Converted from brightness
         assert "color_temp" not in formatted["attributes"]
 
     @pytest.mark.asyncio
@@ -758,8 +758,8 @@ class TestHomeAssistantQueryTool:
         result = await tool.execute(entity_id="light.living_room")
 
         entity = result["entities"][0]
-        # All attributes from sample_light_state should be present
-        assert "brightness" in entity["attributes"]
+        # All attributes from sample_light_state should be present (brightness converted to brightness_pct)
+        assert "brightness_pct" in entity["attributes"]
         assert "color_temp" in entity["attributes"]
         assert "rgb_color" in entity["attributes"]
         assert "friendly_name" in entity["attributes"]

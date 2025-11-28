@@ -241,7 +241,7 @@ class TestGetContext:
 
         parsed = json.loads(result)
         entity = parsed["entities"][0]
-        assert "brightness" in entity["attributes"]
+        assert "brightness_pct" in entity["attributes"]  # Converted from brightness
         # color_temp should not be included due to filter
         assert "color_temp" not in entity["attributes"]
 

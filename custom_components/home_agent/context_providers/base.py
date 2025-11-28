@@ -387,6 +387,14 @@ class ContextProvider(ABC):
                 if key not in BLOAT_ATTRIBUTES and not key.startswith("_")
             }
 
+        # Convert brightness (0-255) to brightness_pct (0-100) for light entities
+        domain = entity_id.split('.')[0]
+        if domain == 'light' and 'brightness' in result["attributes"]:
+            brightness = result["attributes"]['brightness']
+            if brightness is not None:
+                result["attributes"]['brightness_pct'] = int(brightness / 255 * 100)
+                del result["attributes"]['brightness']
+
         return result
 
     def _get_entities_matching_pattern(self, pattern: str) -> list[str]:
