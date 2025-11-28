@@ -3,14 +3,14 @@
 [![Version](https://img.shields.io/badge/version-0.8.3-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.11.0+-blue.svg)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11.0+-blue.svg)](https://www.home-assistant.io/)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
 ## What's New in v0.8.3
 
-📦 **Updated Dependencies** - Updated minimum Home Assistant version to 2024.11.0 for improved compatibility
+📦 **Updated Dependencies** - Updated minimum Home Assistant version to 2025.11.0 for improved compatibility
 🔧 **CI Improvements** - Fixed continuous integration tests with pinned Home Assistant dependencies
 ✅ **HACS Ready** - Successfully submitted to HACS for official community store listing
 
@@ -306,7 +306,7 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 ## Changelog
 
 ### v0.8.3 (Latest)
-- **Enhancement**: Updated minimum Home Assistant version to 2024.11.0 for improved compatibility
+- **Enhancement**: Updated minimum Home Assistant version to 2025.11.0 for improved compatibility
 - **Fix**: CI test environment now uses pinned Home Assistant dependencies
 - **Docs**: Successfully submitted to HACS for official community store listing
 
