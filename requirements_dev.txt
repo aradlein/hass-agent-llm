@@ -20,9 +20,8 @@ types-requests>=2.31.0
 pre-commit>=3.3.0
 
 # Home Assistant (for testing)
-homeassistant>=2024.1.0
-hassil>=1.7.4
-home-assistant-intents>=2024.1.2
+# Pinned to specific version to ensure dependency compatibility
+homeassistant==2024.1.0
 
 # Optional dependencies (for testing optional features)
 chromadb>=0.4.0
