@@ -22,7 +22,7 @@ pre-commit>=3.3.0
 # Home Assistant (for testing)
 # Pinned to specific version to ensure dependency compatibility
 homeassistant==2025.11.0
-hassil>=2025.11.0
+hassil>=3.4.0
 home-assistant-intents>=2025.11.0
 
 # Optional dependencies (for testing optional features)
