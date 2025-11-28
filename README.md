@@ -1,6 +1,6 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.7.2--beta-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.8.2-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1.0+-blue.svg)](https://www.home-assistant.io/)
@@ -8,13 +8,12 @@
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.7.2-beta
+## What's New in v0.8.2
 
-🎙️ **Voice Conversation Persistence** - Multi-turn conversations with automatic session management across devices
-🛡️ **Reliability & Resource Management** - Custom exceptions, retry logic with exponential backoff, startup health checks
-🏗️ **Architecture Improvements** - Modular agent design, extracted memory validator, comprehensive documentation
-📊 **Quality Enhancements** - Configurable memory word count, improved importance scoring, better filtering
-🧪 **Comprehensive Testing** - 400+ tests with integration test framework for real service validation
+🎯 **Feature-Based Service Filtering** - Intelligent service suggestions based on entity capabilities and features
+📏 **Standardized Parameters** - Brightness now uses intuitive 0-100 percentage scale (brightness_pct) instead of 0-255
+🎵 **Media Player Improvements** - play_media now available for all media_player entities in base services
+📚 **Enhanced Documentation** - Comprehensive entity services reference and parameter hints for better LLM guidance
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
@@ -307,7 +306,24 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.7.2-beta (Latest)
+### v0.8.2 (Latest)
+- **Feature**: Feature-based service filtering with intelligent parameter hints
+- **Enhancement**: Brightness parameter standardization (brightness_pct 0-100 instead of brightness 0-255)
+- **Fix**: Move play_media to base services for all media_player entities
+- **Enhancement**: Comprehensive entity services reference documentation
+- **Enhancement**: Improved system prompts with standardized parameter rules
+
+### v0.8.1
+- **Feature**: Optimized brand icons for Home Assistant submission
+- **Docs**: Repository setup documentation for Claude agents
+- **Enhancement**: Public export configuration improvements
+
+### v0.8.0
+- **Feature**: Icon design and submission to Home Assistant brands repository
+- **Enhancement**: Documentation cleanup and organization
+- **Fix**: Remove personal references from public-facing code
+
+### v0.7.2-beta
 - **Feature**: Voice conversation persistence with automatic session management
 - **Feature**: Reliability & resource management (custom exceptions, retry logic, health checks)
 - **Feature**: Configurable memory minimum word count in UI
