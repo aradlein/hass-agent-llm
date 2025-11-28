@@ -800,7 +800,7 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {%- set services = 'open_cover,close_cover,stop_cover,set_cover_position,toggle' %}
 {%- elif domain == 'media_player' %}
 {%- set services =
-    'turn_on,turn_off,media_play,media_pause,media_stop,volume_set,volume_up,volume_down,play_media' %}
+    'turn_on,turn_off,toggle,play_media,media_pause,media_stop,volume_set,volume_up,volume_down' %}
 {%- elif domain == 'lock' %}
 {%- set services = 'lock,unlock' %}
 {%- elif domain == 'vacuum' %}
