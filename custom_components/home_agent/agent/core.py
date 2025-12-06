@@ -151,6 +151,7 @@ from ..exceptions import (
 )
 from ..context_manager import ContextManager
 from ..conversation import ConversationHistoryManager
+from ..helpers import strip_thinking_blocks
 from ..tool_handler import ToolHandler
 from ..tools import HomeAssistantControlTool, HomeAssistantQueryTool
 from ..tools.custom import CustomToolHandler
@@ -1326,7 +1327,9 @@ class HomeAgent(
 
             if not tool_calls:
                 # No tool calls, we're done
-                final_content = response_message.get("content") or ""
+                # Strip thinking blocks from reasoning models before returning
+                raw_content = response_message.get("content") or ""
+                final_content = strip_thinking_blocks(raw_content) or ""
 
                 # Log if we got an empty response
                 if not final_content:

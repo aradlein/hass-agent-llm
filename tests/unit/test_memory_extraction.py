@@ -371,6 +371,77 @@ class TestParseAndStoreMemories:
         assert count == 1  # Only the valid one
         mock_memory_manager.add_memory.assert_called_once()
 
+    async def test_parse_strips_thinking_blocks_before_json(
+        self, home_agent, mock_memory_manager
+    ):
+        """Test that thinking blocks from reasoning models are stripped before parsing.
+
+        Reasoning models (Qwen3, DeepSeek R1) may include <think>...</think> blocks
+        in their output which would break JSON parsing.
+        """
+        home_agent._memory_manager = mock_memory_manager
+
+        # Simulate reasoning model output with thinking block before JSON
+        extraction_result = '''<think>
+Let me analyze this conversation to extract important memories...
+The user mentioned their preferred bedroom temperature.
+I should extract this as a preference memory.
+</think>[{"type": "preference", "content": "User prefers bedroom temperature at 68°F for sleeping comfort during nighttime hours", "importance": 0.8}]'''
+
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
+
+        assert count == 1
+        mock_memory_manager.add_memory.assert_called_once()
+
+    async def test_parse_strips_thinking_blocks_with_markdown(
+        self, home_agent, mock_memory_manager
+    ):
+        """Test that thinking blocks are stripped when JSON is in markdown block."""
+        home_agent._memory_manager = mock_memory_manager
+
+        extraction_result = '''<think>
+I need to extract the key facts from this conversation...
+</think>```json
+[{"type": "fact", "content": "The living room has three ceiling lights controlled by smart switches for ambient lighting", "importance": 0.5}]
+```'''
+
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
+
+        assert count == 1
+        mock_memory_manager.add_memory.assert_called_once()
+
+    async def test_parse_handles_thinking_block_with_json_inside(
+        self, home_agent, mock_memory_manager
+    ):
+        """Test handling when thinking block contains JSON-like content."""
+        home_agent._memory_manager = mock_memory_manager
+
+        extraction_result = '''<think>
+I could return this format:
+{"type": "wrong", "content": "this is inside think block"}
+But I should return proper memories.
+</think>[{"type": "fact", "content": "The smart doorbell is connected to the home automation system for visitor notifications", "importance": 0.6}]'''
+
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
+
+        assert count == 1
+        # Verify the correct memory was stored (not the one inside think block)
+        call_args = mock_memory_manager.add_memory.call_args
+        assert "doorbell" in call_args.kwargs["content"]
+
+    async def test_parse_handles_multiple_thinking_blocks(
+        self, home_agent, mock_memory_manager
+    ):
+        """Test handling multiple thinking blocks in output."""
+        home_agent._memory_manager = mock_memory_manager
+
+        extraction_result = '''<think>First thought...</think><think>Second thought...</think>[{"type": "preference", "content": "User prefers warm white lighting in the living room during evening hours for relaxation", "importance": 0.7}]'''
+
+        count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
+
+        assert count == 1
+        mock_memory_manager.add_memory.assert_called_once()
+
 
 class TestExtractAndStoreMemories:
     """Test _extract_and_store_memories method."""

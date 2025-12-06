@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, AsyncGenerator
 
 from homeassistant.components import conversation
 from homeassistant.helpers import llm
 
+from .helpers import strip_thinking_blocks
+
 _LOGGER = logging.getLogger(__name__)
+
+# Pattern for detecting incomplete thinking blocks in streaming content
+_THINK_START_PATTERN = re.compile(r"<think>")
+_THINK_END_PATTERN = re.compile(r"</think>")
 
 
 class OpenAIStreamingHandler:
@@ -29,6 +36,70 @@ class OpenAIStreamingHandler:
         # OpenAI uses indexed tool calls that can be streamed incrementally
         self._usage: dict[str, int] | None = None
         # Track token usage from the stream
+        self._in_thinking_block: bool = False
+        # Track if we're currently inside a <think>...</think> block
+        self._thinking_buffer: str = ""
+        # Buffer for potential partial thinking block tags
+
+    def _filter_thinking_content(self, content: str) -> str | None:
+        """Filter out thinking blocks from streaming content.
+
+        Handles thinking blocks that may span multiple chunks by tracking
+        state across calls. Returns only content that should be displayed
+        to the user.
+
+        Args:
+            content: Raw content from the stream chunk
+
+        Returns:
+            Filtered content to yield, or None if all content was filtered
+        """
+        # Combine with any buffered content
+        full_content = self._thinking_buffer + content
+        self._thinking_buffer = ""
+
+        result_parts = []
+        i = 0
+
+        while i < len(full_content):
+            if self._in_thinking_block:
+                # Look for closing tag
+                end_match = _THINK_END_PATTERN.search(full_content, i)
+                if end_match:
+                    # Found end of thinking block
+                    self._in_thinking_block = False
+                    i = end_match.end()
+                else:
+                    # Still in thinking block, check for partial closing tag
+                    # Buffer the last few characters in case </think> spans chunks
+                    if len(full_content) >= 8 and full_content[-8:].startswith("</"):
+                        self._thinking_buffer = full_content[-8:]
+                    break
+            else:
+                # Look for opening tag
+                start_match = _THINK_START_PATTERN.search(full_content, i)
+                if start_match:
+                    # Yield content before the thinking block
+                    if start_match.start() > i:
+                        result_parts.append(full_content[i:start_match.start()])
+                    self._in_thinking_block = True
+                    i = start_match.end()
+                else:
+                    # Check for partial opening tag at end
+                    # Buffer content that might be start of <think>
+                    for j in range(min(7, len(full_content)), 0, -1):
+                        potential_start = full_content[-j:]
+                        if "<think>"[:j] == potential_start:
+                            result_parts.append(full_content[i:-j])
+                            self._thinking_buffer = potential_start
+                            break
+                    else:
+                        # No partial tag, yield all remaining content
+                        result_parts.append(full_content[i:])
+                    break
+
+        result = "".join(result_parts)
+        return result if result else None
 
     def _parse_sse_line(self, line: str) -> dict[str, Any] | None:
         """Parse an SSE line.
@@ -142,9 +213,11 @@ class OpenAIStreamingHandler:
                 if "role" in delta:
                     _LOGGER.debug("Stream started with role: %s", delta["role"])
 
-                # Handle text content
+                # Handle text content - filter out thinking blocks from reasoning models
                 if "content" in delta and delta["content"]:
-                    yield {"content": delta["content"]}
+                    filtered_content = self._filter_thinking_content(delta["content"])
+                    if filtered_content:
+                        yield {"content": filtered_content}
 
                 # Handle tool calls
                 if "tool_calls" in delta:
