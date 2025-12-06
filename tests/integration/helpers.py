@@ -70,6 +70,7 @@ async def send_message_and_wait(
     device_id: str | None = None,
     satellite_id: str | None = None,
     agent_id: str | None = None,
+    language: str = "en",
 ) -> Any:
     """Send a message to the agent and wait for response with timeout.
 
@@ -82,6 +83,7 @@ async def send_message_and_wait(
         device_id: Optional device ID
         satellite_id: Optional satellite ID
         agent_id: Optional agent ID (defaults to "home_agent")
+        language: Language code for the conversation (default: "en")
 
     Returns:
         ConversationResult from the agent
@@ -104,7 +106,7 @@ async def send_message_and_wait(
         conversation_id=conversation_id,
         device_id=device_id,
         satellite_id=satellite_id,
-        language="en",
+        language=language,
         agent_id=agent_id or "home_agent",
     )
 
@@ -356,6 +358,43 @@ def create_test_hass() -> HomeAssistant:
 
     _LOGGER.info("Created test Home Assistant instance with %d entities", len(test_states))
     return hass
+
+
+def setup_entity_states(hass: HomeAssistant, states: list[State]) -> None:
+    """Configure entity states in mock Home Assistant instance.
+
+    Wires entity State objects into the mock hass.states interface:
+    - async_all() returns the provided State objects
+    - async_entity_ids() returns their entity IDs
+    - get(entity_id) retrieves individual states
+
+    Args:
+        hass: Mock Home Assistant instance
+        states: List of State objects to expose
+
+    Example:
+        setup_entity_states(test_hass, sample_entity_states)
+        # Or with custom states:
+        custom_states = [State("light.kitchen", "on")]
+        setup_entity_states(test_hass, custom_states)
+    """
+    from unittest.mock import MagicMock
+
+    # Wire states into async_all
+    hass.states.async_all = MagicMock(return_value=states)
+
+    # Update async_entity_ids to return IDs
+    hass.states.async_entity_ids = MagicMock(
+        return_value=[state.entity_id for state in states]
+    )
+
+    # Add get() method for individual state retrieval
+    hass.states.get = MagicMock(
+        side_effect=lambda entity_id: next(
+            (s for s in states if s.entity_id == entity_id),
+            None
+        )
+    )
 
 
 async def cleanup_test_collections(

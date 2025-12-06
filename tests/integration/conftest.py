@@ -9,7 +9,7 @@ import logging
 import os
 import uuid
 from typing import Any, AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from dotenv import load_dotenv
@@ -357,6 +357,31 @@ def _create_test_hass() -> HomeAssistant:
 
     hass.data[er.DATA_REGISTRY] = mock_entity_registry
 
+    # Mock area registry to prevent template rendering errors
+    # This is needed for area_name() and area_id() template functions
+    from homeassistant.helpers import area_registry as ar
+
+    mock_area_registry = MagicMock()
+    # Mock the areas attribute as a dict for template compatibility
+    mock_area_registry.areas = {}
+    # Mock async_get_area to return None for unknown areas
+    mock_area_registry.async_get_area = MagicMock(return_value=None)
+
+    hass.data[ar.DATA_REGISTRY] = mock_area_registry
+
+    # Mock device registry to prevent template rendering errors
+    # This is needed for device_id() and related template functions
+    from homeassistant.helpers import device_registry as dr
+
+    mock_device_registry = MagicMock()
+    # Mock the devices attribute/method for template compatibility
+    mock_device_registry.devices = {}
+    mock_device_registry._device_data = {}
+    # Mock async_get to return None for unknown devices
+    mock_device_registry.async_get = MagicMock(return_value=None)
+
+    hass.data[dr.DATA_REGISTRY] = mock_device_registry
+
     return hass
 
 
@@ -462,7 +487,53 @@ def test_hass() -> HomeAssistant:
 
     hass.data[er.DATA_REGISTRY] = mock_entity_registry
 
+    # Mock area registry to prevent template rendering errors
+    # This is needed for area_name() and area_id() template functions
+    from homeassistant.helpers import area_registry as ar
+
+    mock_area_registry = MagicMock()
+    # Mock the areas attribute as a dict for template compatibility
+    mock_area_registry.areas = {}
+    # Mock async_get_area to return None for unknown areas
+    mock_area_registry.async_get_area = MagicMock(return_value=None)
+
+    hass.data[ar.DATA_REGISTRY] = mock_area_registry
+
+    # Mock device registry to prevent template rendering errors
+    # This is needed for device_id() and related template functions
+    from homeassistant.helpers import device_registry as dr
+
+    mock_device_registry = MagicMock()
+    # Mock the devices attribute/method for template compatibility
+    mock_device_registry.devices = {}
+    mock_device_registry._device_data = {}
+    # Mock async_get to return None for unknown devices
+    mock_device_registry.async_get = MagicMock(return_value=None)
+
+    hass.data[dr.DATA_REGISTRY] = mock_device_registry
+
     return hass
+
+
+@pytest.fixture
+def test_hass_with_default_entities(test_hass, sample_entity_states) -> HomeAssistant:
+    """Home Assistant instance with default entity set pre-configured.
+
+    Provides a test_hass instance with sample_entity_states already wired in.
+    Tests can use this fixture to avoid manual entity setup boilerplate.
+
+    The default entity set includes:
+    - light.living_room (on, brightness: 255)
+    - light.bedroom (off)
+    - sensor.temperature (72.5°F)
+    - climate.thermostat (heat mode)
+    - switch.coffee_maker (off)
+
+    For custom entity sets, use test_hass + setup_entity_states() instead.
+    """
+    from tests.integration.helpers import setup_entity_states
+    setup_entity_states(test_hass, sample_entity_states)
+    return test_hass
 
 
 @pytest.fixture
@@ -508,6 +579,23 @@ def sample_entity_states() -> list[State]:
             {"friendly_name": "Coffee Maker"},
         ),
     ]
+
+
+@pytest.fixture(autouse=True)
+def mock_entity_exposure():
+    """Auto-patch async_should_expose to expose all entities in tests.
+
+    In production, async_should_expose checks Home Assistant config to determine
+    if entities should be exposed to conversation agents. In tests, we want all
+    entities exposed by default to simplify test setup.
+
+    Tests can override this by patching async_should_expose themselves.
+    """
+    with patch(
+        "homeassistant.components.homeassistant.exposed_entities.async_should_expose",
+        return_value=True  # Return True to expose all entities
+    ):
+        yield
 
 
 @pytest.fixture

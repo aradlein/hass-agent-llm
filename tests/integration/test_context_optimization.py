@@ -27,6 +27,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from homeassistant.core import State
 
+from tests.integration.helpers import setup_entity_states
 from custom_components.home_agent.const import (
     CONF_COMPRESSION_LEVEL,
     CONF_CONTEXT_FORMAT,
@@ -192,16 +193,7 @@ async def test_context_truncation_when_exceeding_limit(
         "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
-        # Setup test states
-        test_hass.states.async_all = MagicMock(return_value=large_entity_set)
-
-        def mock_get_state(entity_id):
-            for state in large_entity_set:
-                if state.entity_id == entity_id:
-                    return state
-            return None
-
-        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+        setup_entity_states(test_hass, large_entity_set)
 
         context_manager = ContextManager(test_hass, config)
 
@@ -278,15 +270,7 @@ async def test_context_optimization_preserves_relevant_info(
         "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
-        test_hass.states.async_all = MagicMock(return_value=test_entities)
-
-        def mock_get_state(entity_id):
-            for state in test_entities:
-                if state.entity_id == entity_id:
-                    return state
-            return None
-
-        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+        setup_entity_states(test_hass, test_entities)
 
         # Update config to only include the subset of entities
         config[CONF_DIRECT_ENTITIES] = [entity.entity_id for entity in test_entities]
@@ -409,15 +393,7 @@ async def test_context_optimization_with_long_attributes(
         "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
-        test_hass.states.async_all = MagicMock(return_value=entity_states_with_long_attributes)
-
-        def mock_get_state(entity_id):
-            for state in entity_states_with_long_attributes:
-                if state.entity_id == entity_id:
-                    return state
-            return None
-
-        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+        setup_entity_states(test_hass, entity_states_with_long_attributes)
 
         # Create optimizer
         optimizer = ContextOptimizer(compression_level="medium")
@@ -582,15 +558,7 @@ async def test_context_metrics_tracking(test_hass, large_entity_set, session_man
         "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
-        test_hass.states.async_all = MagicMock(return_value=test_entities)
-
-        def mock_get_state(entity_id):
-            for state in test_entities:
-                if state.entity_id == entity_id:
-                    return state
-            return None
-
-        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+        setup_entity_states(test_hass, test_entities)
 
         # Update config with the smaller entity set
         config[CONF_DIRECT_ENTITIES] = [entity.entity_id for entity in test_entities]
@@ -707,15 +675,7 @@ async def test_token_limit_exceeded_exception(test_hass, session_manager):
         "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
     ):
-        test_hass.states.async_all = MagicMock(return_value=very_large_entities)
-
-        def mock_get_state(entity_id):
-            for state in very_large_entities:
-                if state.entity_id == entity_id:
-                    return state
-            return None
-
-        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+        setup_entity_states(test_hass, very_large_entities)
 
         context_manager = ContextManager(test_hass, config)
 

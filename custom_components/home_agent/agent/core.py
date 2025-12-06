@@ -224,8 +224,24 @@ class HomeAgent(
 
     @property
     def supported_languages(self) -> list[str]:
-        """Return list of supported languages."""
-        return ["en"]
+        """Return list of supported languages.
+
+        Returns the top 10 most popular languages used with Home Assistant:
+        - en (English)
+        - de (German)
+        - es (Spanish)
+        - fr (French)
+        - nl (Dutch)
+        - it (Italian)
+        - pl (Polish)
+        - pt (Portuguese)
+        - ru (Russian)
+        - zh (Chinese)
+
+        The agent preserves the language throughout the conversation pipeline,
+        using it in ConversationInput and IntentResponse objects.
+        """
+        return ["en", "de", "es", "fr", "nl", "it", "pl", "pt", "ru", "zh"]
 
     @property
     def memory_manager(self) -> Any:
@@ -911,13 +927,26 @@ class HomeAgent(
         class ToolHandlerAPIInstance:
             """Adapter to make tool_handler compatible with llm.APIInstance interface."""
 
-            def __init__(self, tool_handler, metrics, conv_id):
+            def __init__(self, tool_handler, metrics, conv_id, max_calls_per_turn):
                 self.tool_handler = tool_handler
                 self.metrics = metrics
                 self.conversation_id = conv_id
+                self.max_calls_per_turn = max_calls_per_turn
+                self.calls_this_turn = 0
 
             async def async_call_tool(self, tool_input: llm.ToolInput) -> dict:
                 """Execute tool via tool_handler."""
+                # Enforce max calls per turn limit
+                if self.calls_this_turn >= self.max_calls_per_turn:
+                    error_msg = (
+                        f"Tool call limit reached ({self.max_calls_per_turn} calls per turn). "
+                        f"Skipping tool '{tool_input.tool_name}'."
+                    )
+                    _LOGGER.warning(error_msg)
+                    return {"error": error_msg}
+
+                self.calls_this_turn += 1
+
                 try:
                     result = await self.tool_handler.execute_tool(
                         tool_input.tool_name, tool_input.tool_args, self.conversation_id
@@ -936,8 +965,15 @@ class HomeAgent(
             "tool_calls": 0,
         }
 
+        # Get max calls per turn for enforcement
+        max_calls_per_turn = self.config.get(
+            CONF_TOOLS_MAX_CALLS_PER_TURN, DEFAULT_TOOLS_MAX_CALLS_PER_TURN
+        )
+
         # Set the llm_api so ChatLog can execute tools
-        chat_log.llm_api = ToolHandlerAPIInstance(self.tool_handler, metrics, conversation_id)
+        chat_log.llm_api = ToolHandlerAPIInstance(
+            self.tool_handler, metrics, conversation_id, max_calls_per_turn
+        )
 
         # Track start time for metrics
         start_time = time.time()
