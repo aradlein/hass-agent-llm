@@ -153,7 +153,7 @@ from ..const import (
     DEFAULT_STREAMING_ENABLED,
 )
 from ..exceptions import AuthenticationError, HomeAgentError
-from ..helpers import redact_sensitive_data
+from ..helpers import is_ollama_backend, redact_sensitive_data
 
 if TYPE_CHECKING:
     from ..tool_handler import ToolHandler
@@ -229,8 +229,12 @@ class StreamingMixin:
             "max_tokens": self.config.get(CONF_LLM_MAX_TOKENS, 1000),
             "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
             "stream": True,  # Enable streaming!
-            "keep_alive": self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
         }
+
+        # Only include keep_alive for Ollama backends (not supported by OpenAI, etc.)
+        # See: https://github.com/aradlein/home-agent/issues/65
+        if is_ollama_backend(self.config[CONF_LLM_BASE_URL]):
+            payload["keep_alive"] = self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE)
 
         # Add tools if available
         tool_definitions = self.tool_handler.get_tool_definitions()

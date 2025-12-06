@@ -519,6 +519,50 @@ async def check_chromadb_health(host: str, port: int, timeout: int = 5) -> tuple
         return False, f"ChromaDB health check error: {err}"
 
 
+def is_ollama_backend(base_url: str) -> bool:
+    """Check if the LLM base URL points to an Ollama server.
+
+    Detects Ollama backends by checking for:
+    1. Standard Ollama port (11434)
+    2. 'ollama' in the URL path or hostname
+
+    This is used to conditionally include Ollama-specific parameters like
+    'keep_alive' which are not supported by other OpenAI-compatible APIs.
+
+    Args:
+        base_url: The LLM API base URL to check
+
+    Returns:
+        True if the URL appears to be an Ollama server, False otherwise
+
+    Example:
+        >>> is_ollama_backend("http://localhost:11434/v1")
+        True
+        >>> is_ollama_backend("https://api.openai.com/v1")
+        False
+        >>> is_ollama_backend("http://my-proxy.com/ollama/v1")
+        True
+    """
+    if not base_url:
+        return False
+
+    # Normalize to lowercase for comparison
+    url_lower = base_url.lower()
+
+    # Check for standard Ollama port (11434)
+    if ":11434" in url_lower:
+        return True
+
+    # Check for 'ollama' in the URL (hostname or path)
+    # This handles cases like:
+    # - http://ollama:8080/v1
+    # - https://my-proxy.com/ollama/v1
+    if "/ollama" in url_lower or "://ollama" in url_lower or "://ollama." in url_lower:
+        return True
+
+    return False
+
+
 async def check_ollama_health(base_url: str, timeout: int = 5) -> tuple[bool, str]:
     """Check if Ollama embedding service is reachable.
 
