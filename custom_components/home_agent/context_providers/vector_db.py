@@ -43,6 +43,7 @@ from ..const import (
     DEFAULT_VECTOR_DB_TOP_K,
     EMBEDDING_PROVIDER_OLLAMA,
     EMBEDDING_PROVIDER_OPENAI,
+    EVENT_VECTOR_DB_QUERIED,
 )
 from ..exceptions import ContextInjectionError, EmbeddingTimeoutError
 from .base import ContextProvider
@@ -368,6 +369,17 @@ class VectorDBContextProvider(ContextProvider):
                                 "distance": distances[i] if i < len(distances) else 0,
                             }
                         )
+
+            # Fire event for vector DB query
+            self.hass.bus.async_fire(
+                EVENT_VECTOR_DB_QUERIED,
+                {
+                    "collection": self.collection_name,
+                    "results_count": len(parsed_results),
+                    "top_k": top_k,
+                    "entity_ids": [r["entity_id"] for r in parsed_results],
+                },
+            )
 
             return parsed_results
 

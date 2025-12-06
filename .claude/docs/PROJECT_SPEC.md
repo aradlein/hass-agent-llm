@@ -10,8 +10,8 @@
 
 ## Development Progress & Roadmap
 
-**Last Updated:** 2025-11-24
-**Current Version:** v0.6.4-beta
+**Last Updated:** 2025-12-05
+**Current Version:** v0.8.3
 **Current Phase:** Phase 7 (HACS Submission Preparation)
 
 ### Completed Phases ✅
@@ -293,40 +293,56 @@ This project creates a Home Assistant custom component that integrates with Home
 
 ```
 custom_components/home_agent/
-├── __init__.py              # Component initialization and setup
+├── __init__.py              # Component initialization, setup, and service registration
 ├── manifest.json            # Component metadata and dependencies
 ├── config_flow.py           # Configuration UI implementation
 ├── const.py                 # Constants and default configurations
 ├── exceptions.py            # Custom exception definitions
-├── agent.py                 # Main conversation agent (HA LLM API integration)
+├── agent/                   # Main conversation agent (modularized)
+│   ├── __init__.py         # Agent module exports
+│   ├── core.py             # Core conversation logic and orchestration
+│   ├── llm.py              # LLM API communication
+│   ├── streaming.py        # Streaming response handling
+│   └── memory_extraction.py # Automatic memory extraction from conversations
 ├── conversation.py          # Conversation history management
+├── conversation_session.py  # Persistent voice conversation sessions
 ├── context_manager.py       # Context injection and formatting
+├── context_optimizer.py     # Token budget optimization for context
 ├── tool_handler.py          # Tool call execution and registration
-├── services.py              # Service registration and handlers
 ├── services.yaml            # Service schema definitions
-├── helpers.py               # Utility functions
+├── helpers.py               # Utility functions and health checks
 ├── strings.json             # UI text and localization
+├── streaming.py             # Streaming utilities
+├── memory_manager.py        # Long-term memory storage and retrieval
+├── vector_db_manager.py     # Vector database management and indexing
 ├── context_providers/       # Context injection strategies
 │   ├── __init__.py
 │   ├── base.py             # Base context provider interface
 │   ├── direct.py           # Direct entity/attribute injection
-│   └── vector_db.py        # Vector DB (Chroma) integration
+│   ├── vector_db.py        # Vector DB (Chroma) integration
+│   └── memory.py           # Memory context provider
 ├── tools/                   # Tool definitions and executors
 │   ├── __init__.py
 │   ├── registry.py         # Tool registration and management
 │   ├── ha_control.py       # Home Assistant control tool
 │   ├── ha_query.py         # Home Assistant state query tool
+│   ├── external_llm.py     # External LLM delegation tool
+│   ├── memory_tools.py     # Store/recall memory tools
 │   └── custom.py           # User-defined custom tools
+├── memory/                  # Memory quality subsystem
+│   ├── __init__.py
+│   └── validator.py        # Memory quality filtering
 └── translations/            # Multi-language support
     └── en.json
 ```
 
 ### 2.2 Key Components
 
-#### Conversation Agent (`agent.py`)
+#### Conversation Agent (`agent/`)
 - Implements Home Assistant's `ConversationEntity` interface
 - Integrates with HA's native LLM API (`llm` platform)
 - Orchestrates context injection, history, and tool calling
+- Modularized into core, llm, streaming, and memory_extraction modules
 - Communicates with OpenAI-compatible LLM endpoints
 - Manages dual LLM strategy (primary + optional comprehensive)
 - Fires events for automation triggers and monitoring
@@ -771,6 +787,18 @@ Now respond to the user's request:
 - **Max Tool Calls:** Limit per conversation turn
 - **Tool Timeout:** Execution timeout per tool
 
+#### Session Persistence (Voice Assistants)
+- **Enable Session Persistence:** Toggle persistent voice conversations
+- **Session Timeout:** Time before session expires (default: 60 minutes)
+- Enables multi-turn conversations from voice assistants
+- Sessions mapped by device_id (preferred) or user_id
+- Automatic session cleanup for expired conversations
+
+#### Streaming Configuration (Phase 4)
+- **Enable Streaming:** Toggle streaming responses
+- Provides real-time response delivery
+- Tool progress events during execution
+
 #### External LLM Tool (Optional - Phase 3)
 - **Enable:** Toggle to expose `query_external_llm` tool to primary LLM
 - **Base URL:** External LLM endpoint (OpenAI-compatible)
@@ -807,6 +835,61 @@ Now respond to the user's request:
 - **Parameters:**
   - `tool_name`: Tool to execute
   - `parameters`: Tool parameters (JSON)
+
+#### `home_agent.clear_conversation`
+- Clear voice assistant conversation session for a user/device
+- **Parameters:**
+  - `user_id`: User ID to clear session for (optional)
+  - `device_id`: Device ID to clear session for (optional)
+  - If neither provided, clears all sessions
+
+#### Vector DB Services (Phase 2)
+
+#### `home_agent.reindex_entities`
+- Force reindex of all entities into the vector database
+- **Parameters:** None
+- **Returns:** Statistics about indexed entities
+
+#### `home_agent.index_entity`
+- Index a specific entity into the vector database
+- **Parameters:**
+  - `entity_id`: Entity to index
+
+#### Memory Services (Phase 3.5)
+
+#### `home_agent.list_memories`
+- List all stored memories
+- **Parameters:**
+  - `memory_type`: Filter by type (optional)
+  - `limit`: Maximum memories to return (optional)
+- **Returns:** List of memories with metadata
+
+#### `home_agent.search_memories`
+- Search memories by semantic similarity
+- **Parameters:**
+  - `query`: Search query
+  - `limit`: Maximum results (default: 10)
+  - `min_importance`: Minimum importance threshold
+- **Returns:** Matching memories with relevance scores
+
+#### `home_agent.add_memory`
+- Manually add a memory
+- **Parameters:**
+  - `content`: Memory content
+  - `type`: Memory type (fact, preference, context, event)
+  - `importance`: Importance score (0.0-1.0)
+- **Returns:** Memory ID
+
+#### `home_agent.delete_memory`
+- Delete a specific memory
+- **Parameters:**
+  - `memory_id`: Memory to delete
+
+#### `home_agent.clear_memories`
+- Clear all memories (requires confirmation)
+- **Parameters:**
+  - `confirm`: Must be true to proceed
+- **Returns:** Count of deleted memories
 
 ---
 
@@ -861,74 +944,122 @@ Now respond to the user's request:
   - `component`: Component where error occurred
   - `context`: Additional debug information
 
+#### `home_agent.context.optimized`
+- Triggered when context is optimized to fit token budget
+- **Data:**
+  - `conversation_id`: Conversation identifier
+  - `original_tokens`: Token count before optimization
+  - `optimized_tokens`: Token count after optimization
+  - `entities_removed`: Number of entities removed
+
+#### `home_agent.history.saved`
+- Triggered when conversation history is persisted
+- **Data:**
+  - `conversation_id`: Conversation identifier
+  - `message_count`: Number of messages saved
+  - `storage_key`: Storage location identifier
+
+#### `home_agent.vector_db.queried`
+- Triggered when vector database is queried for context
+- **Data:**
+  - `collection`: Collection name queried
+  - `results_count`: Number of results returned
+  - `top_k`: Maximum results requested
+  - `entity_ids`: List of entity IDs returned
+
+#### `home_agent.memory.extracted`
+- Triggered when memories are extracted from conversation
+- **Data:**
+  - `conversation_id`: Conversation identifier
+  - `memories_extracted`: Number of memories extracted
+  - `memory_types`: Dict of memory types and counts
+
+#### `home_agent.streaming.error`
+- Triggered when streaming response encounters an error
+- **Data:**
+  - `conversation_id`: Conversation identifier
+  - `error_type`: Exception class name
+  - `error_message`: Error description
+
+#### `home_agent.tool.progress`
+- Triggered during tool execution for progress updates
+- **Data:**
+  - `conversation_id`: Conversation identifier
+  - `tool_name`: Tool being executed
+  - `status`: Progress status (started, completed, error)
+  - `message`: Progress message
+
 ---
 
 ## 5. Security & Permissions
 
-### 5.1 Entity Access Control
+### 5.1 Entity Access Control (Implemented)
 - Entity exposure via voice assistant configuration
 - Explicit entity whitelisting per config entry
-- Domain-level restrictions
-- Service execution permissions
+- Domain-level restrictions via HA exposed entities
+- Service execution permissions through entity exposure
 
-### 5.2 Function Permissions
-- Per-function enable/disable
-- Service call restrictions
-- External API domain whitelisting
-- SQL query validation
+### 5.2 Tool Permissions (Implemented)
+- Per-tool enable/disable via configuration
+- Service call restrictions through exposed entities
+- Max tool calls per turn limit
 
-### 5.3 Rate Limiting (New)
-- Per-user conversation limits
-- Function execution throttling
-- API call rate limiting
-- Token usage quotas
+### 5.3 Rate Limiting
+- Max tool calls per conversation turn
+- Tool execution timeout
 
-### 5.4 Audit Logging (New)
-- Function execution logs
-- Service call tracking
-- User activity monitoring
-- Security event logging
+### 5.4 Audit Logging (Via Events)
+- Tool execution events (`home_agent.tool.executed`)
+- Conversation tracking events (`home_agent.conversation.started/finished`)
+- Error events (`home_agent.error`)
 
 ---
 
 ## 6. Error Handling
 
 ### 6.1 Exception Types
-- `FunctionNotFound` - Requested function doesn't exist
-- `FunctionExecutionError` - Function failed during execution
+- `HomeAgentError` - Base exception for all errors
+- `ToolExecutionError` - Tool failed during execution
 - `AuthenticationError` - LLM provider auth failure
 - `TokenLimitExceeded` - Context too large
 - `RateLimitExceeded` - API rate limit hit
-- `PermissionDenied` - Insufficient permissions
+- `PermissionDenied` - Entity not accessible
 - `ValidationError` - Invalid configuration/parameters
+- `ContextInjectionError` - Context injection failure
+- `EmbeddingTimeoutError` - Embedding generation timeout
+- `EntityNotFoundError` - Entity does not exist
+- `ServiceUnavailableError` - External service unavailable
 
-### 6.2 Error Recovery
+### 6.2 Error Recovery (Implemented)
+- Graceful degradation for Vector DB (falls back to Direct mode)
+- Transparent error reporting to LLM for tool failures
+- Context optimization when token limits approached
+- Session cleanup for expired conversations
+
+### 6.3 Error Recovery (Planned)
 - Automatic retry with exponential backoff
-- Fallback to alternative providers
-- Graceful degradation (disable functions on repeated failures)
-- User notification system
+- Circuit breaker for repeated failures
 
 ---
 
 ## 7. Performance Optimization
 
-### 7.1 Caching
-- Template rendering results
-- Entity state snapshots
-- Function execution results (configurable TTL)
-- LLM response caching (for identical prompts)
+### 7.1 Caching (Implemented)
+- Embedding cache for vector DB queries
+- Entity state caching during conversation
+- Session data persistence
 
-### 7.2 Async Operations
-- Non-blocking function execution
-- Parallel function calls where possible
+### 7.2 Async Operations (Implemented)
+- Non-blocking tool execution
 - Streaming response handling
-- Background task processing
+- Background cleanup tasks
+- Async vector DB operations
 
-### 7.3 Resource Management
-- Connection pooling for REST clients
-- Token usage monitoring
-- Memory-efficient conversation storage
-- Cleanup of old conversation histories
+### 7.3 Resource Management (Implemented)
+- Memory-efficient conversation storage with max messages limit
+- Scheduled cleanup of old conversation histories
+- Token budget optimization for context
+- HTTP session management for LLM calls
 
 ---
 
@@ -1335,16 +1466,13 @@ This phase focuses on making the integration reliable and resource-efficient for
 
 #### Explicitly Excluded (Not Applicable for Home Assistant Context)
 
-The following features were removed as they are designed for enterprise cloud-scale systems and add unnecessary complexity for a single-instance Home Assistant integration:
+The following features are designed for enterprise cloud-scale systems and add unnecessary complexity for a single-instance Home Assistant integration:
 
 - ❌ **LLM Response Caching** - Local LLM usage means no API costs; dynamic home automation context results in <5% cache hit rate
 - ❌ **Entity State Caching** - Vector DB mode already limits to ~10 entities; overhead exceeds benefit
 - ❌ **ChromaDB Query Caching** - Low hit rate due to varied queries; complex invalidation logic not justified
-- ❌ **Per-User Rate Limiting/Quotas** - Household usage (1-10 users) doesn't require per-user limits; tool call limits already implemented
-- ❌ **Token Usage Quotas** - No cost with local LLM (Ollama); external LLM usage is rare and optional
 - ❌ **Enterprise Performance Metrics** - P50/P95/P99 latency percentiles, load testing, stress testing not relevant for single-instance
 - ❌ **Circuit Breaker Patterns** - Overkill for home automation; simple retry logic sufficient
-- ❌ **Provider Failover** - Complex configuration for minimal benefit; users can manually switch providers
 - ❌ **Automated Performance Testing** - CI/CD complexity not justified; Home Assistant logs provide sufficient visibility
 
 #### Optional Enhancements (Post-v1.0.0)
