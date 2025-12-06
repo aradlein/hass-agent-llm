@@ -1,0 +1,85 @@
+name: Sync Issues to Private Repo
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+
+jobs:
+  sync-issue:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Sync issue to private repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          PUBLIC_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PUBLIC_ISSUE_TITLE: ${{ github.event.issue.title }}
+          PUBLIC_ISSUE_URL: ${{ github.event.issue.html_url }}
+          PUBLIC_REPO: ${{ github.repository }}
+          PRIVATE_REPO: aradlein/home-agent
+        run: |
+          # Escape quotes and newlines in issue body for JSON
+          ISSUE_BODY=$(cat <<'EOF' | jq -Rs .
+          ${{ github.event.issue.body }}
+          EOF
+          )
+
+          # Create issue body with link to original
+          SYNCED_BODY=$(cat <<EOF | jq -Rs .
+          > **Note**: This issue was automatically synced from the public repository.
+          > Original issue: ${PUBLIC_ISSUE_URL}
+
+          ---
+
+          $(echo ${ISSUE_BODY} | jq -r .)
+          EOF
+          )
+
+          # Get labels from the original issue
+          LABELS=$(echo '${{ toJson(github.event.issue.labels) }}' | jq -r '[.[].name] + ["synced-from-public"] | join(",")')
+
+          # Check if issue already exists in private repo by searching for the tracking comment
+          EXISTING_ISSUE=$(gh issue list \
+            --repo "${PRIVATE_REPO}" \
+            --search "synced from #${PUBLIC_ISSUE_NUMBER} in:body" \
+            --state all \
+            --json number,title \
+            --jq '.[0].number // empty')
+
+          if [ -z "$EXISTING_ISSUE" ]; then
+            # Create new issue in private repo
+            echo "Creating new issue in private repo..."
+            gh issue create \
+              --repo "${PRIVATE_REPO}" \
+              --title "${PUBLIC_ISSUE_TITLE}" \
+              --body "$(echo ${SYNCED_BODY} | jq -r .)" \
+              --label "${LABELS}"
+
+            echo "Issue created successfully"
+          else
+            # Update existing issue
+            echo "Updating existing issue #${EXISTING_ISSUE} in private repo..."
+            gh issue edit "${EXISTING_ISSUE}" \
+              --repo "${PRIVATE_REPO}" \
+              --title "${PUBLIC_ISSUE_TITLE}" \
+              --body "$(echo ${SYNCED_BODY} | jq -r .)"
+
+            # Update labels (gh doesn't have a direct replace labels command, so we add them)
+            IFS=',' read -ra LABEL_ARRAY <<< "$LABELS"
+            for label in "${LABEL_ARRAY[@]}"; do
+              gh issue edit "${EXISTING_ISSUE}" \
+                --repo "${PRIVATE_REPO}" \
+                --add-label "$label" || true
+            done
+
+            echo "Issue updated successfully"
+          fi
+
+      - name: Comment on public issue
+        if: github.event.action == 'opened'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} \
+            --body "This issue has been synced to the private development repository for tracking."

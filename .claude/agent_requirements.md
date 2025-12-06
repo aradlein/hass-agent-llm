@@ -15,6 +15,43 @@ This is a dev container environment with **two separate projects**:
    - **NEVER modify files directly in this directory**
    - The home-agent integration is symlinked into `core/custom_components/` for testing
 
+## Repository Workflow: Public & Private
+
+This project uses a **dual-repository workflow**:
+
+### Private Development Repository
+- **Repo**: `aradlein/home-agent` (this repository)
+- **Purpose**: Private development environment
+- **Workflow**:
+  - All active development happens here
+  - Commit frequently with detailed history
+  - Full access to modify, commit, and push
+  - Issues from public repo are automatically synced here
+
+### Public Repository
+- **Repo**: `aradlein/hass-agent-llm`
+- **Purpose**: Public-facing open source repository
+- **Workflow**:
+  - Community submits issues and pull requests here
+  - Issues are automatically synced to private repo via GitHub Actions
+  - When ready to publish, commits are squashed and summarized before pushing
+  - Clean, curated commit history for public consumption
+
+### Issue Management
+- **Public → Private Sync**: Automated one-way sync via GitHub Actions
+  - When an issue is created/updated in `hass-agent-llm`, it's automatically replicated to `home-agent`
+  - Synced issues have label `synced-from-public` and link to original issue
+  - Setup guide: [docs/ISSUE_SYNC_SETUP.md](../docs/ISSUE_SYNC_SETUP.md)
+- **Working on Issues**: Always work on issues in the private repo (`home-agent`)
+- **Closing Issues**: Close in private repo; manually close in public when changes are published
+
+### Publishing Workflow
+1. Develop features/fixes in private repo with detailed commits
+2. Test thoroughly in development environment
+3. Squash commits and write clean, concise commit messages
+4. Push curated commits to public repo (`hass-agent-llm`)
+5. Update public issues/PRs as needed
+
 ## Permissions and Restrictions
 
 ### ✅ ALLOWED - Home-Agent Repository
