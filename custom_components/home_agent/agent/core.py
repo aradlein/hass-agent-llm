@@ -151,6 +151,7 @@ from ..exceptions import (
 )
 from ..context_manager import ContextManager
 from ..conversation import ConversationHistoryManager
+from ..helpers import strip_thinking_blocks
 from ..tool_handler import ToolHandler
 from ..tools import HomeAssistantControlTool, HomeAssistantQueryTool
 from ..tools.custom import CustomToolHandler
@@ -224,8 +225,24 @@ class HomeAgent(
 
     @property
     def supported_languages(self) -> list[str]:
-        """Return list of supported languages."""
-        return ["en"]
+        """Return list of supported languages.
+
+        Returns the top 10 most popular languages used with Home Assistant:
+        - en (English)
+        - de (German)
+        - es (Spanish)
+        - fr (French)
+        - nl (Dutch)
+        - it (Italian)
+        - pl (Polish)
+        - pt (Portuguese)
+        - ru (Russian)
+        - zh (Chinese)
+
+        The agent preserves the language throughout the conversation pipeline,
+        using it in ConversationInput and IntentResponse objects.
+        """
+        return ["en", "de", "es", "fr", "nl", "it", "pl", "pt", "ru", "zh"]
 
     @property
     def memory_manager(self) -> Any:
@@ -911,13 +928,26 @@ class HomeAgent(
         class ToolHandlerAPIInstance:
             """Adapter to make tool_handler compatible with llm.APIInstance interface."""
 
-            def __init__(self, tool_handler, metrics, conv_id):
+            def __init__(self, tool_handler, metrics, conv_id, max_calls_per_turn):
                 self.tool_handler = tool_handler
                 self.metrics = metrics
                 self.conversation_id = conv_id
+                self.max_calls_per_turn = max_calls_per_turn
+                self.calls_this_turn = 0
 
             async def async_call_tool(self, tool_input: llm.ToolInput) -> dict:
                 """Execute tool via tool_handler."""
+                # Enforce max calls per turn limit
+                if self.calls_this_turn >= self.max_calls_per_turn:
+                    error_msg = (
+                        f"Tool call limit reached ({self.max_calls_per_turn} calls per turn). "
+                        f"Skipping tool '{tool_input.tool_name}'."
+                    )
+                    _LOGGER.warning(error_msg)
+                    return {"error": error_msg}
+
+                self.calls_this_turn += 1
+
                 try:
                     result = await self.tool_handler.execute_tool(
                         tool_input.tool_name, tool_input.tool_args, self.conversation_id
@@ -936,8 +966,15 @@ class HomeAgent(
             "tool_calls": 0,
         }
 
+        # Get max calls per turn for enforcement
+        max_calls_per_turn = self.config.get(
+            CONF_TOOLS_MAX_CALLS_PER_TURN, DEFAULT_TOOLS_MAX_CALLS_PER_TURN
+        )
+
         # Set the llm_api so ChatLog can execute tools
-        chat_log.llm_api = ToolHandlerAPIInstance(self.tool_handler, metrics, conversation_id)
+        chat_log.llm_api = ToolHandlerAPIInstance(
+            self.tool_handler, metrics, conversation_id, max_calls_per_turn
+        )
 
         # Track start time for metrics
         start_time = time.time()
@@ -995,6 +1032,7 @@ class HomeAgent(
             entry_id = "home_agent"
 
         for iteration in range(max_iterations):
+            _LOGGER.debug("Starting streaming iteration %d/%d", iteration + 1, max_iterations)
             # Call LLM with streaming
             llm_start = time.time()
             stream = self._call_llm_streaming(messages)
@@ -1014,6 +1052,22 @@ class HomeAgent(
             ):
                 new_content.append(content)
 
+            _LOGGER.debug("Iteration %d: Received %d content items from stream", iteration + 1, len(new_content))
+            for idx, content_item in enumerate(new_content):
+                _LOGGER.debug("Iteration %d: Content item %d type: %s", iteration + 1, idx, type(content_item).__name__)
+                if isinstance(content_item, conversation.AssistantContent):
+                    has_tool_calls = bool(content_item.tool_calls)
+                    num_tool_calls = len(content_item.tool_calls) if content_item.tool_calls else 0
+                    _LOGGER.debug("Iteration %d: AssistantContent[%d] has_tool_calls=%s, num_tool_calls=%d",
+                                  iteration + 1, idx, has_tool_calls, num_tool_calls)
+                    if content_item.tool_calls:
+                        for tc_idx, tc in enumerate(content_item.tool_calls):
+                            _LOGGER.debug("Iteration %d: AssistantContent[%d] tool_call[%d]: id=%s, tool_name=%s",
+                                          iteration + 1, idx, tc_idx, tc.id, tc.tool_name)
+                elif isinstance(content_item, conversation.ToolResultContent):
+                    _LOGGER.debug("Iteration %d: ToolResultContent[%d] tool_call_id=%s, tool_name=%s",
+                                  iteration + 1, idx, content_item.tool_call_id, content_item.tool_name)
+
             # Track LLM latency
             llm_latency = int((time.time() - llm_start) * 1000)
             metrics["performance"]["llm_latency_ms"] += llm_latency
@@ -1031,33 +1085,30 @@ class HomeAgent(
             # Convert new content back to messages for next iteration
             for content_item in new_content:
                 if isinstance(content_item, conversation.AssistantContent):
+                    # Build a single message with both content and tool_calls
+                    msg = {"role": "assistant"}
+
                     if content_item.content:
-                        messages.append(
-                            {
-                                "role": "assistant",
-                                "content": content_item.content,
-                            }
-                        )
+                        msg["content"] = content_item.content
+
                     if content_item.tool_calls:
                         # Track tool calls
                         metrics["tool_calls"] += len(content_item.tool_calls)
 
-                        # Add tool calls to messages
-                        tool_calls_msg = {
-                            "role": "assistant",
-                            "tool_calls": [
-                                {
-                                    "id": tc.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": tc.tool_name,
-                                        "arguments": json.dumps(tc.tool_args),
-                                    },
-                                }
-                                for tc in content_item.tool_calls
-                            ],
-                        }
-                        messages.append(tool_calls_msg)
+                        # Add tool calls to message
+                        msg["tool_calls"] = [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.tool_name,
+                                    "arguments": json.dumps(tc.tool_args),
+                                },
+                            }
+                            for tc in content_item.tool_calls
+                        ]
+
+                    messages.append(msg)
 
                 elif isinstance(content_item, conversation.ToolResultContent):
                     messages.append(
@@ -1069,9 +1120,47 @@ class HomeAgent(
                         }
                     )
 
-            # Check if we need another iteration (are there unresponded tool results?)
-            if not chat_log.unresponded_tool_results:
+            # Check if we need another iteration using two conditions:
+            # 1. Check the LAST AssistantContent (not any) - because HA may yield multiple
+            #    AssistantContent items in one iteration (one with tool_calls, then one
+            #    with the final response after tool execution)
+            # 2. Also check chat_log.unresponded_tool_results as a fallback signal from HA
+            last_assistant_content = None
+            for content_item in reversed(new_content):
+                if isinstance(content_item, conversation.AssistantContent):
+                    last_assistant_content = content_item
+                    break
+
+            _LOGGER.debug("Iteration %d: Checking loop continuation conditions", iteration + 1)
+            _LOGGER.debug("Iteration %d: last_assistant_content is None: %s", iteration + 1, last_assistant_content is None)
+            if last_assistant_content is not None:
+                has_tool_calls = bool(last_assistant_content.tool_calls)
+                num_tool_calls = len(last_assistant_content.tool_calls) if last_assistant_content.tool_calls else 0
+                _LOGGER.debug("Iteration %d: last_assistant_content.tool_calls: %s (count: %d)",
+                              iteration + 1, has_tool_calls, num_tool_calls)
+                if last_assistant_content.tool_calls:
+                    for tc_idx, tc in enumerate(last_assistant_content.tool_calls):
+                        _LOGGER.debug("Iteration %d: last_assistant_content tool_call[%d]: id=%s, tool_name=%s",
+                                      iteration + 1, tc_idx, tc.id, tc.tool_name)
+            _LOGGER.debug("Iteration %d: chat_log.unresponded_tool_results: %s", iteration + 1, chat_log.unresponded_tool_results)
+
+            # Break if: no content, OR last AssistantContent has no tool_calls,
+            # OR HA signals no unresponded tool results
+            if (
+                last_assistant_content is None
+                or not last_assistant_content.tool_calls
+                or not chat_log.unresponded_tool_results
+            ):
+                _LOGGER.debug("Iteration %d: BREAKING loop - Reason: last_assistant_content is None=%s, "
+                              "last_assistant_content.tool_calls empty=%s, unresponded_tool_results empty=%s",
+                              iteration + 1,
+                              last_assistant_content is None,
+                              not last_assistant_content.tool_calls if last_assistant_content else "N/A",
+                              not chat_log.unresponded_tool_results)
                 break
+            else:
+                _LOGGER.debug("Iteration %d: CONTINUING loop - last_assistant_content has tool_calls AND "
+                              "chat_log has unresponded_tool_results", iteration + 1)
 
         # Save to conversation history if enabled
         if self.config.get(CONF_HISTORY_ENABLED, True):
@@ -1290,7 +1379,9 @@ class HomeAgent(
 
             if not tool_calls:
                 # No tool calls, we're done
-                final_content = response_message.get("content") or ""
+                # Strip thinking blocks from reasoning models before returning
+                raw_content = response_message.get("content") or ""
+                final_content = strip_thinking_blocks(raw_content) or ""
 
                 # Log if we got an empty response
                 if not final_content:

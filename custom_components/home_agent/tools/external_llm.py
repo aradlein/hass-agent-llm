@@ -33,6 +33,7 @@ from ..const import (
     TOOL_QUERY_EXTERNAL_LLM,
 )
 from ..exceptions import ToolExecutionError, ValidationError
+from ..helpers import is_ollama_backend
 from .registry import BaseTool
 
 if TYPE_CHECKING:
@@ -315,7 +316,7 @@ class ExternalLLMTool(BaseTool):
             "Authorization": f"Bearer {api_key}",
         }
 
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": [
                 {
@@ -325,10 +326,14 @@ class ExternalLLMTool(BaseTool):
             ],
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "keep_alive": self._config.get(
-                CONF_EXTERNAL_LLM_KEEP_ALIVE, DEFAULT_EXTERNAL_LLM_KEEP_ALIVE
-            ),
         }
+
+        # Only include keep_alive for Ollama backends (not supported by OpenAI, etc.)
+        # See: https://github.com/aradlein/home-agent/issues/65
+        if is_ollama_backend(base_url):
+            payload["keep_alive"] = self._config.get(
+                CONF_EXTERNAL_LLM_KEEP_ALIVE, DEFAULT_EXTERNAL_LLM_KEEP_ALIVE
+            )
 
         _LOGGER.debug(
             "Calling external LLM at %s with model %s",

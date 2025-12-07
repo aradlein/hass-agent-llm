@@ -206,6 +206,7 @@ from ..const import (
     DEFAULT_MEMORY_MIN_WORDS,
     EVENT_MEMORY_EXTRACTED,
 )
+from ..helpers import strip_thinking_blocks
 from ..memory.validator import MemoryValidator
 
 if TYPE_CHECKING:
@@ -478,8 +479,10 @@ Return ONLY valid JSON, no other text:
             Number of memories stored
         """
         try:
-            # Clean up the result - extract JSON if wrapped in markdown
-            result = extraction_result.strip()
+            # Clean up the result - first strip thinking blocks from reasoning models
+            result = strip_thinking_blocks(extraction_result) or ""
+
+            # Then extract JSON if wrapped in markdown
             if "```json" in result:
                 # Extract JSON from markdown code block
                 start = result.find("```json") + 7

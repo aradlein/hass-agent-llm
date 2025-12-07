@@ -4,6 +4,7 @@ These tests verify that the MemoryManager correctly stores, retrieves, and
 searches memories using real ChromaDB and real LLM for extraction.
 """
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,6 +29,26 @@ from custom_components.home_agent.memory_manager import (
 from custom_components.home_agent.vector_db_manager import VectorDBManager
 
 
+@contextmanager
+def maybe_mock_chromadb(is_using_mock: bool, mock_client):
+    """Context manager that patches ChromaDB when using mock."""
+    if is_using_mock and mock_client:
+        with patch("chromadb.HttpClient", return_value=mock_client):
+            yield mock_client
+    else:
+        yield None
+
+
+@contextmanager
+def maybe_mock_embedding(is_using_mock: bool, mock_server):
+    """Context manager that patches embedding API when using mock."""
+    if is_using_mock and mock_server:
+        with mock_server.patch_aiohttp():
+            yield
+    else:
+        yield
+
+
 @pytest.mark.integration
 @pytest.mark.requires_chromadb
 @pytest.mark.requires_embedding
@@ -37,6 +58,10 @@ async def test_memory_extraction_flow(
     chromadb_config,
     embedding_config,
     memory_collection_name,
+    is_using_mock_chromadb,
+    mock_chromadb_client,
+    is_using_mock_embedding,
+    mock_embedding_server,
 ):
     """Test extracting memories from conversation.
 
@@ -60,6 +85,8 @@ async def test_memory_extraction_flow(
     with patch(
         "custom_components.home_agent.vector_db_manager.async_should_expose",
         return_value=False,
+    ), maybe_mock_chromadb(is_using_mock_chromadb, mock_chromadb_client), maybe_mock_embedding(
+        is_using_mock_embedding, mock_embedding_server
     ):
         test_hass.states.async_all = MagicMock(return_value=[])
 
@@ -160,6 +187,10 @@ async def test_memory_recall(
     chromadb_config,
     embedding_config,
     memory_collection_name,
+    is_using_mock_chromadb,
+    mock_chromadb_client,
+    is_using_mock_embedding,
+    mock_embedding_server,
 ):
     """Test searching and retrieving memories.
 
@@ -182,6 +213,8 @@ async def test_memory_recall(
     with patch(
         "custom_components.home_agent.vector_db_manager.async_should_expose",
         return_value=False,
+    ), maybe_mock_chromadb(is_using_mock_chromadb, mock_chromadb_client), maybe_mock_embedding(
+        is_using_mock_embedding, mock_embedding_server
     ):
         test_hass.states.async_all = MagicMock(return_value=[])
 
@@ -297,6 +330,10 @@ async def test_memory_semantic_search(
     chromadb_config,
     embedding_config,
     memory_collection_name,
+    is_using_mock_chromadb,
+    mock_chromadb_client,
+    is_using_mock_embedding,
+    mock_embedding_server,
 ):
     """Test vector similarity search for memories.
 
@@ -319,6 +356,8 @@ async def test_memory_semantic_search(
     with patch(
         "custom_components.home_agent.vector_db_manager.async_should_expose",
         return_value=False,
+    ), maybe_mock_chromadb(is_using_mock_chromadb, mock_chromadb_client), maybe_mock_embedding(
+        is_using_mock_embedding, mock_embedding_server
     ):
         test_hass.states.async_all = MagicMock(return_value=[])
 
@@ -376,12 +415,14 @@ async def test_memory_semantic_search(
             assert isinstance(
                 fitness_results, list
             ), f"Fitness results should be a list, got {type(fitness_results)}"
-            # Top result should be about exercise
-            top_result = fitness_results[0]
-            assert (
-                "exercise" in top_result["content"].lower()
-                or "6 am" in top_result["content"].lower()
-            )
+
+            # Top result should be about exercise (only with real embeddings)
+            if not is_using_mock_embedding:
+                top_result = fitness_results[0]
+                assert (
+                    "exercise" in top_result["content"].lower()
+                    or "6 am" in top_result["content"].lower()
+                )
 
             # Query about books (should match reading memory)
             book_results = await memory_manager.search_memories(
@@ -433,6 +474,10 @@ async def test_memory_lifecycle(
     chromadb_config,
     embedding_config,
     memory_collection_name,
+    is_using_mock_chromadb,
+    mock_chromadb_client,
+    is_using_mock_embedding,
+    mock_embedding_server,
 ):
     """Test complete memory lifecycle: add, update, access, delete.
 
@@ -455,6 +500,8 @@ async def test_memory_lifecycle(
     with patch(
         "custom_components.home_agent.vector_db_manager.async_should_expose",
         return_value=False,
+    ), maybe_mock_chromadb(is_using_mock_chromadb, mock_chromadb_client), maybe_mock_embedding(
+        is_using_mock_embedding, mock_embedding_server
     ):
         test_hass.states.async_all = MagicMock(return_value=[])
 
@@ -534,6 +581,10 @@ async def test_memory_type_filtering(
     chromadb_config,
     embedding_config,
     memory_collection_name,
+    is_using_mock_chromadb,
+    mock_chromadb_client,
+    is_using_mock_embedding,
+    mock_embedding_server,
 ):
     """Test filtering memories by type.
 
@@ -555,6 +606,8 @@ async def test_memory_type_filtering(
     with patch(
         "custom_components.home_agent.vector_db_manager.async_should_expose",
         return_value=False,
+    ), maybe_mock_chromadb(is_using_mock_chromadb, mock_chromadb_client), maybe_mock_embedding(
+        is_using_mock_embedding, mock_embedding_server
     ):
         test_hass.states.async_all = MagicMock(return_value=[])
 

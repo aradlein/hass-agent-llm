@@ -23,6 +23,46 @@ _LOGGER = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+# Pre-compiled regex pattern for stripping thinking blocks from reasoning models
+# Matches <think>...</think> blocks including newlines (DOTALL flag)
+_THINKING_BLOCK_PATTERN = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+def strip_thinking_blocks(text: str | None) -> str | None:
+    """Remove <think>...</think> blocks from reasoning model output.
+
+    Reasoning models (Qwen3, DeepSeek R1, o1/o3, etc.) output their reasoning
+    process in <think>...</think> blocks. These should be filtered out before:
+    - Displaying responses to users
+    - Parsing JSON content (to avoid corruption)
+    - Storing in conversation history
+
+    Args:
+        text: The text that may contain thinking blocks
+
+    Returns:
+        Text with thinking blocks removed and stripped of leading/trailing
+        whitespace. Returns None if input is None.
+
+    Examples:
+        >>> strip_thinking_blocks("<think>Let me think...</think>Hello!")
+        'Hello!'
+        >>> strip_thinking_blocks("Answer<think>reasoning</think>here")
+        'Answerhere'
+        >>> strip_thinking_blocks(None)
+        None
+    """
+    if text is None:
+        return None
+    if not text:
+        return ""
+
+    # Remove all <think>...</think> blocks
+    result = _THINKING_BLOCK_PATTERN.sub("", text)
+
+    # Strip leading/trailing whitespace
+    return result.strip()
+
 
 async def retry_async(
     func: Callable[[], Any],
@@ -477,6 +517,50 @@ async def check_chromadb_health(host: str, port: int, timeout: int = 5) -> tuple
 
     except Exception as err:
         return False, f"ChromaDB health check error: {err}"
+
+
+def is_ollama_backend(base_url: str) -> bool:
+    """Check if the LLM base URL points to an Ollama server.
+
+    Detects Ollama backends by checking for:
+    1. Standard Ollama port (11434)
+    2. 'ollama' in the URL path or hostname
+
+    This is used to conditionally include Ollama-specific parameters like
+    'keep_alive' which are not supported by other OpenAI-compatible APIs.
+
+    Args:
+        base_url: The LLM API base URL to check
+
+    Returns:
+        True if the URL appears to be an Ollama server, False otherwise
+
+    Example:
+        >>> is_ollama_backend("http://localhost:11434/v1")
+        True
+        >>> is_ollama_backend("https://api.openai.com/v1")
+        False
+        >>> is_ollama_backend("http://my-proxy.com/ollama/v1")
+        True
+    """
+    if not base_url:
+        return False
+
+    # Normalize to lowercase for comparison
+    url_lower = base_url.lower()
+
+    # Check for standard Ollama port (11434)
+    if ":11434" in url_lower:
+        return True
+
+    # Check for 'ollama' in the URL (hostname or path)
+    # This handles cases like:
+    # - http://ollama:8080/v1
+    # - https://my-proxy.com/ollama/v1
+    if "/ollama" in url_lower or "://ollama" in url_lower or "://ollama." in url_lower:
+        return True
+
+    return False
 
 
 async def check_ollama_health(base_url: str, timeout: int = 5) -> tuple[bool, str]:

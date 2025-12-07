@@ -38,10 +38,9 @@ from custom_components.home_agent.const import (
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
 async def test_context_mode_switching_direct(
-    test_hass, llm_config, sample_entity_states, session_manager
+    test_hass_with_default_entities, llm_config, session_manager
 ):
     """Test switching to direct context mode.
 
@@ -68,70 +67,53 @@ async def test_context_mode_switching_direct(
         CONF_DEBUG_LOGGING: False,
     }
 
-    with patch(
-        "custom_components.home_agent.agent.core.async_should_expose",
-        return_value=False,
-    ):
-        # Setup test states
-        test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
+    agent = HomeAgent(test_hass_with_default_entities, config, session_manager)
 
-        def mock_get_state(entity_id):
-            for state in sample_entity_states:
-                if state.entity_id == entity_id:
-                    return state
-            return None
+    # Verify context manager is using direct mode
+    assert agent.context_manager is not None, "Context manager should be initialized"
+    assert hasattr(
+        agent.context_manager, "_get_mode_from_config"
+    ), "Context manager should have _get_mode_from_config method"
+    context_mode = agent.context_manager._get_mode_from_config()
+    assert context_mode == CONTEXT_MODE_DIRECT, f"Expected direct mode, got {context_mode}"
 
-        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+    # Get context to verify it works
+    context = await agent.context_manager.get_context(
+        user_input="What's the status of my lights?",
+        conversation_id="test_direct_mode",
+    )
 
-        agent = HomeAgent(test_hass, config, session_manager)
+    assert context is not None, "Context should not be None in direct mode"
+    assert isinstance(
+        context, (str, list, dict)
+    ), f"Context should be str/list/dict, got {type(context)}"
+    context_str = str(context)
+    assert len(context_str) > 0, "Context should not be empty in direct mode"
+    # Context should contain entity information
+    assert any(
+        keyword in context_str.lower()
+        for keyword in ["entity", "state", "light", "sensor", "living_room", "temperature"]
+    ), f"Context should contain entity information, got: {context_str[:200]}"
 
-        # Verify context manager is using direct mode
-        assert agent.context_manager is not None, "Context manager should be initialized"
-        assert hasattr(
-            agent.context_manager, "_get_mode_from_config"
-        ), "Context manager should have _get_mode_from_config method"
-        context_mode = agent.context_manager._get_mode_from_config()
-        assert context_mode == CONTEXT_MODE_DIRECT, f"Expected direct mode, got {context_mode}"
+    # Context should mention configured entities
+    context_str = str(context).lower()
+    assert (
+        "living_room" in context_str or "light" in context_str
+    ), "Context should include living room light"
 
-        # Get context to verify it works
-        context = await agent.context_manager.get_context(
-            user_input="What's the status of my lights?",
-            conversation_id="test_direct_mode",
-        )
-
-        assert context is not None, "Context should not be None in direct mode"
-        assert isinstance(
-            context, (str, list, dict)
-        ), f"Context should be str/list/dict, got {type(context)}"
-        context_str = str(context)
-        assert len(context_str) > 0, "Context should not be empty in direct mode"
-        # Context should contain entity information
-        assert any(
-            keyword in context_str.lower()
-            for keyword in ["entity", "state", "light", "sensor", "living_room", "temperature"]
-        ), f"Context should contain entity information, got: {context_str[:200]}"
-
-        # Context should mention configured entities
-        context_str = str(context).lower()
-        assert (
-            "living_room" in context_str or "light" in context_str
-        ), "Context should include living room light"
-
-        await agent.close()
+    await agent.close()
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.requires_chromadb
 @pytest.mark.requires_embedding
 @pytest.mark.asyncio
 async def test_context_mode_switching_vector_db(
     session_manager,
-    test_hass,
+    test_hass_with_default_entities,
     llm_config,
     chromadb_config,
     embedding_config,
-    sample_entity_states,
     test_collection_name,
 ):
     """Test switching to vector_db context mode.
@@ -163,65 +145,49 @@ async def test_context_mode_switching_vector_db(
         CONF_DEBUG_LOGGING: False,
     }
 
-    with patch(
-        "custom_components.home_agent.agent.core.async_should_expose",
-        return_value=True,  # Expose entities for vector DB
-    ):
-        # Setup test states
-        test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
+    agent = HomeAgent(test_hass_with_default_entities, config, session_manager)
 
-        def mock_get_state(entity_id):
-            for state in sample_entity_states:
-                if state.entity_id == entity_id:
-                    return state
-            return None
+    # Initialize vector DB if needed
+    if hasattr(agent, "vector_db_manager") and agent.vector_db_manager:
+        # Sync entities to vector DB
+        await agent.vector_db_manager.sync_entities()
 
-        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+    # Verify context manager is using vector_db mode
+    assert agent.context_manager is not None, "Context manager should be initialized"
+    assert hasattr(
+        agent.context_manager, "_get_mode_from_config"
+    ), "Context manager should have _get_mode_from_config method"
+    context_mode = agent.context_manager._get_mode_from_config()
+    assert (
+        context_mode == CONTEXT_MODE_VECTOR_DB
+    ), f"Expected vector_db mode, got {context_mode}"
 
-        agent = HomeAgent(test_hass, config, session_manager)
+    # Get context to verify it works
+    context = await agent.context_manager.get_context(
+        user_input="What's the temperature?",
+        conversation_id="test_vector_db_mode",
+    )
 
-        # Initialize vector DB if needed
-        if hasattr(agent, "vector_db_manager") and agent.vector_db_manager:
-            # Sync entities to vector DB
-            await agent.vector_db_manager.sync_entities()
+    # Context might be empty if no entities were synced, but should not be None
+    assert context is not None, "Context should not be None in vector_db mode"
 
-        # Verify context manager is using vector_db mode
-        assert agent.context_manager is not None, "Context manager should be initialized"
-        assert hasattr(
-            agent.context_manager, "_get_mode_from_config"
-        ), "Context manager should have _get_mode_from_config method"
-        context_mode = agent.context_manager._get_mode_from_config()
-        assert (
-            context_mode == CONTEXT_MODE_VECTOR_DB
-        ), f"Expected vector_db mode, got {context_mode}"
+    # Clean up
+    if hasattr(agent, "vector_db_manager") and agent.vector_db_manager:
+        # Delete the test collection
+        try:
+            chromadb_client = agent.vector_db_manager._client
+            if chromadb_client:
+                chromadb_client.delete_collection(name=test_collection_name)
+        except Exception:
+            pass  # Collection might not exist
+        await agent.vector_db_manager.close()
 
-        # Get context to verify it works
-        context = await agent.context_manager.get_context(
-            user_input="What's the temperature?",
-            conversation_id="test_vector_db_mode",
-        )
-
-        # Context might be empty if no entities were synced, but should not be None
-        assert context is not None, "Context should not be None in vector_db mode"
-
-        # Clean up
-        if hasattr(agent, "vector_db_manager") and agent.vector_db_manager:
-            # Delete the test collection
-            try:
-                chromadb_client = agent.vector_db_manager._client
-                if chromadb_client:
-                    chromadb_client.delete_collection(name=test_collection_name)
-            except Exception:
-                pass  # Collection might not exist
-            await agent.vector_db_manager.close()
-
-        await agent.close()
+    await agent.close()
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_context_format_json(test_hass, llm_config, sample_entity_states, session_manager):
+async def test_context_format_json(test_hass_with_default_entities, llm_config, session_manager):
     """Test JSON context formatting.
 
     This test verifies that:
@@ -243,48 +209,33 @@ async def test_context_format_json(test_hass, llm_config, sample_entity_states, 
         CONF_DEBUG_LOGGING: False,
     }
 
-    with patch(
-        "custom_components.home_agent.agent.core.async_should_expose",
-        return_value=False,
-    ):
-        test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
+    agent = HomeAgent(test_hass_with_default_entities, config, session_manager)
 
-        def mock_get_state(entity_id):
-            for state in sample_entity_states:
-                if state.entity_id == entity_id:
-                    return state
-            return None
+    # Get context
+    context = await agent.context_manager.get_context(
+        user_input="Show me the lights",
+        conversation_id="test_json_format",
+    )
 
-        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+    assert context is not None, "Context should not be None in JSON format mode"
+    assert isinstance(
+        context, (str, list, dict)
+    ), f"Context should be str/list/dict, got {type(context)}"
+    context_str = str(context)
 
-        agent = HomeAgent(test_hass, config, session_manager)
+    # JSON format should contain structured data markers
+    # Look for common JSON patterns
+    assert any(
+        marker in context_str for marker in ["{", "}", "[", "]"]
+    ), "JSON format should contain JSON structure markers"
 
-        # Get context
-        context = await agent.context_manager.get_context(
-            user_input="Show me the lights",
-            conversation_id="test_json_format",
-        )
-
-        assert context is not None, "Context should not be None in JSON format mode"
-        assert isinstance(
-            context, (str, list, dict)
-        ), f"Context should be str/list/dict, got {type(context)}"
-        context_str = str(context)
-
-        # JSON format should contain structured data markers
-        # Look for common JSON patterns
-        assert any(
-            marker in context_str for marker in ["{", "}", "[", "]"]
-        ), "JSON format should contain JSON structure markers"
-
-        await agent.close()
+    await agent.close()
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
 async def test_context_format_natural_language(
-    test_hass, llm_config, sample_entity_states, session_manager
+    test_hass_with_default_entities, llm_config, session_manager
 ):
     """Test natural language context formatting.
 
@@ -307,51 +258,36 @@ async def test_context_format_natural_language(
         CONF_DEBUG_LOGGING: False,
     }
 
-    with patch(
-        "custom_components.home_agent.agent.core.async_should_expose",
-        return_value=False,
-    ):
-        test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
+    agent = HomeAgent(test_hass_with_default_entities, config, session_manager)
 
-        def mock_get_state(entity_id):
-            for state in sample_entity_states:
-                if state.entity_id == entity_id:
-                    return state
-            return None
+    # Get context
+    context = await agent.context_manager.get_context(
+        user_input="Show me the lights",
+        conversation_id="test_natural_language_format",
+    )
 
-        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+    assert context is not None, "Context should not be None in natural language format mode"
+    assert isinstance(
+        context, (str, list, dict)
+    ), f"Context should be str/list/dict, got {type(context)}"
+    context_str = str(context).lower()
 
-        agent = HomeAgent(test_hass, config, session_manager)
+    # Natural language format should be more readable
+    # Should contain words like "is", "the", etc. and fewer symbols
+    # It's harder to strictly validate, but we can check it's not overly structured
+    assert len(context_str) > 0, "Context should not be empty"
 
-        # Get context
-        context = await agent.context_manager.get_context(
-            user_input="Show me the lights",
-            conversation_id="test_natural_language_format",
-        )
+    # Natural language should have entity references in readable form
+    # Check that we have some readable content (not just pure JSON)
+    word_count = len(context_str.split())
+    assert word_count > 5, "Natural language format should have multiple words"
 
-        assert context is not None, "Context should not be None in natural language format mode"
-        assert isinstance(
-            context, (str, list, dict)
-        ), f"Context should be str/list/dict, got {type(context)}"
-        context_str = str(context).lower()
-
-        # Natural language format should be more readable
-        # Should contain words like "is", "the", etc. and fewer symbols
-        # It's harder to strictly validate, but we can check it's not overly structured
-        assert len(context_str) > 0, "Context should not be empty"
-
-        # Natural language should have entity references in readable form
-        # Check that we have some readable content (not just pure JSON)
-        word_count = len(context_str.split())
-        assert word_count > 5, "Natural language format should have multiple words"
-
-        await agent.close()
+    await agent.close()
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_context_format_hybrid(test_hass, llm_config, sample_entity_states, session_manager):
+async def test_context_format_hybrid(test_hass_with_default_entities, llm_config, session_manager):
     """Test hybrid context formatting.
 
     This test verifies that:
@@ -373,54 +309,39 @@ async def test_context_format_hybrid(test_hass, llm_config, sample_entity_states
         CONF_DEBUG_LOGGING: False,
     }
 
-    with patch(
-        "custom_components.home_agent.agent.core.async_should_expose",
-        return_value=False,
-    ):
-        test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
+    agent = HomeAgent(test_hass_with_default_entities, config, session_manager)
 
-        def mock_get_state(entity_id):
-            for state in sample_entity_states:
-                if state.entity_id == entity_id:
-                    return state
-            return None
+    # Get context
+    context = await agent.context_manager.get_context(
+        user_input="Show me the lights",
+        conversation_id="test_hybrid_format",
+    )
 
-        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+    assert context is not None, "Context should not be None in hybrid format mode"
+    assert isinstance(
+        context, (str, list, dict)
+    ), f"Context should be str/list/dict, got {type(context)}"
+    context_str = str(context)
 
-        agent = HomeAgent(test_hass, config, session_manager)
+    # Hybrid format should have characteristics of both
+    # Should have some JSON structure
+    has_json_markers = any(marker in context_str for marker in ["{", "}", "[", "]"])
 
-        # Get context
-        context = await agent.context_manager.get_context(
-            user_input="Show me the lights",
-            conversation_id="test_hybrid_format",
-        )
+    # And should have readable text
+    word_count = len(context_str.split())
 
-        assert context is not None, "Context should not be None in hybrid format mode"
-        assert isinstance(
-            context, (str, list, dict)
-        ), f"Context should be str/list/dict, got {type(context)}"
-        context_str = str(context)
+    # Either should have JSON markers or substantial text content
+    # (the exact implementation may vary)
+    assert (
+        has_json_markers or word_count > 10
+    ), "Hybrid format should have JSON structure or substantial text"
 
-        # Hybrid format should have characteristics of both
-        # Should have some JSON structure
-        has_json_markers = any(marker in context_str for marker in ["{", "}", "[", "]"])
-
-        # And should have readable text
-        word_count = len(context_str.split())
-
-        # Either should have JSON markers or substantial text content
-        # (the exact implementation may vary)
-        assert (
-            has_json_markers or word_count > 10
-        ), "Hybrid format should have JSON structure or substantial text"
-
-        await agent.close()
+    await agent.close()
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_context_with_no_entities(test_hass, llm_config, session_manager):
+async def test_context_with_no_entities(test_hass, llm_config, session_manager, mock_llm_server):
     """Test context manager behavior when no entities are configured.
 
     This test verifies that:
@@ -448,27 +369,28 @@ async def test_context_with_no_entities(test_hass, llm_config, session_manager):
     ):
         test_hass.states.async_all = MagicMock(return_value=[])
 
-        agent = HomeAgent(test_hass, config, session_manager)
+        with mock_llm_server.patch_aiohttp():
+            agent = HomeAgent(test_hass, config, session_manager)
 
-        # Get context with no entities
-        context = await agent.context_manager.get_context(
-            user_input="Hello",
-            conversation_id="test_no_entities",
-        )
+            # Get context with no entities
+            context = await agent.context_manager.get_context(
+                user_input="Hello",
+                conversation_id="test_no_entities",
+            )
 
-        # Context should exist but may be empty or minimal
-        assert context is not None, "Context should not be None even with no entities"
+            # Context should exist but may be empty or minimal
+            assert context is not None, "Context should not be None even with no entities"
 
-        # Process a message to verify system still works
-        response = await agent.process_message(
-            text="Hello, how are you?",
-            conversation_id="test_no_entities",
-        )
+            # Process a message to verify system still works
+            response = await agent.process_message(
+                text="Hello, how are you?",
+                conversation_id="test_no_entities",
+            )
 
-        assert response is not None, "Response should not be None even with no entities"
-        assert isinstance(response, str), f"Response should be a string, got {type(response)}"
-        assert (
-            len(response) > 10
-        ), f"Response should be meaningful (>10 chars), got {len(response)} chars: {response[:100]}"
+            assert response is not None, "Response should not be None even with no entities"
+            assert isinstance(response, str), f"Response should be a string, got {type(response)}"
+            assert (
+                len(response) > 10
+            ), f"Response should be meaningful (>10 chars), got {len(response)} chars: {response[:100]}"
 
-        await agent.close()
+            await agent.close()

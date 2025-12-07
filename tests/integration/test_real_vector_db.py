@@ -23,6 +23,29 @@ from custom_components.home_agent.vector_db_manager import VectorDBManager
 class TestRealVectorDB:
     """Integration tests for Vector DB with real services."""
 
+    @pytest.fixture(autouse=True)
+    async def skip_without_real_services(self, chromadb_config, embedding_config):
+        """Skip these tests when real services are not available.
+
+        These are "real" integration tests that validate actual service behavior.
+        They should skip when services are unavailable rather than use mocks.
+        """
+        from tests.integration.health import check_chromadb_health, check_embedding_health
+
+        chromadb_healthy = await check_chromadb_health(
+            chromadb_config["host"], chromadb_config["port"]
+        )
+        embedding_healthy = await check_embedding_health(embedding_config["base_url"])
+
+        if not chromadb_healthy or not embedding_healthy:
+            pytest.skip(
+                "Real ChromaDB and Embedding services required for these tests. "
+                f"ChromaDB ({chromadb_config['host']}:{chromadb_config['port']}): "
+                f"{'available' if chromadb_healthy else 'unavailable'}. "
+                f"Embedding ({embedding_config['base_url']}): "
+                f"{'available' if embedding_healthy else 'unavailable'}."
+            )
+
     @pytest.mark.asyncio
     async def test_entity_indexing_real_embeddings(
         self,

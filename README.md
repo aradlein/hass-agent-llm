@@ -1,6 +1,6 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.8.3-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.8.4-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11.0+-blue.svg)](https://www.home-assistant.io/)
@@ -8,11 +8,12 @@
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.8.3
+## What's New in v0.8.4
 
-📦 **Updated Dependencies** - Updated minimum Home Assistant version to 2025.11.0 for improved compatibility
-🔧 **CI Improvements** - Fixed continuous integration tests with pinned Home Assistant dependencies
-✅ **HACS Ready** - Successfully submitted to HACS for official community store listing
+🌍 **Multi-lingual Support** - Full support for non-English languages in conversations and responses
+🧠 **Reasoning Model Support** - Works with Qwen3, DeepSeek R1, and o1/o3 models by filtering thinking blocks
+🔧 **OpenAI Compatibility Fix** - Fixed keep_alive parameter causing errors with non-Ollama backends
+🐛 **Debug Logging Fix** - Fixed API key redaction bug that caused massive log spam with streaming
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
@@ -305,7 +306,13 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.8.3 (Latest)
+### v0.8.4 (Latest)
+- **Feature**: Multi-lingual support - Full support for non-English languages in conversations and responses
+- **Feature**: Reasoning model support - Filter `<think>...</think>` blocks from LLM output, enabling support for reasoning models like Qwen3, DeepSeek R1, and o1/o3
+- **Fix**: Only send `keep_alive` parameter to Ollama backends; prevents 400 errors with OpenAI and other cloud APIs
+- **Fix**: API key redaction bug causing massive log spam with streaming
+
+### v0.8.3
 - **Enhancement**: Updated minimum Home Assistant version to 2025.11.0 for improved compatibility
 - **Fix**: CI test environment now uses pinned Home Assistant dependencies
 - **Docs**: Successfully submitted to HACS for official community store listing
@@ -316,72 +323,3 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 - **Fix**: Move play_media to base services for all media_player entities
 - **Enhancement**: Comprehensive entity services reference documentation
 - **Enhancement**: Improved system prompts with standardized parameter rules
-
-### v0.8.1
-- **Feature**: Optimized brand icons for Home Assistant submission
-- **Docs**: Repository setup documentation for Claude agents
-- **Enhancement**: Public export configuration improvements
-
-### v0.8.0
-- **Feature**: Icon design and submission to Home Assistant brands repository
-- **Enhancement**: Documentation cleanup and organization
-- **Fix**: Remove personal references from public-facing code
-
-### v0.7.2-beta
-- **Feature**: Voice conversation persistence with automatic session management
-- **Feature**: Reliability & resource management (custom exceptions, retry logic, health checks)
-- **Feature**: Configurable memory minimum word count in UI
-- **Enhancement**: Improved memory importance score usability with better descriptions
-- **Enhancement**: Comprehensive integration test framework for real service validation
-- **Docs**: Architecture diagrams and example configurations
-
-### v0.7.0-beta
-- **Feature**: Agent modularization with extracted components
-- **Feature**: LLM proxy headers support for backend selection
-- **Feature**: Memory validator extraction for cleaner architecture
-- **Enhancement**: UI configuration for session persistence settings
-- **Enhancement**: Datetime serialization fixes in entity context
-- **Docs**: Comprehensive HACS submission preparation
-
-### v0.6.4-beta
-- **Fix**: Streaming tool execution error - "No LLM API configured"
-- **Enhancement**: Register agent as llm_api with ChatLog for seamless tool execution
-- **Feature**: Ollama backend selection support (llama.cpp, vLLM, Ollama GPU)
-- **Enhancement**: Preserve options on LLM settings update
-- **Enhancement**: Optimize memory search based on context mode
-- **Enhancement**: Parallelize entity and memory context retrieval
-
-### v0.6.0-beta
-- **Feature**: Memory extraction quality improvements with content filtering
-- **Feature**: Support for additional ChromaDB collections
-- **Enhancement**: Improved token usage tracking in streaming mode
-- **Fix**: Comprehensive type checking and linting fixes
-
-### v0.5.0-beta
-- **Feature**: Streaming response support for voice assistants
-- **Feature**: Tool progress indicators
-- **Feature**: Automatic fallback to synchronous mode
-- **Enhancement**: ~10x latency improvement for TTS integration
-
-### v0.4.0-beta
-- **Feature**: Long-term memory system with automatic extraction
-- **Feature**: Memory management services
-- **Feature**: Memory context provider for enhanced responses
-
-### v0.3.0-beta
-- **Feature**: Custom tool framework (REST + Service handlers)
-- **Feature**: External LLM delegation tool
-- **Enhancement**: Comprehensive error handling
-
-### v0.2.0-beta
-- **Feature**: Vector DB (ChromaDB) integration
-- **Feature**: History persistence across restarts
-- **Enhancement**: Context optimization and compression
-- **Enhancement**: Enhanced event system
-
-### v0.1.0-beta (MVP)
-- Initial release
-- OpenAI-compatible LLM integration
-- Core tools (ha_control, ha_query)
-- Conversation history
-- UI configuration

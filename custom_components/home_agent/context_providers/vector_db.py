@@ -21,6 +21,7 @@ from ..const import (
     CONF_ADDITIONAL_COLLECTIONS,
     CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD,
     CONF_ADDITIONAL_TOP_K,
+    CONF_EMIT_EVENTS,
     CONF_OPENAI_API_KEY,
     CONF_VECTOR_DB_COLLECTION,
     CONF_VECTOR_DB_EMBEDDING_BASE_URL,
@@ -43,6 +44,7 @@ from ..const import (
     DEFAULT_VECTOR_DB_TOP_K,
     EMBEDDING_PROVIDER_OLLAMA,
     EMBEDDING_PROVIDER_OPENAI,
+    EVENT_VECTOR_DB_QUERIED,
 )
 from ..exceptions import ContextInjectionError, EmbeddingTimeoutError
 from .base import ContextProvider
@@ -110,6 +112,7 @@ class VectorDBContextProvider(ContextProvider):
         self._collection: Collection | None = None
         self._embedding_cache: dict[str, list[float]] = {}
         self._fallback_provider: DirectContextProvider | None = None
+        self._emit_events = config.get(CONF_EMIT_EVENTS, True)
 
         _LOGGER.info(
             "Vector DB provider initialized (host=%s:%s, collection=%s)",
@@ -368,6 +371,21 @@ class VectorDBContextProvider(ContextProvider):
                                 "distance": distances[i] if i < len(distances) else 0,
                             }
                         )
+
+            # Fire event for vector DB query
+            if self._emit_events:
+                try:
+                    self.hass.bus.async_fire(
+                        EVENT_VECTOR_DB_QUERIED,
+                        {
+                            "collection": self.collection_name,
+                            "results_count": len(parsed_results),
+                            "top_k": top_k,
+                            "entity_ids": [r["entity_id"] for r in parsed_results],
+                        },
+                    )
+                except Exception as err:
+                    _LOGGER.warning("Failed to fire vector DB query event: %s", err)
 
             return parsed_results
 

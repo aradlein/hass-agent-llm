@@ -188,6 +188,9 @@ class ScenarioExecutor:
         user_input = step.get("user", "")
         step.get("timeout", 10)
 
+        # Extract language from step (default to "en" for backward compatibility)
+        language = step.get("language", "en")
+
         # Create mock user input
         from homeassistant.components import conversation
 
@@ -196,7 +199,7 @@ class ScenarioExecutor:
         mock_input.conversation_id = conversation_id
         mock_input.device_id = None
         mock_input.satellite_id = None
-        mock_input.language = "en"
+        mock_input.language = language
         mock_input.agent_id = "test_agent"
         mock_input.context = MagicMock()
         mock_input.context.user_id = "test_user"
@@ -252,6 +255,12 @@ class ScenarioExecutor:
             # Note: In real execution, we'd check result.response.speech.plain.speech
             # For now, we just verify result exists
             assert result is not None, "Expected response but got None"
+
+        # Verify expected response language if specified
+        if "expected_response_language" in step:
+            expected_lang = step["expected_response_language"]
+            assert result.response.language == expected_lang, \
+                f"Expected response language {expected_lang}, got {result.response.language}"
 
         return {
             "user_input": user_input,

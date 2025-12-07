@@ -143,7 +143,7 @@ from ..const import (
     HTTP_TIMEOUT,
 )
 from ..exceptions import AuthenticationError, HomeAgentError
-from ..helpers import redact_sensitive_data, retry_async
+from ..helpers import is_ollama_backend, redact_sensitive_data, retry_async
 
 if TYPE_CHECKING:
     pass
@@ -220,8 +220,12 @@ class LLMMixin:
                 max_tokens if max_tokens is not None else self.config.get(CONF_LLM_MAX_TOKENS, 500)
             ),
             "top_p": self.config.get(CONF_LLM_TOP_P, 1.0),
-            "keep_alive": self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE),
         }
+
+        # Only include keep_alive for Ollama backends (not supported by OpenAI, etc.)
+        # See: https://github.com/aradlein/home-agent/issues/65
+        if is_ollama_backend(self.config[CONF_LLM_BASE_URL]):
+            payload["keep_alive"] = self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE)
 
         if tools:
             payload["tools"] = tools
@@ -230,7 +234,7 @@ class LLMMixin:
         if self.config.get(CONF_DEBUG_LOGGING):
             _LOGGER.debug(
                 "Calling LLM at %s with %d messages and %d tools",
-                redact_sensitive_data(url, self.config[CONF_LLM_API_KEY]),
+                redact_sensitive_data(url, [self.config[CONF_LLM_API_KEY]]),
                 len(messages),
                 len(tools) if tools else 0,
             )

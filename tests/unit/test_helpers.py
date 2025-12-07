@@ -18,9 +18,230 @@ from custom_components.home_agent.helpers import (
     merge_dicts,
     redact_sensitive_data,
     safe_get_state,
+    strip_thinking_blocks,
     truncate_text,
     validate_entity_id,
 )
+
+
+class TestStripThinkingBlocks:
+    """Tests for strip_thinking_blocks function.
+
+    This function removes <think>...</think> blocks from reasoning model output
+    (e.g., Qwen3, DeepSeek R1, o1/o3) to prevent them from appearing in user
+    responses and breaking JSON parsing.
+    """
+
+    def test_strip_simple_thinking_block(self):
+        """Test stripping a simple thinking block."""
+        text = "<think>Let me think about this...</think>Hello, world!"
+        result = strip_thinking_blocks(text)
+        assert result == "Hello, world!"
+
+    def test_strip_thinking_block_at_end(self):
+        """Test stripping thinking block at end of text."""
+        text = "Here is my answer.<think>I hope that was helpful.</think>"
+        result = strip_thinking_blocks(text)
+        assert result == "Here is my answer."
+
+    def test_strip_thinking_block_in_middle(self):
+        """Test stripping thinking block in the middle of text."""
+        text = "First part.<think>Some reasoning here.</think>Second part."
+        result = strip_thinking_blocks(text)
+        assert result == "First part.Second part."
+
+    def test_strip_multiple_thinking_blocks(self):
+        """Test stripping multiple thinking blocks."""
+        text = "<think>First thought</think>Hello<think>Second thought</think>World"
+        result = strip_thinking_blocks(text)
+        assert result == "HelloWorld"
+
+    def test_strip_multiline_thinking_block(self):
+        """Test stripping thinking block with newlines."""
+        text = """<think>
+Let me think step by step:
+1. First, I need to understand the question.
+2. Then, I need to formulate an answer.
+3. Finally, I should respond clearly.
+</think>The answer is 42."""
+        result = strip_thinking_blocks(text)
+        assert result == "The answer is 42."
+
+    def test_strip_thinking_block_with_special_characters(self):
+        """Test stripping thinking block containing special characters."""
+        text = "<think>What about <entity> and {json: 'data'}?</think>Response here."
+        result = strip_thinking_blocks(text)
+        assert result == "Response here."
+
+    def test_no_thinking_block(self):
+        """Test text without thinking blocks is unchanged."""
+        text = "Just a normal response without any thinking."
+        result = strip_thinking_blocks(text)
+        assert result == text
+
+    def test_empty_string(self):
+        """Test empty string returns empty string."""
+        result = strip_thinking_blocks("")
+        assert result == ""
+
+    def test_none_input(self):
+        """Test None input returns None."""
+        result = strip_thinking_blocks(None)
+        assert result is None
+
+    def test_only_thinking_block(self):
+        """Test text that is only a thinking block."""
+        text = "<think>All thinking, no response.</think>"
+        result = strip_thinking_blocks(text)
+        assert result == ""
+
+    def test_nested_angle_brackets_in_thinking(self):
+        """Test thinking block containing angle brackets."""
+        text = "<think>Consider if x < y and y > z, then...</think>The result is x < z."
+        result = strip_thinking_blocks(text)
+        assert result == "The result is x < z."
+
+    def test_preserves_other_html_like_tags(self):
+        """Test that other HTML-like tags are preserved."""
+        text = "<b>Bold</b> and <think>reasoning</think> and <i>italic</i>"
+        result = strip_thinking_blocks(text)
+        assert result == "<b>Bold</b> and  and <i>italic</i>"
+
+    def test_thinking_block_with_json_content(self):
+        """Test thinking block containing JSON (common in reasoning models)."""
+        text = '''<think>I should return this JSON:
+{"type": "fact", "content": "User likes coffee", "importance": 0.8}
+</think>[{"type": "fact", "content": "User likes coffee", "importance": 0.8}]'''
+        result = strip_thinking_blocks(text)
+        assert result == '[{"type": "fact", "content": "User likes coffee", "importance": 0.8}]'
+
+    def test_whitespace_cleanup_after_stripping(self):
+        """Test that result is stripped of leading/trailing whitespace."""
+        text = "   <think>thinking</think>   Response   "
+        result = strip_thinking_blocks(text)
+        assert result == "Response"
+
+    def test_consecutive_thinking_blocks(self):
+        """Test stripping consecutive thinking blocks."""
+        text = "<think>First</think><think>Second</think>Answer"
+        result = strip_thinking_blocks(text)
+        assert result == "Answer"
+
+    def test_thinking_block_with_code(self):
+        """Test thinking block containing code snippets."""
+        text = """<think>
+```python
+def hello():
+    return "world"
+```
+</think>Here's how to say hello."""
+        result = strip_thinking_blocks(text)
+        assert result == "Here's how to say hello."
+
+    # Additional edge case tests for issue #64 coverage
+
+    def test_unclosed_thinking_tag(self):
+        """Test unclosed <think> tag is left unchanged.
+
+        When a thinking block is not properly closed, we leave the text
+        unchanged rather than risk removing valid content.
+        """
+        text = "<think>This thinking block never closes... Answer here"
+        result = strip_thinking_blocks(text)
+        # Unclosed tags should be left unchanged
+        assert result == text
+
+    def test_unopened_closing_tag(self):
+        """Test orphaned </think> tag is preserved."""
+        text = "Some text </think> more text"
+        result = strip_thinking_blocks(text)
+        assert result == "Some text </think> more text"
+
+    def test_case_sensitive_tags(self):
+        """Test that tag matching is case-sensitive (only lowercase matches)."""
+        text = "<Think>Should not match</Think>Answer"
+        result = strip_thinking_blocks(text)
+        assert "<Think>" in result
+        assert "Should not match" in result
+
+    def test_uppercase_think_tags(self):
+        """Test uppercase THINK tags are not removed."""
+        text = "<THINK>uppercase thinking</THINK>Response"
+        result = strip_thinking_blocks(text)
+        assert "<THINK>" in result
+        assert "uppercase thinking" in result
+
+    def test_unicode_in_thinking_blocks(self):
+        """Test thinking blocks with unicode content (multilingual)."""
+        text = "<think>Pensando en español: ñ, é, ü</think>Respuesta: 你好"
+        result = strip_thinking_blocks(text)
+        assert result == "Respuesta: 你好"
+        assert "español" not in result
+
+    def test_emoji_in_thinking_blocks(self):
+        """Test thinking blocks containing emojis."""
+        text = "<think>🤔 Thinking... 💭</think>✅ Done!"
+        result = strip_thinking_blocks(text)
+        assert result == "✅ Done!"
+        assert "🤔" not in result
+
+    def test_cyrillic_in_thinking_blocks(self):
+        """Test thinking blocks with Cyrillic characters."""
+        text = "<think>Думаю о проблеме...</think>Ответ: да"
+        result = strip_thinking_blocks(text)
+        assert result == "Ответ: да"
+        assert "Думаю" not in result
+
+    def test_chinese_in_thinking_blocks(self):
+        """Test thinking blocks with Chinese characters."""
+        text = "<think>让我思考一下这个问题</think>答案是42"
+        result = strip_thinking_blocks(text)
+        assert result == "答案是42"
+
+    def test_very_long_thinking_block(self):
+        """Test with very large thinking block (performance check)."""
+        long_thinking = "word " * 10000  # 10k words
+        text = f"<think>{long_thinking}</think>Short answer"
+        result = strip_thinking_blocks(text)
+        assert result == "Short answer"
+        assert len(result) < 20
+
+    def test_many_thinking_blocks(self):
+        """Test with many thinking blocks."""
+        blocks = "".join(f"<think>thought {i}</think>text{i} " for i in range(100))
+        result = strip_thinking_blocks(blocks)
+        assert "<think>" not in result
+        assert all(f"text{i}" in result for i in range(100))
+
+    def test_thinking_block_empty_content(self):
+        """Test thinking block with empty content."""
+        text = "<think></think>Answer here"
+        result = strip_thinking_blocks(text)
+        assert result == "Answer here"
+
+    def test_thinking_block_only_whitespace(self):
+        """Test thinking block containing only whitespace."""
+        text = "<think>   \n\t  </think>Answer"
+        result = strip_thinking_blocks(text)
+        assert result == "Answer"
+
+    def test_mixed_valid_and_malformed_tags(self):
+        """Test text with both valid and malformed thinking tags."""
+        text = "<think>valid</think>Text<Think>invalid</Think><think>also valid</think>End"
+        result = strip_thinking_blocks(text)
+        assert result == "Text<Think>invalid</Think>End"
+
+    def test_thinking_block_with_html_entities(self):
+        """Test thinking block containing HTML entities."""
+        text = "<think>&lt;div&gt; and &amp; symbols</think>Clean response"
+        result = strip_thinking_blocks(text)
+        assert result == "Clean response"
+
+    def test_thinking_block_with_xml_like_content(self):
+        """Test thinking block containing XML-like content."""
+        text = "<think><internal><data>value</data></internal></think>Output"
+        result = strip_thinking_blocks(text)
+        assert result == "Output"
 
 
 class TestFormatEntityState:
@@ -298,6 +519,29 @@ class TestRedactSensitiveData:
 
         assert "secret" not in result
         assert result.count("***REDACTED***") == 3
+
+    def test_redact_sensitive_data_string_instead_of_list_bug(self):
+        """Test that passing a string instead of list doesn't cause character-by-character replacement.
+
+        REGRESSION TEST: This catches a bug where calling redact_sensitive_data(url, api_key)
+        instead of redact_sensitive_data(url, [api_key]) would iterate over the string
+        character-by-character, replacing each character with ***REDACTED***, causing
+        massive output spam in logs.
+        """
+        url = "https://api.openai.com/v1/chat/completions?key=sk-abc123xyz"
+        api_key = "sk-abc123xyz"
+
+        # Correct usage: pass a list
+        correct_result = redact_sensitive_data(url, [api_key])
+        assert correct_result == "https://api.openai.com/v1/chat/completions?key=***REDACTED***"
+        assert len(correct_result) < 100  # Should be reasonably short
+
+        # BUG case: if someone passes a string instead of list, Python iterates char-by-char
+        # This test documents the buggy behavior - DO NOT pass strings directly!
+        buggy_result = redact_sensitive_data(url, api_key)
+        # The buggy result will be much longer due to character-by-character replacement
+        # Each common char (s, k, a, b, c, etc.) gets replaced with ***REDACTED***
+        assert len(buggy_result) > len(url) * 2  # Will be much longer than original
 
 
 class TestEstimateTokens:

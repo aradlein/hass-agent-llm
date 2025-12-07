@@ -154,7 +154,7 @@ cd "$PROJECT_ROOT"
 
 # Parse command line arguments
 # Run all tests in the integration folder by default (not just marked ones)
-PYTEST_ARGS="tests/integration/ -v"
+PYTEST_ARGS="tests/integration/ -v -n 2"
 EXTRA_ARGS=""
 
 while [[ $# -gt 0 ]]; do
@@ -217,13 +217,13 @@ echo ""
 if pytest $PYTEST_ARGS -p no:homeassistant -ra $PYTEST_WARNINGS $EXTRA_ARGS; then
     echo ""
     echo -e "${GREEN}=================================================="
-    echo "Integration Tests PASSED"
-    echo "==================================================${NC}"
+    echo -e "Integration Tests PASSED"
+    echo -e "==================================================${NC}"
     exit 0
 else
     echo ""
     echo -e "${RED}=================================================="
-    echo "Integration Tests FAILED"
-    echo "==================================================${NC}"
+    echo -e "Integration Tests FAILED"
+    echo -e "==================================================${NC}"
     exit 1
 fi
