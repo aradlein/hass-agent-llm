@@ -12,6 +12,7 @@ A highly customizable Home Assistant custom component that provides intelligent 
 
 🧠 **Reasoning Model Support** - Works with Qwen3, DeepSeek R1, and o1/o3 models by filtering thinking blocks
 🔧 **OpenAI Compatibility Fix** - Fixed keep_alive parameter causing errors with non-Ollama backends
+🐛 **Debug Logging Fix** - Fixed API key redaction bug that caused massive log spam with GPT-4o streaming
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 

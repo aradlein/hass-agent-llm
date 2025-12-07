@@ -248,7 +248,7 @@ class StreamingMixin:
         if self.config.get(CONF_DEBUG_LOGGING):
             _LOGGER.debug(
                 "Calling LLM (streaming) at %s with %d messages and %d tools",
-                redact_sensitive_data(url, self.config[CONF_LLM_API_KEY]),
+                redact_sensitive_data(url, [self.config[CONF_LLM_API_KEY]]),
                 len(messages),
                 len(tool_definitions) if tool_definitions else 0,
             )

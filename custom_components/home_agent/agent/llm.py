@@ -234,7 +234,7 @@ class LLMMixin:
         if self.config.get(CONF_DEBUG_LOGGING):
             _LOGGER.debug(
                 "Calling LLM at %s with %d messages and %d tools",
-                redact_sensitive_data(url, self.config[CONF_LLM_API_KEY]),
+                redact_sensitive_data(url, [self.config[CONF_LLM_API_KEY]]),
                 len(messages),
                 len(tools) if tools else 0,
             )

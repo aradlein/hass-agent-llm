@@ -1032,6 +1032,7 @@ class HomeAgent(
             entry_id = "home_agent"
 
         for iteration in range(max_iterations):
+            _LOGGER.debug("Starting streaming iteration %d/%d", iteration + 1, max_iterations)
             # Call LLM with streaming
             llm_start = time.time()
             stream = self._call_llm_streaming(messages)
@@ -1050,6 +1051,22 @@ class HomeAgent(
                 handler.transform_openai_stream(stream),
             ):
                 new_content.append(content)
+
+            _LOGGER.debug("Iteration %d: Received %d content items from stream", iteration + 1, len(new_content))
+            for idx, content_item in enumerate(new_content):
+                _LOGGER.debug("Iteration %d: Content item %d type: %s", iteration + 1, idx, type(content_item).__name__)
+                if isinstance(content_item, conversation.AssistantContent):
+                    has_tool_calls = bool(content_item.tool_calls)
+                    num_tool_calls = len(content_item.tool_calls) if content_item.tool_calls else 0
+                    _LOGGER.debug("Iteration %d: AssistantContent[%d] has_tool_calls=%s, num_tool_calls=%d",
+                                  iteration + 1, idx, has_tool_calls, num_tool_calls)
+                    if content_item.tool_calls:
+                        for tc_idx, tc in enumerate(content_item.tool_calls):
+                            _LOGGER.debug("Iteration %d: AssistantContent[%d] tool_call[%d]: id=%s, tool_name=%s",
+                                          iteration + 1, idx, tc_idx, tc.id, tc.tool_name)
+                elif isinstance(content_item, conversation.ToolResultContent):
+                    _LOGGER.debug("Iteration %d: ToolResultContent[%d] tool_call_id=%s, tool_name=%s",
+                                  iteration + 1, idx, content_item.tool_call_id, content_item.tool_name)
 
             # Track LLM latency
             llm_latency = int((time.time() - llm_start) * 1000)
@@ -1103,9 +1120,47 @@ class HomeAgent(
                         }
                     )
 
-            # Check if we need another iteration (are there unresponded tool results?)
-            if not chat_log.unresponded_tool_results:
+            # Check if we need another iteration using two conditions:
+            # 1. Check the LAST AssistantContent (not any) - because HA may yield multiple
+            #    AssistantContent items in one iteration (one with tool_calls, then one
+            #    with the final response after tool execution)
+            # 2. Also check chat_log.unresponded_tool_results as a fallback signal from HA
+            last_assistant_content = None
+            for content_item in reversed(new_content):
+                if isinstance(content_item, conversation.AssistantContent):
+                    last_assistant_content = content_item
+                    break
+
+            _LOGGER.debug("Iteration %d: Checking loop continuation conditions", iteration + 1)
+            _LOGGER.debug("Iteration %d: last_assistant_content is None: %s", iteration + 1, last_assistant_content is None)
+            if last_assistant_content is not None:
+                has_tool_calls = bool(last_assistant_content.tool_calls)
+                num_tool_calls = len(last_assistant_content.tool_calls) if last_assistant_content.tool_calls else 0
+                _LOGGER.debug("Iteration %d: last_assistant_content.tool_calls: %s (count: %d)",
+                              iteration + 1, has_tool_calls, num_tool_calls)
+                if last_assistant_content.tool_calls:
+                    for tc_idx, tc in enumerate(last_assistant_content.tool_calls):
+                        _LOGGER.debug("Iteration %d: last_assistant_content tool_call[%d]: id=%s, tool_name=%s",
+                                      iteration + 1, tc_idx, tc.id, tc.tool_name)
+            _LOGGER.debug("Iteration %d: chat_log.unresponded_tool_results: %s", iteration + 1, chat_log.unresponded_tool_results)
+
+            # Break if: no content, OR last AssistantContent has no tool_calls,
+            # OR HA signals no unresponded tool results
+            if (
+                last_assistant_content is None
+                or not last_assistant_content.tool_calls
+                or not chat_log.unresponded_tool_results
+            ):
+                _LOGGER.debug("Iteration %d: BREAKING loop - Reason: last_assistant_content is None=%s, "
+                              "last_assistant_content.tool_calls empty=%s, unresponded_tool_results empty=%s",
+                              iteration + 1,
+                              last_assistant_content is None,
+                              not last_assistant_content.tool_calls if last_assistant_content else "N/A",
+                              not chat_log.unresponded_tool_results)
                 break
+            else:
+                _LOGGER.debug("Iteration %d: CONTINUING loop - last_assistant_content has tool_calls AND "
+                              "chat_log has unresponded_tool_results", iteration + 1)
 
         # Save to conversation history if enabled
         if self.config.get(CONF_HISTORY_ENABLED, True):

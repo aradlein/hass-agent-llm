@@ -520,6 +520,29 @@ class TestRedactSensitiveData:
         assert "secret" not in result
         assert result.count("***REDACTED***") == 3
 
+    def test_redact_sensitive_data_string_instead_of_list_bug(self):
+        """Test that passing a string instead of list doesn't cause character-by-character replacement.
+
+        REGRESSION TEST: This catches a bug where calling redact_sensitive_data(url, api_key)
+        instead of redact_sensitive_data(url, [api_key]) would iterate over the string
+        character-by-character, replacing each character with ***REDACTED***, causing
+        massive output spam in logs.
+        """
+        url = "https://api.openai.com/v1/chat/completions?key=sk-abc123xyz"
+        api_key = "sk-abc123xyz"
+
+        # Correct usage: pass a list
+        correct_result = redact_sensitive_data(url, [api_key])
+        assert correct_result == "https://api.openai.com/v1/chat/completions?key=***REDACTED***"
+        assert len(correct_result) < 100  # Should be reasonably short
+
+        # BUG case: if someone passes a string instead of list, Python iterates char-by-char
+        # This test documents the buggy behavior - DO NOT pass strings directly!
+        buggy_result = redact_sensitive_data(url, api_key)
+        # The buggy result will be much longer due to character-by-character replacement
+        # Each common char (s, k, a, b, c, etc.) gets replaced with ***REDACTED***
+        assert len(buggy_result) > len(url) * 2  # Will be much longer than original
+
 
 class TestEstimateTokens:
     """Tests for estimate_tokens function."""
