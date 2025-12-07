@@ -217,13 +217,13 @@ echo ""
 if pytest $PYTEST_ARGS -p no:homeassistant -ra $PYTEST_WARNINGS $EXTRA_ARGS; then
     echo ""
     echo -e "${GREEN}=================================================="
-    echo "Integration Tests PASSED"
-    echo "==================================================${NC}"
+    echo -e "Integration Tests PASSED"
+    echo -e "==================================================${NC}"
     exit 0
 else
     echo ""
     echo -e "${RED}=================================================="
-    echo "Integration Tests FAILED"
-    echo "==================================================${NC}"
+    echo -e "Integration Tests FAILED"
+    echo -e "==================================================${NC}"
     exit 1
 fi
