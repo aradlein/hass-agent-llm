@@ -14,6 +14,7 @@ from custom_components.home_agent.const import (
     CONF_ADDITIONAL_COLLECTIONS,
     CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD,
     CONF_ADDITIONAL_TOP_K,
+    CONF_EMIT_EVENTS,
     CONF_OPENAI_API_KEY,
     CONF_VECTOR_DB_COLLECTION,
     CONF_VECTOR_DB_EMBEDDING_MODEL,
@@ -586,3 +587,131 @@ class TestAdditionalCollections:
         assert "doc1" in result_ids
         assert "doc3" in result_ids
         assert "doc2" not in result_ids
+
+
+class TestEventEmission:
+    """Tests for vector DB event emission with emit_events config.
+
+    The implementation uses the class-level _emit_events attribute from config
+    to control event emission, with try/except to ensure query results aren't lost.
+    """
+
+    @pytest.mark.asyncio
+    async def test_event_not_fired_when_emit_events_false(self, mock_hass):
+        """Test that event is NOT fired when emit_events=False in config."""
+        if not CHROMADB_AVAILABLE:
+            pytest.skip("ChromaDB not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_VECTOR_DB_TOP_K: 3,
+            CONF_EMIT_EVENTS: False,  # Disable event emission via config
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        # Mock ChromaDB client and collection
+        provider._client = Mock()
+        provider._collection = Mock()
+
+        # Mock the collection query to return results
+        mock_results = {
+            "ids": [["light.living_room", "sensor.temp"]],
+            "distances": [[0.1, 0.2]],
+        }
+        provider._collection.query.return_value = mock_results
+
+        # Call _query_vector_db
+        embedding = [0.1, 0.2, 0.3]
+        results = await provider._query_vector_db(embedding, top_k=3)
+
+        # Verify results are still returned
+        assert len(results) == 2
+        assert results[0]["entity_id"] == "light.living_room"
+        assert results[1]["entity_id"] == "sensor.temp"
+
+        # Verify event was NOT fired
+        mock_hass.bus.async_fire.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_event_fired_when_emit_events_true(self, mock_hass):
+        """Test that event IS fired when emit_events=True (default)."""
+        if not CHROMADB_AVAILABLE:
+            pytest.skip("ChromaDB not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_VECTOR_DB_TOP_K: 3,
+            CONF_EMIT_EVENTS: True,  # Enable event emission (this is the default)
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        # Mock ChromaDB client and collection
+        provider._client = Mock()
+        provider._collection = Mock()
+
+        # Mock the collection query to return results
+        mock_results = {
+            "ids": [["light.living_room", "sensor.temp"]],
+            "distances": [[0.1, 0.2]],
+        }
+        provider._collection.query.return_value = mock_results
+
+        # Call _query_vector_db
+        embedding = [0.1, 0.2, 0.3]
+        results = await provider._query_vector_db(embedding, top_k=3)
+
+        # Verify results are still returned
+        assert len(results) == 2
+        assert results[0]["entity_id"] == "light.living_room"
+        assert results[1]["entity_id"] == "sensor.temp"
+
+        # Verify event WAS fired with correct data
+        from custom_components.home_agent.const import EVENT_VECTOR_DB_QUERIED
+
+        mock_hass.bus.async_fire.assert_called_once()
+        call_args = mock_hass.bus.async_fire.call_args
+        assert call_args[0][0] == EVENT_VECTOR_DB_QUERIED
+        event_data = call_args[0][1]
+        assert event_data["collection"] == "home_entities"
+        assert event_data["results_count"] == 2
+        assert event_data["top_k"] == 3
+        assert event_data["entity_ids"] == ["light.living_room", "sensor.temp"]
+
+    @pytest.mark.asyncio
+    async def test_event_firing_failure_returns_results(self, mock_hass):
+        """Test that if event firing fails, query results are still returned."""
+        if not CHROMADB_AVAILABLE:
+            pytest.skip("ChromaDB not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_VECTOR_DB_TOP_K: 3,
+            CONF_EMIT_EVENTS: True,  # Enable event emission
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        # Mock ChromaDB client and collection
+        provider._client = Mock()
+        provider._collection = Mock()
+
+        # Mock the collection query to return results
+        mock_results = {
+            "ids": [["light.living_room", "sensor.temp"]],
+            "distances": [[0.1, 0.2]],
+        }
+        provider._collection.query.return_value = mock_results
+
+        # Mock async_fire to raise an exception
+        mock_hass.bus.async_fire.side_effect = Exception("Event bus error")
+
+        # Call _query_vector_db
+        embedding = [0.1, 0.2, 0.3]
+        results = await provider._query_vector_db(embedding, top_k=3)
+
+        # Verify results are STILL returned despite event error
+        assert len(results) == 2
+        assert results[0]["entity_id"] == "light.living_room"
+        assert results[1]["entity_id"] == "sensor.temp"
+
+        # Verify async_fire was attempted
+        mock_hass.bus.async_fire.assert_called_once()

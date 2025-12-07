@@ -65,7 +65,7 @@ async def send_message_and_wait(
     agent: Any,
     message: str,
     conversation_id: str | None = None,
-    timeout: float = 30.0,
+    timeout: float = 10.0,
     context: Any = None,
     device_id: str | None = None,
     satellite_id: str | None = None,

@@ -1068,33 +1068,30 @@ class HomeAgent(
             # Convert new content back to messages for next iteration
             for content_item in new_content:
                 if isinstance(content_item, conversation.AssistantContent):
+                    # Build a single message with both content and tool_calls
+                    msg = {"role": "assistant"}
+
                     if content_item.content:
-                        messages.append(
-                            {
-                                "role": "assistant",
-                                "content": content_item.content,
-                            }
-                        )
+                        msg["content"] = content_item.content
+
                     if content_item.tool_calls:
                         # Track tool calls
                         metrics["tool_calls"] += len(content_item.tool_calls)
 
-                        # Add tool calls to messages
-                        tool_calls_msg = {
-                            "role": "assistant",
-                            "tool_calls": [
-                                {
-                                    "id": tc.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": tc.tool_name,
-                                        "arguments": json.dumps(tc.tool_args),
-                                    },
-                                }
-                                for tc in content_item.tool_calls
-                            ],
-                        }
-                        messages.append(tool_calls_msg)
+                        # Add tool calls to message
+                        msg["tool_calls"] = [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.tool_name,
+                                    "arguments": json.dumps(tc.tool_args),
+                                },
+                            }
+                            for tc in content_item.tool_calls
+                        ]
+
+                    messages.append(msg)
 
                 elif isinstance(content_item, conversation.ToolResultContent):
                     messages.append(

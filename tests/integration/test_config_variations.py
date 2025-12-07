@@ -396,9 +396,11 @@ async def test_llm_keep_alive_in_payload(
     1. The keep_alive value from config is included in the LLM request payload
     2. The value matches exactly what was configured
     3. Special values like "-1" (keep forever) are properly passed
+
+    Note: keep_alive is only sent to Ollama backends, so we use an Ollama URL.
     """
     config = {
-        CONF_LLM_BASE_URL: llm_config["base_url"],
+        CONF_LLM_BASE_URL: "http://localhost:11434/v1",  # Use Ollama URL so keep_alive is included
         CONF_LLM_API_KEY: llm_config.get("api_key", "test-key"),
         CONF_LLM_MODEL: llm_config["model"],
         CONF_LLM_TEMPERATURE: 0.7,
@@ -529,9 +531,11 @@ async def test_llm_payload_all_parameters_together(
     1. All LLM parameters (temperature, max_tokens, top_p, keep_alive) are present
     2. All values match their configured values
     3. Parameters don't interfere with each other
+
+    Note: keep_alive is only sent to Ollama backends, so we use an Ollama URL.
     """
     config = {
-        CONF_LLM_BASE_URL: llm_config["base_url"],
+        CONF_LLM_BASE_URL: "http://localhost:11434/v1",  # Use Ollama URL so keep_alive is included
         CONF_LLM_API_KEY: llm_config.get("api_key", "test-key"),
         CONF_LLM_MODEL: llm_config["model"],
         CONF_LLM_TEMPERATURE: 0.3,  # Non-default value
@@ -620,11 +624,13 @@ async def test_llm_streaming_payload_parameters(
     1. Streaming mode includes all the same parameters as non-streaming
     2. The 'stream' parameter is set to True
     3. All config values are properly included
+
+    Note: keep_alive is only sent to Ollama backends, so we use an Ollama URL.
     """
     from custom_components.home_agent.const import CONF_STREAMING_ENABLED
 
     config = {
-        CONF_LLM_BASE_URL: llm_config["base_url"],
+        CONF_LLM_BASE_URL: "http://localhost:11434/v1",  # Use Ollama URL so keep_alive is included
         CONF_LLM_API_KEY: llm_config.get("api_key", "test-key"),
         CONF_LLM_MODEL: llm_config["model"],
         CONF_LLM_TEMPERATURE: 0.8,

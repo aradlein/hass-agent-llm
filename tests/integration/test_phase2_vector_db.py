@@ -128,7 +128,6 @@ def mock_entity_states(mock_hass):
 class TestPhase2VectorDBIntegration:
     """Integration tests for Phase 2 vector DB functionality."""
 
-    @pytest.mark.requires_chromadb
     @pytest.mark.asyncio
     async def test_vector_db_provider_initialization(self, mock_hass, vector_db_config):
         """Test that vector DB provider initializes with correct configuration."""
@@ -143,8 +142,6 @@ class TestPhase2VectorDBIntegration:
         assert provider.top_k == 10
         assert provider.similarity_threshold == 250.0
 
-    @pytest.mark.requires_chromadb
-    @pytest.mark.requires_embedding
     @pytest.mark.asyncio
     async def test_semantic_search_returns_relevant_entities(
         self, mock_entity_states, vector_db_config, mock_chroma_results
@@ -195,8 +192,6 @@ class TestPhase2VectorDBIntegration:
         assert "turn_on" in entity["available_services"]
         assert "set_percentage[percentage]" in entity["available_services"]
 
-    @pytest.mark.requires_chromadb
-    @pytest.mark.requires_embedding
     @pytest.mark.asyncio
     async def test_l2_distance_filtering(self, mock_entity_states, vector_db_config):
         """Test that L2 distance threshold filtering works correctly (Bug #1 fix)."""
@@ -246,8 +241,6 @@ class TestPhase2VectorDBIntegration:
         assert "sensor.temperature" in entity_ids
         assert "light.bedroom" not in entity_ids
 
-    @pytest.mark.requires_chromadb
-    @pytest.mark.requires_embedding
     @pytest.mark.asyncio
     async def test_no_results_below_threshold(self, mock_entity_states, vector_db_config):
         """Test graceful handling when no results meet similarity threshold."""
@@ -271,8 +264,6 @@ class TestPhase2VectorDBIntegration:
 
         assert context == "No relevant context found."
 
-    @pytest.mark.requires_chromadb
-    @pytest.mark.requires_embedding
     @pytest.mark.asyncio
     async def test_entity_services_included(
         self, mock_entity_states, vector_db_config, mock_chroma_results

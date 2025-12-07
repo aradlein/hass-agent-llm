@@ -154,7 +154,7 @@ cd "$PROJECT_ROOT"
 
 # Parse command line arguments
 # Run all tests in the integration folder by default (not just marked ones)
-PYTEST_ARGS="tests/integration/ -v"
+PYTEST_ARGS="tests/integration/ -v -n 2"
 EXTRA_ARGS=""
 
 while [[ $# -gt 0 ]]; do

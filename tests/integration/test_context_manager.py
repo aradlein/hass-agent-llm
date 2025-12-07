@@ -38,7 +38,6 @@ from custom_components.home_agent.const import (
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
 async def test_context_mode_switching_direct(
     test_hass_with_default_entities, llm_config, session_manager
@@ -106,7 +105,6 @@ async def test_context_mode_switching_direct(
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.requires_chromadb
 @pytest.mark.requires_embedding
 @pytest.mark.asyncio
@@ -188,7 +186,6 @@ async def test_context_mode_switching_vector_db(
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
 async def test_context_format_json(test_hass_with_default_entities, llm_config, session_manager):
     """Test JSON context formatting.
@@ -236,7 +233,6 @@ async def test_context_format_json(test_hass_with_default_entities, llm_config, 
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
 async def test_context_format_natural_language(
     test_hass_with_default_entities, llm_config, session_manager
@@ -290,7 +286,6 @@ async def test_context_format_natural_language(
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
 async def test_context_format_hybrid(test_hass_with_default_entities, llm_config, session_manager):
     """Test hybrid context formatting.
@@ -345,9 +340,8 @@ async def test_context_format_hybrid(test_hass_with_default_entities, llm_config
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_context_with_no_entities(test_hass, llm_config, session_manager):
+async def test_context_with_no_entities(test_hass, llm_config, session_manager, mock_llm_server):
     """Test context manager behavior when no entities are configured.
 
     This test verifies that:
@@ -375,27 +369,28 @@ async def test_context_with_no_entities(test_hass, llm_config, session_manager):
     ):
         test_hass.states.async_all = MagicMock(return_value=[])
 
-        agent = HomeAgent(test_hass, config, session_manager)
+        with mock_llm_server.patch_aiohttp():
+            agent = HomeAgent(test_hass, config, session_manager)
 
-        # Get context with no entities
-        context = await agent.context_manager.get_context(
-            user_input="Hello",
-            conversation_id="test_no_entities",
-        )
+            # Get context with no entities
+            context = await agent.context_manager.get_context(
+                user_input="Hello",
+                conversation_id="test_no_entities",
+            )
 
-        # Context should exist but may be empty or minimal
-        assert context is not None, "Context should not be None even with no entities"
+            # Context should exist but may be empty or minimal
+            assert context is not None, "Context should not be None even with no entities"
 
-        # Process a message to verify system still works
-        response = await agent.process_message(
-            text="Hello, how are you?",
-            conversation_id="test_no_entities",
-        )
+            # Process a message to verify system still works
+            response = await agent.process_message(
+                text="Hello, how are you?",
+                conversation_id="test_no_entities",
+            )
 
-        assert response is not None, "Response should not be None even with no entities"
-        assert isinstance(response, str), f"Response should be a string, got {type(response)}"
-        assert (
-            len(response) > 10
-        ), f"Response should be meaningful (>10 chars), got {len(response)} chars: {response[:100]}"
+            assert response is not None, "Response should not be None even with no entities"
+            assert isinstance(response, str), f"Response should be a string, got {type(response)}"
+            assert (
+                len(response) > 10
+            ), f"Response should be meaningful (>10 chars), got {len(response)} chars: {response[:100]}"
 
-        await agent.close()
+            await agent.close()

@@ -29,7 +29,6 @@ from custom_components.home_agent.const import (
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "language,text,description",
@@ -43,7 +42,7 @@ from custom_components.home_agent.const import (
     ],
 )
 async def test_unicode_handling_per_language(
-    test_hass, llm_config, session_manager, language, text, description
+    test_hass, llm_config, session_manager, mock_llm_server, language, text, description
 ):
     """Test unicode handling for various languages.
 
@@ -70,10 +69,13 @@ async def test_unicode_handling_per_language(
         CONF_DEBUG_LOGGING: False,
     }
 
+    # Set default mock response for the LLM
+    mock_llm_server.default_response = "I understand your request. The message was received successfully."
+
     with patch(
         "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
-    ):
+    ), mock_llm_server.patch_aiohttp():
         agent = HomeAgent(test_hass, config, session_manager)
 
         # Send message with unicode characters
@@ -117,9 +119,8 @@ async def test_unicode_handling_per_language(
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_streaming_with_multilingual(test_hass, llm_config, session_manager):
+async def test_streaming_with_multilingual(test_hass, llm_config, session_manager, mock_llm_server):
     """Test streaming mode with different languages.
 
     This test verifies that:
@@ -141,10 +142,13 @@ async def test_streaming_with_multilingual(test_hass, llm_config, session_manage
         CONF_DEBUG_LOGGING: False,
     }
 
+    # Set default mock response (used for both German and Spanish)
+    mock_llm_server.default_response = "Das Wetter heute ist schön und sonnig."
+
     with patch(
         "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
-    ):
+    ), mock_llm_server.patch_aiohttp():
         agent = HomeAgent(test_hass, config, session_manager)
 
         # Test German with streaming
@@ -196,10 +200,9 @@ async def test_streaming_with_multilingual(test_hass, llm_config, session_manage
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
 async def test_tool_execution_language_agnostic(
-    test_hass, llm_config, sample_entity_states, session_manager
+    test_hass, llm_config, sample_entity_states, session_manager, mock_llm_server
 ):
     """Test tools work regardless of request language.
 
@@ -220,10 +223,13 @@ async def test_tool_execution_language_agnostic(
         CONF_TOOLS_MAX_CALLS_PER_TURN: 5,
     }
 
+    # Set default mock response for German tool request
+    mock_llm_server.default_response = "Natürlich! Ich habe das Wohnzimmerlicht eingeschaltet."
+
     with patch(
         "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
-    ):
+    ), mock_llm_server.patch_aiohttp():
         # Setup test states
         test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
 
@@ -300,9 +306,8 @@ async def test_tool_execution_language_agnostic(
 
 
 @pytest.mark.integration
-@pytest.mark.requires_llm
 @pytest.mark.asyncio
-async def test_empty_conversation_preserves_language(test_hass, llm_config, session_manager):
+async def test_empty_conversation_preserves_language(test_hass, llm_config, session_manager, mock_llm_server):
     """Test language preservation with minimal interaction.
 
     This test verifies that:
@@ -322,10 +327,13 @@ async def test_empty_conversation_preserves_language(test_hass, llm_config, sess
         CONF_DEBUG_LOGGING: False,
     }
 
+    # Set default mock response for minimal messages
+    mock_llm_server.default_response = "Bonjour! Comment puis-je vous aider?"
+
     with patch(
         "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,
-    ):
+    ), mock_llm_server.patch_aiohttp():
         agent = HomeAgent(test_hass, config, session_manager)
 
         # Test 1: Very short message in French

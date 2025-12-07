@@ -367,6 +367,17 @@ class OpenAIStreamingHandler:
 
                 self._current_tool_calls.clear()
 
+            # Flush any remaining content in the thinking buffer
+            # This handles the case where stream ends with a partial opening tag
+            # (e.g., "<th" that might have become "<think>" but never will now)
+            if self._thinking_buffer and not self._in_thinking_block:
+                _LOGGER.debug(
+                    "Flushing thinking buffer at stream end: %s",
+                    self._thinking_buffer,
+                )
+                yield {"content": self._thinking_buffer}
+                self._thinking_buffer = ""
+
             _LOGGER.debug("Stream transformation completed")
 
         except Exception as err:

@@ -1089,3 +1089,94 @@ class TestThinkingBlockFiltering:
         full_content = "".join(content_parts)
 
         assert full_content == "Response"
+
+    @pytest.mark.asyncio
+    async def test_streaming_buffer_flushed_at_stream_end(self, handler):
+        """Test that buffered partial tag content is yielded when stream ends.
+
+        This is a regression test for the bug where content remaining in
+        _thinking_buffer at stream end was silently discarded.
+
+        Issue: If a stream chunk ends with a partial opening tag like "<th"
+        (which could become "<think>"), it gets buffered. If the stream then
+        ends without more data, that buffered content was lost.
+
+        The fix ensures any buffered content is yielded at stream end since
+        the partial tag will never complete.
+        """
+        # Stream where final chunk ends with "<th" (partial <think> tag)
+        sse_lines = [
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"qwen3",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"qwen3",'
+                '"choices":[{"index":0,"delta":{"content":"The result is <th"},'
+                '"finish_reason":null}]}'
+            ),
+            # Stream ends - no more chunks to resolve whether <th becomes <think>
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"qwen3",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}'
+            ),
+            "data: [DONE]",
+        ]
+
+        mock_stream = async_generator_from_list(sse_lines)
+
+        results = []
+        async for delta in handler.transform_openai_stream(mock_stream):
+            results.append(delta)
+
+        content_parts = [r.get("content", "") for r in results if "content" in r]
+        full_content = "".join(content_parts)
+
+        # The "<th" should NOT be lost - it should be yielded since the stream
+        # ended and it will never become a complete <think> tag
+        assert full_content == "The result is <th", (
+            f"Buffered content '<th' was lost at stream end. Got: '{full_content}'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_streaming_buffer_single_char_at_stream_end(self, handler):
+        """Test that even a single buffered character is preserved at stream end."""
+        # Stream ending with just "<" (start of potential <think>)
+        sse_lines = [
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"qwen3",'
+                '"choices":[{"index":0,"delta":{"role":"assistant"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"qwen3",'
+                '"choices":[{"index":0,"delta":{"content":"5 < 10 and 10 <"},'
+                '"finish_reason":null}]}'
+            ),
+            (
+                'data: {"id":"chatcmpl-123","object":"chat.completion.chunk",'
+                '"created":1694268190,"model":"qwen3",'
+                '"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}'
+            ),
+            "data: [DONE]",
+        ]
+
+        mock_stream = async_generator_from_list(sse_lines)
+
+        results = []
+        async for delta in handler.transform_openai_stream(mock_stream):
+            results.append(delta)
+
+        content_parts = [r.get("content", "") for r in results if "content" in r]
+        full_content = "".join(content_parts)
+
+        # The trailing "<" should not be lost
+        assert full_content == "5 < 10 and 10 <", (
+            f"Buffered '<' was lost at stream end. Got: '{full_content}'"
+        )

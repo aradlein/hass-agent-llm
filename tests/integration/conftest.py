@@ -21,6 +21,9 @@ from .health import (
     check_llm_health,
 )
 
+# Session-scoped health check cache
+_health_check_cache: dict[str, bool] = {}
+
 # Default test service endpoints (can be overridden with environment variables)
 DEFAULT_TEST_CHROMADB_HOST = "localhost"
 DEFAULT_TEST_CHROMADB_PORT = 8000
@@ -233,30 +236,30 @@ def mock_hass_integration() -> HomeAssistant:
 
 @pytest.fixture(autouse=True)
 async def cleanup_background_tasks(request):
-    """Automatically wait for background tasks after each test to avoid warnings."""
+    """Automatically clean up background tasks after each test.
+
+    This fixture uses aggressive cancellation instead of waiting to avoid
+    the 1-second timeout that was slowing down tests significantly.
+    """
     import asyncio
 
     # Let the test run
     yield
 
-    # After test completes, wait for any background tasks
-    # This prevents "Task was destroyed but it is pending" warnings
-    # Get all pending tasks (excluding the current task)
+    # After test completes, immediately cancel any pending tasks
+    # This is much faster than waiting for them to complete naturally
     try:
         current_task = asyncio.current_task()
         pending = [task for task in asyncio.all_tasks() if not task.done() and task != current_task]
         if pending:
-            # Wait up to 1 second for tasks to complete naturally
-            done, still_pending = await asyncio.wait(pending, timeout=1.0)
-            # Cancel any remaining tasks gracefully
-            for task in still_pending:
+            # Cancel all pending tasks immediately
+            for task in pending:
                 if not task.done():
                     task.cancel()
-                    try:
-                        await asyncio.wait_for(asyncio.shield(task), timeout=0.5)
-                    except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
-                        # Silently ignore errors during cleanup
-                        pass
+
+            # Brief wait for cancellations to propagate (50ms max)
+            if pending:
+                await asyncio.wait(pending, timeout=0.05)
     except Exception:
         # Ignore cleanup errors
         pass
@@ -655,6 +658,30 @@ async def check_services_health(
     return health_status
 
 
+@pytest.fixture(scope="function")
+async def service_availability(
+    request: pytest.FixtureRequest,
+    socket_enabled,  # Ensure sockets are enabled first
+    chromadb_config: dict[str, Any],
+    llm_config: dict[str, Any],
+    embedding_config: dict[str, Any],
+) -> dict[str, bool]:
+    """Check and track service availability for the test.
+
+    This fixture checks the health of external services and returns
+    a dictionary of their availability status. Tests can use this
+    to decide whether to use real services or mocks.
+
+    Returns:
+        Dictionary mapping service names to availability status
+    """
+    return {
+        "chromadb": await check_chromadb_health(chromadb_config["host"], chromadb_config["port"]),
+        "llm": await check_llm_health(llm_config["base_url"]),
+        "embedding": await check_embedding_health(embedding_config["base_url"]),
+    }
+
+
 @pytest.fixture(autouse=True, scope="function")
 async def skip_if_services_unavailable(
     request: pytest.FixtureRequest,
@@ -663,7 +690,7 @@ async def skip_if_services_unavailable(
     llm_config: dict[str, Any],
     embedding_config: dict[str, Any],
 ) -> None:
-    """Automatically skip tests if required services are unavailable.
+    """Check for service requirements and use mocks when services unavailable.
 
     This fixture is autouse, meaning it runs for every test. Tests can specify
     which services they require using markers:
@@ -672,6 +699,13 @@ async def skip_if_services_unavailable(
         @pytest.mark.requires_llm
         @pytest.mark.requires_embedding
 
+    When a service is unavailable:
+    - If USE_MOCK_FALLBACK env var is set to "0", tests are skipped
+    - Otherwise, tests will use mock implementations (handled by other fixtures)
+
+    The service availability is stored on the request node for other fixtures
+    to access.
+
     Args:
         request: Pytest request object
         socket_enabled: Ensures sockets are enabled first
@@ -679,21 +713,64 @@ async def skip_if_services_unavailable(
         llm_config: LLM configuration
         embedding_config: Embedding configuration
     """
+    global _health_check_cache
+
+    # Check if we should skip on unavailable services (default: use mocks)
+    skip_on_unavailable = os.getenv("USE_MOCK_FALLBACK", "1") == "0"
+
+    # Store availability status on the request for other fixtures
+    request.node._service_status = {}  # type: ignore[attr-defined]
+
+    # Determine if this is a "real" test (test_real_*.py files)
+    test_file = os.path.basename(request.node.fspath)
+    is_real_test = test_file.startswith("test_real_")
+
+    # For non-real tests, always use mocks (no health checks)
+    if not is_real_test:
+        request.node._service_status = {  # type: ignore[attr-defined]
+            "llm": False,
+            "chromadb": False,
+            "embedding": False,
+        }
+        return
+
+    # For real tests (test_real_*.py), perform health checks with caching
     # Check for service requirement markers and test health on-demand
     if request.node.get_closest_marker("requires_chromadb"):
-        is_healthy = await check_chromadb_health(chromadb_config["host"], chromadb_config["port"])
-        if not is_healthy:
-            pytest.skip("ChromaDB service not available")
+        cache_key = f"chromadb:{chromadb_config['host']}:{chromadb_config['port']}"
+        if cache_key in _health_check_cache:
+            is_healthy = _health_check_cache[cache_key]
+        else:
+            is_healthy = await check_chromadb_health(chromadb_config["host"], chromadb_config["port"])
+            _health_check_cache[cache_key] = is_healthy
+
+        request.node._service_status["chromadb"] = is_healthy  # type: ignore[attr-defined]
+        if not is_healthy and skip_on_unavailable:
+            pytest.skip("ChromaDB service not available (set USE_MOCK_FALLBACK=1 to use mocks)")
 
     if request.node.get_closest_marker("requires_llm"):
-        is_healthy = await check_llm_health(llm_config["base_url"])
-        if not is_healthy:
-            pytest.skip("LLM service not available")
+        cache_key = f"llm:{llm_config['base_url']}"
+        if cache_key in _health_check_cache:
+            is_healthy = _health_check_cache[cache_key]
+        else:
+            is_healthy = await check_llm_health(llm_config["base_url"])
+            _health_check_cache[cache_key] = is_healthy
+
+        request.node._service_status["llm"] = is_healthy  # type: ignore[attr-defined]
+        if not is_healthy and skip_on_unavailable:
+            pytest.skip("LLM service not available (set USE_MOCK_FALLBACK=1 to use mocks)")
 
     if request.node.get_closest_marker("requires_embedding"):
-        is_healthy = await check_embedding_health(embedding_config["base_url"])
-        if not is_healthy:
-            pytest.skip("Embedding service not available")
+        cache_key = f"embedding:{embedding_config['base_url']}"
+        if cache_key in _health_check_cache:
+            is_healthy = _health_check_cache[cache_key]
+        else:
+            is_healthy = await check_embedding_health(embedding_config["base_url"])
+            _health_check_cache[cache_key] = is_healthy
+
+        request.node._service_status["embedding"] = is_healthy  # type: ignore[attr-defined]
+        if not is_healthy and skip_on_unavailable:
+            pytest.skip("Embedding service not available (set USE_MOCK_FALLBACK=1 to use mocks)")
 
 
 # Register custom pytest markers
@@ -742,7 +819,11 @@ def pytest_sessionstart(session: Any) -> None:
     Args:
         session: Pytest session object
     """
+    global _health_check_cache
     import pytest_socket
+
+    # Clear health check cache at session start
+    _health_check_cache.clear()
 
     # Load .env.test file for integration test configuration
     load_dotenv(".env.test")
@@ -782,3 +863,79 @@ def socket_enabled(request: pytest.FixtureRequest):
 
     # Cleanup - restore previous socket
     socket_module.socket = current_socket
+
+
+# =============================================================================
+# Mock-aware service fixtures
+# These fixtures provide either real or mock implementations based on
+# service availability, allowing tests to run with mocks when services
+# are unavailable.
+# =============================================================================
+
+
+@pytest.fixture
+def mock_llm_server():
+    """Provide a pre-configured mock LLM server for testing.
+
+    This fixture provides a MockLLMServer configured with responses
+    appropriate for Home Agent testing.
+    """
+    from tests.mocks import create_mock_llm_for_home_agent
+
+    return create_mock_llm_for_home_agent()
+
+
+@pytest.fixture
+def mock_embedding_server():
+    """Provide a mock embedding server for testing."""
+    from tests.mocks import MockEmbeddingServer
+
+    return MockEmbeddingServer(
+        dimensions=1024,  # Match mxbai-embed-large
+        model="mxbai-embed-large",
+        provider="ollama",
+    )
+
+
+@pytest.fixture
+def mock_chromadb_client():
+    """Provide a mock ChromaDB client for testing."""
+    from tests.mocks import MockChromaDBClient
+
+    return MockChromaDBClient()
+
+
+@pytest.fixture
+def is_using_mock_llm(request: pytest.FixtureRequest) -> bool:
+    """Check if the test is using a mock LLM.
+
+    This can be used to adjust assertions based on whether we're
+    testing with real or mock services.
+
+    Returns:
+        True if using mock LLM, False if using real LLM
+    """
+    service_status = getattr(request.node, "_service_status", {})
+    return not service_status.get("llm", False)
+
+
+@pytest.fixture
+def is_using_mock_chromadb(request: pytest.FixtureRequest) -> bool:
+    """Check if the test is using a mock ChromaDB.
+
+    Returns:
+        True if using mock ChromaDB, False if using real ChromaDB
+    """
+    service_status = getattr(request.node, "_service_status", {})
+    return not service_status.get("chromadb", False)
+
+
+@pytest.fixture
+def is_using_mock_embedding(request: pytest.FixtureRequest) -> bool:
+    """Check if the test is using mock embeddings.
+
+    Returns:
+        True if using mock embeddings, False if using real embeddings
+    """
+    service_status = getattr(request.node, "_service_status", {})
+    return not service_status.get("embedding", False)

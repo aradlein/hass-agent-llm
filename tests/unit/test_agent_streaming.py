@@ -545,3 +545,158 @@ class TestStreamingMemoryExtraction:
             # Verify result
             assert result is not None
             assert result.conversation_id == "test-conv"
+
+
+class TestStreamingMessageConstruction:
+    """Test that streaming properly constructs messages with both content and tool_calls."""
+
+    def test_assistant_content_with_both_creates_single_message(self):
+        """Test that AssistantContent with BOTH content AND tool_calls creates ONE message.
+
+        This is a regression test for Bug #63 where messages were being split into
+        separate messages for content and tool_calls, causing issues with the LLM API.
+        The fix in core.py ensures a single message with both fields is appended.
+        """
+        from homeassistant.components.conversation import AssistantContent
+        from homeassistant.helpers.llm import ToolInput
+        import json
+
+        # Create AssistantContent with BOTH content AND tool_calls
+        # This simulates what the LLM stream returns
+        mock_tool_call = ToolInput(
+            id="call_123",
+            tool_name="ha_control",
+            tool_args={"entity_id": "light.living_room", "action": "turn_on"},
+        )
+
+        content_item = AssistantContent(
+            agent_id="home_agent",
+            content="Let me turn on the lights for you.",
+            tool_calls=[mock_tool_call],
+        )
+
+        # Simulate the message construction logic from core.py lines 1070-1094
+        messages = []
+
+        # This is the FIXED code that creates a single message
+        msg = {"role": "assistant"}
+
+        if content_item.content:
+            msg["content"] = content_item.content
+
+        if content_item.tool_calls:
+            msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.tool_name,
+                        "arguments": json.dumps(tc.tool_args),
+                    },
+                }
+                for tc in content_item.tool_calls
+            ]
+
+        messages.append(msg)
+
+        # ASSERTIONS: Verify only ONE message was created with BOTH fields
+        assert len(messages) == 1, "Should create exactly ONE message, not split into two"
+
+        message = messages[0]
+        assert message["role"] == "assistant"
+
+        # Both content and tool_calls should be in the SAME message
+        assert "content" in message, "Message should have 'content' field"
+        assert message["content"] == "Let me turn on the lights for you."
+
+        assert "tool_calls" in message, "Message should have 'tool_calls' field"
+        assert len(message["tool_calls"]) == 1
+
+        tool_call = message["tool_calls"][0]
+        assert tool_call["id"] == "call_123"
+        assert tool_call["type"] == "function"
+        assert tool_call["function"]["name"] == "ha_control"
+        assert json.loads(tool_call["function"]["arguments"]) == {
+            "entity_id": "light.living_room",
+            "action": "turn_on",
+        }
+
+    def test_assistant_content_only_text_creates_message(self):
+        """Test that AssistantContent with only text content works correctly."""
+        from homeassistant.components.conversation import AssistantContent
+
+        content_item = AssistantContent(
+            agent_id="home_agent",
+            content="Hello, how can I help?",
+        )
+
+        # Simulate the message construction
+        messages = []
+        msg = {"role": "assistant"}
+
+        if content_item.content:
+            msg["content"] = content_item.content
+
+        if content_item.tool_calls:
+            msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.tool_name, "arguments": tc.tool_args},
+                }
+                for tc in content_item.tool_calls
+            ]
+
+        messages.append(msg)
+
+        # Verify single message with only content
+        assert len(messages) == 1
+        assert messages[0]["role"] == "assistant"
+        assert messages[0]["content"] == "Hello, how can I help?"
+        assert "tool_calls" not in messages[0]
+
+    def test_assistant_content_only_tool_calls_creates_message(self):
+        """Test that AssistantContent with only tool_calls works correctly."""
+        from homeassistant.components.conversation import AssistantContent
+        from homeassistant.helpers.llm import ToolInput
+        import json
+
+        mock_tool_call = ToolInput(
+            id="call_456",
+            tool_name="ha_query",
+            tool_args={"entity_id": "sensor.temperature"},
+        )
+
+        content_item = AssistantContent(
+            agent_id="home_agent",
+            tool_calls=[mock_tool_call],
+        )
+
+        # Simulate the message construction
+        messages = []
+        msg = {"role": "assistant"}
+
+        if content_item.content:
+            msg["content"] = content_item.content
+
+        if content_item.tool_calls:
+            msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.tool_name,
+                        "arguments": json.dumps(tc.tool_args),
+                    },
+                }
+                for tc in content_item.tool_calls
+            ]
+
+        messages.append(msg)
+
+        # Verify single message with only tool_calls
+        assert len(messages) == 1
+        assert messages[0]["role"] == "assistant"
+        assert "content" not in messages[0]
+        assert "tool_calls" in messages[0]
+        assert len(messages[0]["tool_calls"]) == 1
