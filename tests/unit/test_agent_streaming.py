@@ -1438,9 +1438,11 @@ class TestStreamingMessageAccumulation:
         # Track the messages passed to _call_llm_streaming across iterations
         llm_call_messages = []
 
-        async def capture_llm_messages(messages):
+        # NOTE: This must NOT be async - _call_llm_streaming returns an async generator,
+        # so the mock should be a regular function that returns an async generator
+        def capture_llm_messages(messages):
             """Capture messages passed to LLM and return mock stream."""
-            llm_call_messages.append(messages.copy())
+            llm_call_messages.append([m.copy() for m in messages])
             async def mock_stream():
                 yield "data: {}"
             return mock_stream()
@@ -1460,6 +1462,8 @@ class TestStreamingMessageAccumulation:
 
             if iteration_count == 1:
                 # First iteration: Tool call + result
+                # After yielding tool call, set unresponded_tool_results to simulate HA behavior
+                mock_chat_log_instance.unresponded_tool_results = ["call_123"]
                 yield AssistantContent(
                     agent_id="home_agent",
                     content="I'll turn on the kitchen lights.",
@@ -1472,7 +1476,8 @@ class TestStreamingMessageAccumulation:
                     tool_result={"success": True},
                 )
             elif iteration_count == 2:
-                # Second iteration: Final response
+                # Second iteration: Final response - clear unresponded_tool_results
+                mock_chat_log_instance.unresponded_tool_results = []
                 yield AssistantContent(
                     agent_id="home_agent",
                     content="Done! The kitchen lights are now on.",
@@ -1574,8 +1579,10 @@ class TestStreamingMessageAccumulation:
 
         llm_call_messages = []
 
-        async def capture_llm_messages(messages):
-            llm_call_messages.append(messages.copy())
+        # NOTE: This must NOT be async - _call_llm_streaming returns an async generator,
+        # so the mock should be a regular function that returns an async generator
+        def capture_llm_messages(messages):
+            llm_call_messages.append([m.copy() for m in messages])
             async def mock_stream():
                 yield "data: {}"
             return mock_stream()
