@@ -623,10 +623,12 @@ class HomeAgent(
     def _preprocess_user_message(self, text: str) -> str:
         """Preprocess user message before sending to LLM.
 
-        Appends /no_think if thinking mode is disabled.
+        Appends /no_think if thinking mode is disabled and not already present.
         """
         if not self.config.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED):
-            return text.strip() + "\n/no_think"
+            # Only append /no_think if it's not already there (avoid duplicates)
+            if "/no_think" not in text:
+                return text.strip() + "\n/no_think"
         return text
 
     def _build_system_prompt(

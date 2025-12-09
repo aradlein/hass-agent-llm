@@ -300,7 +300,8 @@ class TestDisabledFeatures:
         assert len(messages) == 2  # System prompt + current user message
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "user"
-        assert messages[1]["content"] == "What's the weather?"
+        # Use startswith to account for /no_think suffix added by preprocessing
+        assert messages[1]["content"].startswith("What's the weather?")
 
         # Verify no assistant messages from history
         assistant_messages = [msg for msg in messages if msg["role"] == "assistant"]

@@ -45,10 +45,6 @@ from custom_components.home_agent.const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Suffix to disable thinking mode for reasoning models (Qwen3, DeepSeek R1, etc.)
-# This prevents tests from timing out due to extended thinking
-NO_THINK_SUFFIX = "\n/no_think"
-
 
 @contextmanager
 def maybe_mock_llm(is_using_mock: bool, mock_server):
@@ -94,7 +90,7 @@ async def test_basic_conversation(
         CONF_HISTORY_ENABLED: False,  # Disable for simple test
         CONF_EMIT_EVENTS: False,
         CONF_DEBUG_LOGGING: False,
-        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Added to prompt (not user message)
     }
 
     # Mock entity exposure to return no entities (simple test)
@@ -106,9 +102,9 @@ async def test_basic_conversation(
         with maybe_mock_llm(is_using_mock_llm, mock_llm_server):
             agent = HomeAgent(test_hass, config, session_manager)
 
-            # Process a simple message (with /no_think suffix for reasoning models)
+            # Process a simple message
             response = await agent.process_message(
-                text="Hello! How are you today?" + NO_THINK_SUFFIX,
+                text="Hello! How are you today?",
                 conversation_id="test_basic",
             )
 
@@ -175,7 +171,7 @@ async def test_tool_calling(
         CONF_HISTORY_ENABLED: False,
         CONF_EMIT_EVENTS: False,
         CONF_TOOLS_MAX_CALLS_PER_TURN: 5,
-        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Added to prompt (not user message)
     }
 
     # Mock entity exposure to return False (avoid entity registry calls)
@@ -226,9 +222,9 @@ async def test_tool_calling(
 
             agent.get_exposed_entities = MagicMock(return_value=mock_exposed_entities())
 
-            # Ask the agent to control a device (with /no_think suffix for reasoning models)
+            # Ask the agent to control a device
             response = await agent.process_message(
-                text="Turn on the living room light" + NO_THINK_SUFFIX,
+                text="Turn on the living room light",
                 conversation_id="test_tool_calling",
             )
 
@@ -277,7 +273,7 @@ async def test_multi_turn_context(
         CONF_HISTORY_MAX_MESSAGES: 10,
         CONF_HISTORY_PERSIST: False,
         CONF_EMIT_EVENTS: False,
-        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Added to prompt (not user message)
     }
 
     # Configure mock responses for deterministic multi-turn behavior
@@ -294,9 +290,9 @@ async def test_multi_turn_context(
 
             conversation_id = "test_multi_turn"
 
-            # First turn: Set context (with /no_think suffix for reasoning models)
+            # First turn: Set context
             response1 = await agent.process_message(
-                text="My name is Alice and I like the color blue." + NO_THINK_SUFFIX,
+                text="My name is Alice and I like the color blue.",
                 conversation_id=conversation_id,
             )
 
@@ -307,9 +303,9 @@ async def test_multi_turn_context(
             assert isinstance(response1, str), f"Response should be a string, got {type(response1)}"
             assert len(response1) > 10, f"Response should be meaningful, got {len(response1)} chars"
 
-            # Second turn: Reference previous context (with /no_think suffix)
+            # Second turn: Reference previous context
             response2 = await agent.process_message(
-                text="What is my name?" + NO_THINK_SUFFIX,
+                text="What is my name?",
                 conversation_id=conversation_id,
             )
 
@@ -324,9 +320,9 @@ async def test_multi_turn_context(
                 # Response should mention Alice (mock is configured for this)
                 assert "alice" in response2.lower(), "Agent didn't remember name from previous turn"
 
-            # Third turn: Reference other context (with /no_think suffix)
+            # Third turn: Reference other context
             response3 = await agent.process_message(
-                text="What color do I like?" + NO_THINK_SUFFIX,
+                text="What color do I like?",
                 conversation_id=conversation_id,
             )
 
@@ -373,7 +369,7 @@ async def test_streaming_response(
         CONF_STREAMING_ENABLED: True,
         CONF_HISTORY_ENABLED: False,
         CONF_EMIT_EVENTS: False,
-        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Added to prompt (not user message)
     }
 
     with patch(
@@ -387,11 +383,11 @@ async def test_streaming_response(
             chunks = []
 
             async def collect_chunks():
-                # Add /no_think suffix to user message for reasoning models
+                # User message will be preprocessed by _preprocess_user_message
                 async for chunk in agent._call_llm_streaming(
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": "Count from 1 to 5." + NO_THINK_SUFFIX},
+                        {"role": "user", "content": "Count from 1 to 5."},
                     ]
                 ):
                     chunks.append(chunk)
@@ -457,7 +453,7 @@ async def test_error_handling(test_hass, llm_config, session_manager):
         CONF_LLM_MAX_TOKENS: 500,
         CONF_HISTORY_ENABLED: False,
         CONF_EMIT_EVENTS: False,
-        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Added to prompt (not user message)
     }
 
     with patch(
@@ -466,12 +462,12 @@ async def test_error_handling(test_hass, llm_config, session_manager):
     ):
         agent = HomeAgent(test_hass, config, session_manager)
 
-        # Try to process a message with invalid model (with /no_think suffix)
+        # Try to process a message with invalid model
         response = None
         exception_caught = None
         try:
             response = await agent.process_message(
-                text="Hello" + NO_THINK_SUFFIX,
+                text="Hello",
                 conversation_id="test_error",
             )
             # Strip thinking blocks if we got a response
@@ -534,7 +530,7 @@ async def test_llm_with_complex_tools(
         CONF_HISTORY_ENABLED: False,
         CONF_EMIT_EVENTS: False,
         CONF_TOOLS_MAX_CALLS_PER_TURN: 10,
-        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Added to prompt (not user message)
     }
 
     # Mock entity exposure to return False (avoid entity registry calls)
@@ -584,9 +580,9 @@ async def test_llm_with_complex_tools(
 
             agent.get_exposed_entities = MagicMock(return_value=mock_exposed_entities())
 
-            # Ask for a complex multi-step action (with /no_think suffix for reasoning models)
+            # Ask for a complex multi-step action
             response = await agent.process_message(
-                text="What's the temperature, and if it's below 70, turn on the thermostat" + NO_THINK_SUFFIX,
+                text="What's the temperature, and if it's below 70, turn on the thermostat",
                 conversation_id="test_complex_tools",
             )
 
@@ -637,7 +633,7 @@ async def test_tool_execution_with_correct_entity(
         CONF_HISTORY_ENABLED: False,
         CONF_EMIT_EVENTS: False,
         CONF_TOOLS_MAX_CALLS_PER_TURN: 5,
-        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Added to prompt (not user message)
     }
 
     # Mock entity registry to return entries for our test entities
@@ -720,9 +716,8 @@ async def test_tool_execution_with_correct_entity(
             agent.get_exposed_entities = MagicMock(return_value=mock_exposed_entities())
 
             # Test 1: Turn on a specific light (bedroom, not living room)
-            # Add /no_think suffix for reasoning models
             response1 = await agent.process_message(
-                text="Turn on the bedroom light" + NO_THINK_SUFFIX,
+                text="Turn on the bedroom light",
                 conversation_id="test_entity_targeting_1",
             )
 
@@ -758,9 +753,9 @@ async def test_tool_execution_with_correct_entity(
             # Clear service calls for next test
             service_calls.clear()
 
-            # Test 2: Control coffee maker specifically (with /no_think suffix)
+            # Test 2: Control coffee maker specifically
             response2 = await agent.process_message(
-                text="Turn on the coffee maker" + NO_THINK_SUFFIX,
+                text="Turn on the coffee maker",
                 conversation_id="test_entity_targeting_2",
             )
 
@@ -798,9 +793,9 @@ async def test_tool_execution_with_correct_entity(
             # Clear service calls for next test
             service_calls.clear()
 
-            # Test 3: Query specific sensor (not controls) (with /no_think suffix)
+            # Test 3: Query specific sensor (not controls)
             response3 = await agent.process_message(
-                text="What is the temperature?" + NO_THINK_SUFFIX,
+                text="What is the temperature?",
                 conversation_id="test_entity_targeting_3",
             )
 

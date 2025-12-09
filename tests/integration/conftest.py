@@ -21,6 +21,26 @@ from .health import (
     check_llm_health,
 )
 
+
+@pytest.fixture(autouse=True)
+def disable_thinking_for_tests():
+    """Disable LLM thinking mode for all integration tests.
+
+    Reasoning models (Qwen3, DeepSeek R1, etc.) support extended thinking which
+    can cause tests to timeout. This fixture patches DEFAULT_THINKING_ENABLED
+    to False, causing /no_think to be automatically appended to user messages.
+
+    This is an autouse fixture so all tests automatically benefit without
+    needing to modify their configuration.
+    """
+    # Patch where the value is used (agent.core), not where it's defined (const)
+    # because Python imports copy the value at import time
+    with patch(
+        "custom_components.home_agent.agent.core.DEFAULT_THINKING_ENABLED",
+        False,
+    ):
+        yield
+
 # Session-scoped health check cache
 _health_check_cache: dict[str, bool] = {}
 

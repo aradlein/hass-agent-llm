@@ -435,3 +435,31 @@ class TestAgentPreprocessUserMessage:
 
         result = agent._preprocess_user_message("")
         assert result == "\n/no_think"
+
+    def test_preprocess_idempotent_no_think_already_present(self, mock_hass, mock_session_manager):
+        """Test that /no_think is not duplicated if already present in message."""
+        config = {
+            "thinking_enabled": False,
+            "llm": {"url": "http://localhost", "model": "test"},
+            "context": {"mode": "direct"},
+            "history": {"enabled": False},
+            "memory": {"enabled": False},
+            "streaming": {"enabled": False},
+            "emit_events": False,
+        }
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
+
+        # Test with /no_think already at the end
+        result1 = agent._preprocess_user_message("Turn on the lights\n/no_think")
+        assert result1 == "Turn on the lights\n/no_think"
+        assert result1.count("/no_think") == 1, "Should not duplicate /no_think"
+
+        # Test with /no_think in the middle
+        result2 = agent._preprocess_user_message("Turn on /no_think the lights")
+        assert result2 == "Turn on /no_think the lights"
+        assert result2.count("/no_think") == 1, "Should not add /no_think if already present"
+
+        # Test with /no_think at the beginning
+        result3 = agent._preprocess_user_message("/no_think Turn on the lights")
+        assert result3 == "/no_think Turn on the lights"
+        assert result3.count("/no_think") == 1, "Should not add /no_think if already present"
