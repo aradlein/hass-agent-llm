@@ -19,6 +19,13 @@ CONF_LLM_BACKEND: Final = "llm_backend"
 CONF_LLM_PROXY_HEADERS: Final = "llm_proxy_headers"
 CONF_THINKING_ENABLED: Final = "thinking_enabled"
 
+# Configuration keys - LLM Retry Settings
+CONF_RETRY_MAX_ATTEMPTS: Final = "retry_max_attempts"
+CONF_RETRY_INITIAL_DELAY: Final = "retry_initial_delay"
+CONF_RETRY_BACKOFF_FACTOR: Final = "retry_backoff_factor"
+CONF_RETRY_MAX_DELAY: Final = "retry_max_delay"
+CONF_RETRY_JITTER: Final = "retry_jitter"
+
 # Configuration keys - Context Injection
 CONF_CONTEXT_MODE: Final = "context_mode"
 CONF_CONTEXT_ENTITIES: Final = "context_entities"
@@ -140,6 +147,13 @@ DEFAULT_TOP_P: Final = 1.0
 DEFAULT_LLM_KEEP_ALIVE: Final = "5m"
 DEFAULT_LLM_BACKEND: Final = LLM_BACKEND_DEFAULT
 DEFAULT_THINKING_ENABLED: Final = True  # Default: enabled (no /no_think appended)
+
+# Default values - LLM Retry Settings
+DEFAULT_RETRY_MAX_ATTEMPTS: Final = 1
+DEFAULT_RETRY_INITIAL_DELAY: Final = 1.0  # seconds
+DEFAULT_RETRY_BACKOFF_FACTOR: Final = 2.0  # exponential backoff: 1s, 2s, 4s, etc.
+DEFAULT_RETRY_MAX_DELAY: Final = 30.0  # maximum delay cap in seconds
+DEFAULT_RETRY_JITTER: Final = True  # add random jitter to prevent thundering herd
 
 # Default values - Context Injection
 DEFAULT_CONTEXT_MODE: Final = CONTEXT_MODE_DIRECT
@@ -286,10 +300,6 @@ MAX_CONTEXT_TOKENS: Final = 8000  # Maximum tokens for context before truncation
 # Update intervals (seconds)
 CONTEXT_UPDATE_INTERVAL: Final = 60  # Update entity context every 60 seconds
 CLEANUP_INTERVAL: Final = 3600  # Cleanup old conversations every hour
-
-# Retry configuration
-MAX_RETRIES: Final = 3
-RETRY_BACKOFF_FACTOR: Final = 2  # Exponential backoff: 1s, 2s, 4s
 
 # Custom tool handler types
 CUSTOM_TOOL_HANDLER_REST: Final = "rest"

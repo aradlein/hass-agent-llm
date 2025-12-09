@@ -34,6 +34,11 @@ from .const import (
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
     DEFAULT_EMBEDDING_KEEP_ALIVE,
+    DEFAULT_RETRY_BACKOFF_FACTOR,
+    DEFAULT_RETRY_INITIAL_DELAY,
+    DEFAULT_RETRY_JITTER,
+    DEFAULT_RETRY_MAX_ATTEMPTS,
+    DEFAULT_RETRY_MAX_DELAY,
     DEFAULT_VECTOR_DB_COLLECTION,
     DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
     DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
@@ -498,8 +503,12 @@ class VectorDBManager:
 
                 self._client = await retry_async(
                     create_client_func,
-                    max_retries=3,
+                    max_retries=DEFAULT_RETRY_MAX_ATTEMPTS,
                     retryable_exceptions=(Exception,),
+                    initial_delay=DEFAULT_RETRY_INITIAL_DELAY,
+                    backoff_factor=DEFAULT_RETRY_BACKOFF_FACTOR,
+                    max_delay=DEFAULT_RETRY_MAX_DELAY,
+                    jitter=DEFAULT_RETRY_JITTER,
                 )
                 _LOGGER.debug("ChromaDB client connected to %s:%s", self.host, self.port)
             except Exception as err:
@@ -621,6 +630,10 @@ class VectorDBManager:
 
         return await retry_async(
             make_embedding_request,
-            max_retries=3,
+            max_retries=DEFAULT_RETRY_MAX_ATTEMPTS,
             retryable_exceptions=(aiohttp.ClientError, asyncio.TimeoutError),
+            initial_delay=DEFAULT_RETRY_INITIAL_DELAY,
+            backoff_factor=DEFAULT_RETRY_BACKOFF_FACTOR,
+            max_delay=DEFAULT_RETRY_MAX_DELAY,
+            jitter=DEFAULT_RETRY_JITTER,
         )

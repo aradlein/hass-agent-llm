@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import re
 from collections.abc import Callable, Sequence
 from typing import Any, TypeVar
@@ -69,14 +70,22 @@ async def retry_async(
     max_retries: int = 3,
     retryable_exceptions: tuple[type[Exception], ...] = (Exception,),
     non_retryable_exceptions: tuple[type[Exception], ...] = (),
+    initial_delay: float = 1.0,
+    backoff_factor: float = 2.0,
+    max_delay: float = 30.0,
+    jitter: bool = True,
 ) -> Any:
-    """Retry an async function on transient failures.
+    """Retry an async function on transient failures with exponential backoff.
 
     Args:
         func: Async callable to retry (no arguments)
         max_retries: Maximum number of retry attempts (default: 3)
         retryable_exceptions: Tuple of exception types to catch and retry
         non_retryable_exceptions: Tuple of exception types to never retry
+        initial_delay: Initial delay in seconds before first retry (default: 1.0)
+        backoff_factor: Multiplier for exponential backoff (default: 2.0)
+        max_delay: Maximum delay between retries in seconds (default: 30.0)
+        jitter: Add random jitter to prevent thundering herd (default: True)
 
     Returns:
         Result of successful function call
@@ -93,7 +102,18 @@ async def retry_async(
             make_request,
             max_retries=3,
             retryable_exceptions=(aiohttp.ClientError, asyncio.TimeoutError),
+            initial_delay=1.0,
+            backoff_factor=2.0,
+            max_delay=30.0,
+            jitter=True,
         )
+
+    Backoff behavior with initial_delay=1.0, backoff_factor=2.0:
+        - Attempt 1: Immediate
+        - Attempt 2: Wait 1.0s (+ jitter)
+        - Attempt 3: Wait 2.0s (+ jitter)
+        - Attempt 4: Wait 4.0s (+ jitter)
+        - etc., capped at max_delay
     """
     last_exception = None
 
@@ -106,10 +126,22 @@ async def retry_async(
         except retryable_exceptions as e:
             last_exception = e
             if attempt < max_retries - 1:
-                # Not the last attempt, log and retry
-                delay = 1.0  # Simple fixed delay
+                # Calculate exponential backoff delay
+                # First retry (attempt=0) uses initial_delay
+                # Second retry (attempt=1) uses initial_delay * backoff_factor
+                # etc.
+                delay = initial_delay * (backoff_factor ** attempt)
+                delay = min(delay, max_delay)  # Cap at max_delay
+
+                # Add jitter to prevent thundering herd
+                # Jitter adds +/- 25% randomness to the delay
+                if jitter and delay > 0:
+                    jitter_range = delay * 0.25
+                    delay = delay + random.uniform(-jitter_range, jitter_range)
+                    delay = max(0.1, delay)  # Ensure minimum delay of 0.1s
+
                 _LOGGER.debug(
-                    "Attempt %d/%d failed: %s, retrying in %ss",
+                    "Attempt %d/%d failed: %s, retrying in %.2fs",
                     attempt + 1,
                     max_retries,
                     str(e),

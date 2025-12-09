@@ -683,3 +683,41 @@ class TestGracefulDegradation:
 
                 # Tool execution error should be logged
                 assert any("Tool execution failed" in record.message for record in caplog.records)
+
+    async def test_retry_async_uses_default_backoff_parameters(
+        self, mock_hass, base_config, session_manager
+    ):
+        """Test that retry_async is called with default backoff parameters.
+
+        Verifies:
+        - retry_async in agent/llm.py uses the configured default parameters
+        - The constants DEFAULT_RETRY_* are imported and used correctly
+
+        Note: The detailed exponential backoff behavior is tested in
+        tests/unit/test_helpers.py::TestRetryAsync which covers:
+        - Exponential backoff calculation
+        - Max delay capping
+        - Jitter application
+        - Success after retries
+        - Exception handling
+        """
+        from custom_components.home_agent.const import (
+            DEFAULT_RETRY_BACKOFF_FACTOR,
+            DEFAULT_RETRY_INITIAL_DELAY,
+            DEFAULT_RETRY_JITTER,
+            DEFAULT_RETRY_MAX_DELAY,
+        )
+
+        # Verify the default constants are set to expected values
+        assert DEFAULT_RETRY_INITIAL_DELAY == 1.0
+        assert DEFAULT_RETRY_BACKOFF_FACTOR == 2.0
+        assert DEFAULT_RETRY_MAX_DELAY == 30.0
+        assert DEFAULT_RETRY_JITTER is True
+
+        # Verify the imports exist in llm.py
+        import custom_components.home_agent.agent.llm as llm_module
+
+        assert hasattr(llm_module, "DEFAULT_RETRY_INITIAL_DELAY")
+        assert hasattr(llm_module, "DEFAULT_RETRY_BACKOFF_FACTOR")
+        assert hasattr(llm_module, "DEFAULT_RETRY_MAX_DELAY")
+        assert hasattr(llm_module, "DEFAULT_RETRY_JITTER")

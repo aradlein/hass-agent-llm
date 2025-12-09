@@ -389,8 +389,8 @@ class HomeAssistantQueryTool(BaseTool):
         entity_data: dict[str, Any] = {
             "entity_id": state.entity_id,
             "state": state.state,
-            "last_changed": state.last_changed.isoformat(),
-            "last_updated": state.last_updated.isoformat(),
+            "last_changed": state.last_changed.isoformat(timespec='seconds'),
+            "last_updated": state.last_updated.isoformat(timespec='seconds'),
         }
 
         # Add attributes
@@ -487,8 +487,8 @@ class HomeAssistantQueryTool(BaseTool):
                             "aggregate": aggregate,
                             "value": aggregated_value,
                             "data_points": len(entity_history),
-                            "start_time": start_time.isoformat(),
-                            "end_time": end_time.isoformat(),
+                            "start_time": start_time.isoformat(timespec='seconds'),
+                            "end_time": end_time.isoformat(timespec='seconds'),
                         }
                     )
 

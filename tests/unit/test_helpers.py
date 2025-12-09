@@ -4,7 +4,8 @@ This module tests all utility functions in the helpers module including
 formatting, validation, security, and token estimation functions.
 """
 
-from unittest.mock import Mock
+import asyncio
+from unittest.mock import Mock, patch
 
 import pytest
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
@@ -17,6 +18,7 @@ from custom_components.home_agent.helpers import (
     format_entity_state,
     merge_dicts,
     redact_sensitive_data,
+    retry_async,
     safe_get_state,
     strip_thinking_blocks,
     truncate_text,
@@ -856,3 +858,306 @@ class TestMergeDicts:
             "enabled": True,
         }
         assert result == expected
+
+
+class TestRetryAsync:
+    """Tests for retry_async function with exponential backoff."""
+
+    @pytest.mark.asyncio
+    async def test_retry_async_success_first_attempt(self):
+        """Test that function returns immediately on first success."""
+        call_count = 0
+
+        async def success_func():
+            nonlocal call_count
+            call_count += 1
+            return "success"
+
+        result = await retry_async(success_func, max_retries=3)
+        assert result == "success"
+        assert call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_retry_async_success_after_retries(self):
+        """Test that function succeeds after transient failures."""
+        call_count = 0
+
+        async def flaky_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise ValueError("Transient error")
+            return "success"
+
+        with patch("asyncio.sleep"):
+            result = await retry_async(flaky_func, max_retries=3)
+
+        assert result == "success"
+        assert call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_retry_async_exhausts_retries(self):
+        """Test that exception is raised after max retries."""
+        call_count = 0
+
+        async def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Persistent error")
+
+        with patch("asyncio.sleep"):
+            with pytest.raises(ValueError) as exc_info:
+                await retry_async(always_fails, max_retries=3)
+
+        assert "Persistent error" in str(exc_info.value)
+        assert call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_retry_async_non_retryable_exception(self):
+        """Test that non-retryable exceptions are raised immediately."""
+        call_count = 0
+
+        async def raises_non_retryable():
+            nonlocal call_count
+            call_count += 1
+            raise TypeError("Non-retryable error")
+
+        with pytest.raises(TypeError) as exc_info:
+            await retry_async(
+                raises_non_retryable,
+                max_retries=3,
+                retryable_exceptions=(ValueError,),
+                non_retryable_exceptions=(TypeError,),
+            )
+
+        assert "Non-retryable error" in str(exc_info.value)
+        assert call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_retry_async_exponential_backoff(self):
+        """Test that delays follow exponential backoff pattern."""
+        call_count = 0
+
+        async def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Error")
+
+        sleep_delays = []
+
+        async def mock_sleep(delay):
+            sleep_delays.append(delay)
+
+        with patch("asyncio.sleep", side_effect=mock_sleep):
+            with pytest.raises(ValueError):
+                await retry_async(
+                    always_fails,
+                    max_retries=4,
+                    initial_delay=1.0,
+                    backoff_factor=2.0,
+                    jitter=False,
+                )
+
+        # With max_retries=4, there should be 3 sleeps (between attempts)
+        assert len(sleep_delays) == 3
+        # Delays should be: 1.0, 2.0, 4.0 (exponential backoff without jitter)
+        assert sleep_delays[0] == 1.0
+        assert sleep_delays[1] == 2.0
+        assert sleep_delays[2] == 4.0
+
+    @pytest.mark.asyncio
+    async def test_retry_async_max_delay_cap(self):
+        """Test that delay never exceeds max_delay."""
+        call_count = 0
+
+        async def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Error")
+
+        sleep_delays = []
+
+        async def mock_sleep(delay):
+            sleep_delays.append(delay)
+
+        with patch("asyncio.sleep", side_effect=mock_sleep):
+            with pytest.raises(ValueError):
+                await retry_async(
+                    always_fails,
+                    max_retries=5,
+                    initial_delay=10.0,
+                    backoff_factor=3.0,
+                    max_delay=25.0,
+                    jitter=False,
+                )
+
+        # Delays: 10.0, 30.0 (capped to 25.0), 90.0 (capped to 25.0), 270.0 (capped to 25.0)
+        assert len(sleep_delays) == 4
+        assert sleep_delays[0] == 10.0
+        assert sleep_delays[1] == 25.0  # 30.0 capped to 25.0
+        assert sleep_delays[2] == 25.0  # 90.0 capped to 25.0
+        assert sleep_delays[3] == 25.0  # 270.0 capped to 25.0
+
+    @pytest.mark.asyncio
+    async def test_retry_async_jitter_applied(self):
+        """Test that jitter is applied when enabled."""
+        call_count = 0
+
+        async def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Error")
+
+        sleep_delays = []
+
+        async def mock_sleep(delay):
+            sleep_delays.append(delay)
+
+        # Mock random.uniform to return a predictable jitter value
+        with patch("asyncio.sleep", side_effect=mock_sleep):
+            with patch("random.uniform", return_value=0.1):  # +10% jitter
+                with pytest.raises(ValueError):
+                    await retry_async(
+                        always_fails,
+                        max_retries=3,
+                        initial_delay=1.0,
+                        backoff_factor=2.0,
+                        jitter=True,
+                    )
+
+        # With jitter enabled, delays should be modified
+        assert len(sleep_delays) == 2
+        # First delay: 1.0 + 0.1 = 1.1
+        assert sleep_delays[0] == 1.1
+        # Second delay: 2.0 + 0.1 = 2.1
+        assert sleep_delays[1] == 2.1
+
+    @pytest.mark.asyncio
+    async def test_retry_async_jitter_disabled(self):
+        """Test that no jitter is applied when disabled."""
+        call_count = 0
+
+        async def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Error")
+
+        sleep_delays = []
+
+        async def mock_sleep(delay):
+            sleep_delays.append(delay)
+
+        with patch("asyncio.sleep", side_effect=mock_sleep):
+            with pytest.raises(ValueError):
+                await retry_async(
+                    always_fails,
+                    max_retries=3,
+                    initial_delay=1.0,
+                    backoff_factor=2.0,
+                    jitter=False,
+                )
+
+        # Without jitter, delays should be exact exponential values
+        assert len(sleep_delays) == 2
+        assert sleep_delays[0] == 1.0
+        assert sleep_delays[1] == 2.0
+
+    @pytest.mark.asyncio
+    async def test_retry_async_custom_retry_count(self):
+        """Test that custom max_retries works correctly."""
+        call_count = 0
+
+        async def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Error")
+
+        with patch("asyncio.sleep"):
+            with pytest.raises(ValueError):
+                await retry_async(always_fails, max_retries=5)
+
+        # Should attempt 5 times total
+        assert call_count == 5
+
+    @pytest.mark.asyncio
+    async def test_retry_async_custom_initial_delay(self):
+        """Test that custom initial_delay works correctly."""
+        call_count = 0
+
+        async def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Error")
+
+        sleep_delays = []
+
+        async def mock_sleep(delay):
+            sleep_delays.append(delay)
+
+        with patch("asyncio.sleep", side_effect=mock_sleep):
+            with pytest.raises(ValueError):
+                await retry_async(
+                    always_fails,
+                    max_retries=3,
+                    initial_delay=5.0,
+                    backoff_factor=2.0,
+                    jitter=False,
+                )
+
+        # Delays should start with initial_delay=5.0
+        assert len(sleep_delays) == 2
+        assert sleep_delays[0] == 5.0
+        assert sleep_delays[1] == 10.0  # 5.0 * 2.0
+
+    @pytest.mark.asyncio
+    async def test_retry_async_max_retries_one(self):
+        """Test max_retries=1 means single attempt with no retries."""
+        call_count = 0
+
+        async def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Always fails")
+
+        with pytest.raises(ValueError, match="Always fails"):
+            await retry_async(
+                always_fails,
+                max_retries=1,
+                retryable_exceptions=(ValueError,),
+            )
+
+        # Should only try once, no retries
+        assert call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_retry_async_minimum_delay_floor(self):
+        """Test that delay never goes below 0.1 seconds even with negative jitter."""
+        sleep_delays = []
+
+        async def capture_sleep(delay):
+            sleep_delays.append(delay)
+
+        call_count = 0
+
+        async def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Fail")
+
+        with patch("asyncio.sleep", side_effect=capture_sleep):
+            # Patch random.uniform to return maximum negative jitter
+            # For delay=0.2, jitter_range=0.05, so -0.05 would give 0.15
+            # But for very small delays, we need to ensure floor of 0.1
+            with patch("random.uniform", return_value=-1.0):  # Extreme negative
+                with pytest.raises(ValueError):
+                    await retry_async(
+                        always_fails,
+                        max_retries=3,
+                        initial_delay=0.2,  # Small initial delay
+                        backoff_factor=1.0,  # No growth
+                        jitter=True,
+                    )
+
+        # All delays should be at least 0.1 (the minimum floor)
+        for delay in sleep_delays:
+            assert delay >= 0.1, f"Delay {delay} is below minimum floor of 0.1"

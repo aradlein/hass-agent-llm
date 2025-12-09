@@ -255,7 +255,7 @@ def _make_json_serializable(value: Any) -> Any:
     Handles datetime objects and other non-serializable types.
     """
     if isinstance(value, datetime):
-        return value.isoformat()
+        return value.isoformat(timespec='seconds')
     if isinstance(value, (list, tuple)):
         return [_make_json_serializable(item) for item in value]
     if isinstance(value, dict):
