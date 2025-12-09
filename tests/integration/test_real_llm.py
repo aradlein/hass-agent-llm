@@ -38,6 +38,7 @@ from custom_components.home_agent.const import (
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
     CONF_LLM_TEMPERATURE,
+    CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_STREAMING_ENABLED,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
 )
@@ -93,6 +94,7 @@ async def test_basic_conversation(
         CONF_HISTORY_ENABLED: False,  # Disable for simple test
         CONF_EMIT_EVENTS: False,
         CONF_DEBUG_LOGGING: False,
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
     }
 
     # Mock entity exposure to return no entities (simple test)
@@ -173,6 +175,7 @@ async def test_tool_calling(
         CONF_HISTORY_ENABLED: False,
         CONF_EMIT_EVENTS: False,
         CONF_TOOLS_MAX_CALLS_PER_TURN: 5,
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
     }
 
     # Mock entity exposure to return False (avoid entity registry calls)
@@ -274,6 +277,7 @@ async def test_multi_turn_context(
         CONF_HISTORY_MAX_MESSAGES: 10,
         CONF_HISTORY_PERSIST: False,
         CONF_EMIT_EVENTS: False,
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
     }
 
     # Configure mock responses for deterministic multi-turn behavior
@@ -369,6 +373,7 @@ async def test_streaming_response(
         CONF_STREAMING_ENABLED: True,
         CONF_HISTORY_ENABLED: False,
         CONF_EMIT_EVENTS: False,
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
     }
 
     with patch(
@@ -452,6 +457,7 @@ async def test_error_handling(test_hass, llm_config, session_manager):
         CONF_LLM_MAX_TOKENS: 500,
         CONF_HISTORY_ENABLED: False,
         CONF_EMIT_EVENTS: False,
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
     }
 
     with patch(
@@ -528,6 +534,7 @@ async def test_llm_with_complex_tools(
         CONF_HISTORY_ENABLED: False,
         CONF_EMIT_EVENTS: False,
         CONF_TOOLS_MAX_CALLS_PER_TURN: 10,
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
     }
 
     # Mock entity exposure to return False (avoid entity registry calls)
@@ -630,6 +637,7 @@ async def test_tool_execution_with_correct_entity(
         CONF_HISTORY_ENABLED: False,
         CONF_EMIT_EVENTS: False,
         CONF_TOOLS_MAX_CALLS_PER_TURN: 5,
+        CONF_PROMPT_CUSTOM_ADDITIONS: "/no_think",  # Disable thinking for faster tests
     }
 
     # Mock entity registry to return entries for our test entities

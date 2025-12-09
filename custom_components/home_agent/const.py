@@ -466,12 +466,20 @@ DOMAIN_SERVICE_MAPPINGS: Final = {
             "turn_on": "turn_on",
             "turn_off": "turn_off",
             "toggle": "toggle",
+            "media_pause": "media_pause",
+            "media_play": "media_play",
+            "media_stop": "media_stop",
+            "media_next_track": "media_next_track",
+            "media_previous_track": "media_previous_track",
+            "play_media": "play_media",
             "set_value": {
                 "volume_level": "volume_set",
+                "percentage": "volume_set",  # Alias for volume control
                 "is_volume_muted": "volume_mute",
                 "source": "select_source",
                 "sound_mode": "select_sound_mode",
                 "media_content_id": "play_media",
+                "media_content_type": "play_media",  # For playlist/content type
                 "shuffle": "shuffle_set",
                 "repeat": "repeat_set",
             },
@@ -572,12 +580,15 @@ DOMAIN_SERVICE_MAPPINGS: Final = {
     },
     # Water heater
     "water_heater": {
-        "base_services": ["turn_on", "turn_off", "set_temperature"],
+        "base_services": ["turn_on", "turn_off", "set_temperature", "set_operation_mode"],
         "feature_services": {},
         "action_service_map": {
             "turn_on": "turn_on",
             "turn_off": "turn_off",
-            "set_value": {"temperature": "set_temperature"},
+            "set_value": {
+                "temperature": "set_temperature",
+                "operation_mode": "set_operation_mode",
+            },
         },
     },
     # Vacuum

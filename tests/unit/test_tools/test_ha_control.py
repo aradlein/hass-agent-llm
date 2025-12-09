@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TOGGLE, SERVICE_TURN_OFF, SERVICE_TURN_ON
+from homeassistant.core import State
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.home_agent.const import (
@@ -747,3 +748,293 @@ class TestHomeAssistantControlTool:
             tool._get_service_for_action(ACTION_SET_VALUE, "cover", "cover.window", {"tilt_position": 30})
 
         assert "does not support tilt" in str(exc_info.value)
+
+    # Climate domain auto-injection tests
+    @pytest.mark.asyncio
+    async def test_climate_turn_off_auto_injects_hvac_mode_off(self, mock_hass):
+        """Test that turn_off auto-injects hvac_mode='off' for climate entities."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        # Create climate state with available hvac_modes
+        climate_state = State(
+            "climate.thermostat",
+            "heat",
+            attributes={
+                "friendly_name": "Thermostat",
+                "temperature": 72,
+                "hvac_mode": "heat",
+                "hvac_modes": ["off", "heat", "cool", "auto"],
+                "supported_features": 1,
+            },
+        )
+
+        with patch("custom_components.home_agent.tools.ha_control.er.async_get") as mock_er:
+            mock_registry = MagicMock()
+            mock_registry.async_get.return_value = MagicMock()
+            mock_er.return_value = mock_registry
+
+            mock_hass.states.get.return_value = climate_state
+            mock_hass.services.async_call = AsyncMock()
+
+            result = await tool.execute(action=ACTION_TURN_OFF, entity_id="climate.thermostat")
+
+            assert result["success"] is True
+            assert result["action"] == ACTION_TURN_OFF
+
+            # Verify set_hvac_mode service was called with hvac_mode="off"
+            call_args = mock_hass.services.async_call.call_args
+            assert call_args[0][0] == "climate"
+            assert call_args[0][1] == "set_hvac_mode"
+            service_data = call_args[0][2]
+            assert service_data["hvac_mode"] == "off"
+            assert service_data[ATTR_ENTITY_ID] == "climate.thermostat"
+
+    @pytest.mark.asyncio
+    async def test_climate_turn_off_preserves_explicit_hvac_mode(self, mock_hass):
+        """Test that explicit hvac_mode parameter is not overwritten on turn_off."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        climate_state = State(
+            "climate.thermostat",
+            "heat",
+            attributes={
+                "friendly_name": "Thermostat",
+                "temperature": 72,
+                "hvac_mode": "heat",
+                "hvac_modes": ["off", "heat", "cool", "auto"],
+                "supported_features": 1,
+            },
+        )
+
+        with patch("custom_components.home_agent.tools.ha_control.er.async_get") as mock_er:
+            mock_registry = MagicMock()
+            mock_registry.async_get.return_value = MagicMock()
+            mock_er.return_value = mock_registry
+
+            mock_hass.states.get.return_value = climate_state
+            mock_hass.services.async_call = AsyncMock()
+
+            # Explicitly provide hvac_mode (even though it's unusual for turn_off)
+            result = await tool.execute(
+                action=ACTION_TURN_OFF,
+                entity_id="climate.thermostat",
+                parameters={"hvac_mode": "cool"},  # Explicit mode should be preserved
+            )
+
+            assert result["success"] is True
+
+            # Verify the explicit hvac_mode was preserved
+            call_args = mock_hass.services.async_call.call_args
+            service_data = call_args[0][2]
+            assert service_data["hvac_mode"] == "cool"  # Not overwritten to "off"
+
+    @pytest.mark.asyncio
+    async def test_climate_turn_on_auto_selects_heat_cool(self, mock_hass):
+        """Test that turn_on auto-selects heat_cool mode when available."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        climate_state = State(
+            "climate.thermostat",
+            "off",
+            attributes={
+                "friendly_name": "Thermostat",
+                "temperature": 72,
+                "hvac_mode": "off",
+                "hvac_modes": ["off", "heat", "cool", "heat_cool"],
+                "supported_features": 1,
+            },
+        )
+
+        with patch("custom_components.home_agent.tools.ha_control.er.async_get") as mock_er:
+            mock_registry = MagicMock()
+            mock_registry.async_get.return_value = MagicMock()
+            mock_er.return_value = mock_registry
+
+            mock_hass.states.get.return_value = climate_state
+            mock_hass.services.async_call = AsyncMock()
+
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="climate.thermostat")
+
+            assert result["success"] is True
+
+            # Verify set_hvac_mode was called with heat_cool (preferred mode)
+            call_args = mock_hass.services.async_call.call_args
+            assert call_args[0][0] == "climate"
+            assert call_args[0][1] == "set_hvac_mode"
+            service_data = call_args[0][2]
+            assert service_data["hvac_mode"] == "heat_cool"
+
+    @pytest.mark.asyncio
+    async def test_climate_turn_on_auto_selects_auto_when_no_heat_cool(self, mock_hass):
+        """Test that turn_on selects auto mode when heat_cool is not available."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        climate_state = State(
+            "climate.thermostat",
+            "off",
+            attributes={
+                "friendly_name": "Thermostat",
+                "temperature": 72,
+                "hvac_mode": "off",
+                "hvac_modes": ["off", "heat", "cool", "auto"],  # No heat_cool, but has auto
+                "supported_features": 1,
+            },
+        )
+
+        with patch("custom_components.home_agent.tools.ha_control.er.async_get") as mock_er:
+            mock_registry = MagicMock()
+            mock_registry.async_get.return_value = MagicMock()
+            mock_er.return_value = mock_registry
+
+            mock_hass.states.get.return_value = climate_state
+            mock_hass.services.async_call = AsyncMock()
+
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="climate.thermostat")
+
+            assert result["success"] is True
+
+            # Verify set_hvac_mode was called with auto (second preference)
+            call_args = mock_hass.services.async_call.call_args
+            service_data = call_args[0][2]
+            assert service_data["hvac_mode"] == "auto"
+
+    @pytest.mark.asyncio
+    async def test_climate_turn_on_auto_selects_heat_when_no_heat_cool(self, mock_hass):
+        """Test that turn_on falls back to heat when heat_cool and auto are not available."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        climate_state = State(
+            "climate.thermostat",
+            "off",
+            attributes={
+                "friendly_name": "Thermostat",
+                "temperature": 72,
+                "hvac_mode": "off",
+                "hvac_modes": ["off", "heat", "cool"],  # No heat_cool or auto
+                "supported_features": 1,
+            },
+        )
+
+        with patch("custom_components.home_agent.tools.ha_control.er.async_get") as mock_er:
+            mock_registry = MagicMock()
+            mock_registry.async_get.return_value = MagicMock()
+            mock_er.return_value = mock_registry
+
+            mock_hass.states.get.return_value = climate_state
+            mock_hass.services.async_call = AsyncMock()
+
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="climate.thermostat")
+
+            assert result["success"] is True
+
+            # Verify set_hvac_mode was called with heat (third preference)
+            call_args = mock_hass.services.async_call.call_args
+            service_data = call_args[0][2]
+            assert service_data["hvac_mode"] == "heat"
+
+    @pytest.mark.asyncio
+    async def test_climate_turn_on_auto_selects_cool_when_only_cool_available(self, mock_hass):
+        """Test that turn_on falls back to cool when only cool mode is available."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        climate_state = State(
+            "climate.thermostat",
+            "off",
+            attributes={
+                "friendly_name": "Thermostat",
+                "temperature": 72,
+                "hvac_mode": "off",
+                "hvac_modes": ["off", "cool"],  # Only cool mode
+                "supported_features": 1,
+            },
+        )
+
+        with patch("custom_components.home_agent.tools.ha_control.er.async_get") as mock_er:
+            mock_registry = MagicMock()
+            mock_registry.async_get.return_value = MagicMock()
+            mock_er.return_value = mock_registry
+
+            mock_hass.states.get.return_value = climate_state
+            mock_hass.services.async_call = AsyncMock()
+
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="climate.thermostat")
+
+            assert result["success"] is True
+
+            # Verify set_hvac_mode was called with cool (fourth preference)
+            call_args = mock_hass.services.async_call.call_args
+            service_data = call_args[0][2]
+            assert service_data["hvac_mode"] == "cool"
+
+    @pytest.mark.asyncio
+    async def test_climate_turn_on_uses_first_non_off_mode(self, mock_hass):
+        """Test that turn_on uses first non-off mode when preferred modes unavailable."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        climate_state = State(
+            "climate.thermostat",
+            "off",
+            attributes={
+                "friendly_name": "Thermostat",
+                "temperature": 72,
+                "hvac_mode": "off",
+                "hvac_modes": ["off", "dry", "fan_only"],  # No standard modes
+                "supported_features": 1,
+            },
+        )
+
+        with patch("custom_components.home_agent.tools.ha_control.er.async_get") as mock_er:
+            mock_registry = MagicMock()
+            mock_registry.async_get.return_value = MagicMock()
+            mock_er.return_value = mock_registry
+
+            mock_hass.states.get.return_value = climate_state
+            mock_hass.services.async_call = AsyncMock()
+
+            result = await tool.execute(action=ACTION_TURN_ON, entity_id="climate.thermostat")
+
+            assert result["success"] is True
+
+            # Verify set_hvac_mode was called with first non-off mode
+            call_args = mock_hass.services.async_call.call_args
+            service_data = call_args[0][2]
+            assert service_data["hvac_mode"] == "dry"  # First non-off mode
+
+    @pytest.mark.asyncio
+    async def test_climate_turn_on_preserves_explicit_hvac_mode(self, mock_hass):
+        """Test that explicit hvac_mode parameter is not overwritten on turn_on."""
+        tool = HomeAssistantControlTool(mock_hass)
+
+        climate_state = State(
+            "climate.thermostat",
+            "off",
+            attributes={
+                "friendly_name": "Thermostat",
+                "temperature": 72,
+                "hvac_mode": "off",
+                "hvac_modes": ["off", "heat", "cool", "heat_cool", "auto"],
+                "supported_features": 1,
+            },
+        )
+
+        with patch("custom_components.home_agent.tools.ha_control.er.async_get") as mock_er:
+            mock_registry = MagicMock()
+            mock_registry.async_get.return_value = MagicMock()
+            mock_er.return_value = mock_registry
+
+            mock_hass.states.get.return_value = climate_state
+            mock_hass.services.async_call = AsyncMock()
+
+            # Explicitly provide hvac_mode
+            result = await tool.execute(
+                action=ACTION_TURN_ON,
+                entity_id="climate.thermostat",
+                parameters={"hvac_mode": "cool"},  # Explicit mode
+            )
+
+            assert result["success"] is True
+
+            # Verify the explicit hvac_mode was preserved (not auto-selected)
+            call_args = mock_hass.services.async_call.call_args
+            service_data = call_args[0][2]
+            assert service_data["hvac_mode"] == "cool"  # Not auto-selected heat_cool

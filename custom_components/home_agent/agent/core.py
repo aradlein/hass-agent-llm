@@ -1099,10 +1099,8 @@ class HomeAgent(
             for content_item in new_content:
                 if isinstance(content_item, conversation.AssistantContent):
                     # Build a single message with both content and tool_calls
-                    msg = {"role": "assistant"}
-
-                    if content_item.content:
-                        msg["content"] = content_item.content
+                    # Always include content (empty string if None) for llama.cpp compatibility
+                    msg = {"role": "assistant", "content": content_item.content or ""}
 
                     if content_item.tool_calls:
                         # Track tool calls
@@ -1372,6 +1370,11 @@ class HomeAgent(
 
             # Extract response message
             response_message = llm_response.get("choices", [{}])[0].get("message", {})
+
+            # Ensure content is never null for llama.cpp compatibility
+            # (llama.cpp chat templates crash on null content with "lstrip on null" error)
+            if response_message.get("content") is None:
+                response_message["content"] = ""
 
             # Log response for debugging
             _LOGGER.debug(
