@@ -26,6 +26,7 @@ import pytest
 from homeassistant.const import ATTR_ENTITY_ID
 
 from custom_components.home_agent.agent import HomeAgent
+from custom_components.home_agent.helpers import strip_thinking_blocks
 from custom_components.home_agent.const import (
     CONF_DEBUG_LOGGING,
     CONF_EMIT_EVENTS,
@@ -42,6 +43,10 @@ from custom_components.home_agent.const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Suffix to disable thinking mode for reasoning models (Qwen3, DeepSeek R1, etc.)
+# This prevents tests from timing out due to extended thinking
+NO_THINK_SUFFIX = "\n/no_think"
 
 
 @contextmanager
@@ -99,11 +104,14 @@ async def test_basic_conversation(
         with maybe_mock_llm(is_using_mock_llm, mock_llm_server):
             agent = HomeAgent(test_hass, config, session_manager)
 
-            # Process a simple message
+            # Process a simple message (with /no_think suffix for reasoning models)
             response = await agent.process_message(
-                text="Hello! How are you today?",
+                text="Hello! How are you today?" + NO_THINK_SUFFIX,
                 conversation_id="test_basic",
             )
+
+            # Strip thinking blocks from response before validation
+            response = strip_thinking_blocks(response) or ""
 
             # Verify we got a response
             assert response is not None, "Response should not be None"
@@ -215,11 +223,14 @@ async def test_tool_calling(
 
             agent.get_exposed_entities = MagicMock(return_value=mock_exposed_entities())
 
-            # Ask the agent to control a device
+            # Ask the agent to control a device (with /no_think suffix for reasoning models)
             response = await agent.process_message(
-                text="Turn on the living room light",
+                text="Turn on the living room light" + NO_THINK_SUFFIX,
                 conversation_id="test_tool_calling",
             )
+
+            # Strip thinking blocks from response before validation
+            response = strip_thinking_blocks(response) or ""
 
             # Verify we got a response
             assert response is not None, "Response should not be None"
@@ -279,21 +290,27 @@ async def test_multi_turn_context(
 
             conversation_id = "test_multi_turn"
 
-            # First turn: Set context
+            # First turn: Set context (with /no_think suffix for reasoning models)
             response1 = await agent.process_message(
-                text="My name is Alice and I like the color blue.",
+                text="My name is Alice and I like the color blue." + NO_THINK_SUFFIX,
                 conversation_id=conversation_id,
             )
+
+            # Strip thinking blocks from response before validation
+            response1 = strip_thinking_blocks(response1) or ""
 
             assert response1 is not None, "First response should not be None"
             assert isinstance(response1, str), f"Response should be a string, got {type(response1)}"
             assert len(response1) > 10, f"Response should be meaningful, got {len(response1)} chars"
 
-            # Second turn: Reference previous context
+            # Second turn: Reference previous context (with /no_think suffix)
             response2 = await agent.process_message(
-                text="What is my name?",
+                text="What is my name?" + NO_THINK_SUFFIX,
                 conversation_id=conversation_id,
             )
+
+            # Strip thinking blocks from response before validation
+            response2 = strip_thinking_blocks(response2) or ""
 
             assert response2 is not None, "Second response should not be None"
             assert isinstance(response2, str), f"Response should be a string, got {type(response2)}"
@@ -303,11 +320,14 @@ async def test_multi_turn_context(
                 # Response should mention Alice (mock is configured for this)
                 assert "alice" in response2.lower(), "Agent didn't remember name from previous turn"
 
-            # Third turn: Reference other context
+            # Third turn: Reference other context (with /no_think suffix)
             response3 = await agent.process_message(
-                text="What color do I like?",
+                text="What color do I like?" + NO_THINK_SUFFIX,
                 conversation_id=conversation_id,
             )
+
+            # Strip thinking blocks from response before validation
+            response3 = strip_thinking_blocks(response3) or ""
 
             assert response3 is not None, "Third response should not be None"
             assert isinstance(response3, str), f"Response should be a string, got {type(response3)}"
@@ -362,10 +382,11 @@ async def test_streaming_response(
             chunks = []
 
             async def collect_chunks():
+                # Add /no_think suffix to user message for reasoning models
                 async for chunk in agent._call_llm_streaming(
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": "Count from 1 to 5."},
+                        {"role": "user", "content": "Count from 1 to 5." + NO_THINK_SUFFIX},
                     ]
                 ):
                     chunks.append(chunk)
@@ -439,14 +460,17 @@ async def test_error_handling(test_hass, llm_config, session_manager):
     ):
         agent = HomeAgent(test_hass, config, session_manager)
 
-        # Try to process a message with invalid model
+        # Try to process a message with invalid model (with /no_think suffix)
         response = None
         exception_caught = None
         try:
             response = await agent.process_message(
-                text="Hello",
+                text="Hello" + NO_THINK_SUFFIX,
                 conversation_id="test_error",
             )
+            # Strip thinking blocks if we got a response
+            if response:
+                response = strip_thinking_blocks(response) or ""
         except Exception as e:
             exception_caught = e
 
@@ -553,11 +577,14 @@ async def test_llm_with_complex_tools(
 
             agent.get_exposed_entities = MagicMock(return_value=mock_exposed_entities())
 
-            # Ask for a complex multi-step action
+            # Ask for a complex multi-step action (with /no_think suffix for reasoning models)
             response = await agent.process_message(
-                text="What's the temperature, and if it's below 70, turn on the thermostat",
+                text="What's the temperature, and if it's below 70, turn on the thermostat" + NO_THINK_SUFFIX,
                 conversation_id="test_complex_tools",
             )
+
+            # Strip thinking blocks from response before validation
+            response = strip_thinking_blocks(response) or ""
 
             # Verify response
             assert response is not None, "Response should not be None"
@@ -685,10 +712,14 @@ async def test_tool_execution_with_correct_entity(
             agent.get_exposed_entities = MagicMock(return_value=mock_exposed_entities())
 
             # Test 1: Turn on a specific light (bedroom, not living room)
+            # Add /no_think suffix for reasoning models
             response1 = await agent.process_message(
-                text="Turn on the bedroom light",
+                text="Turn on the bedroom light" + NO_THINK_SUFFIX,
                 conversation_id="test_entity_targeting_1",
             )
+
+            # Strip thinking blocks from response before validation
+            response1 = strip_thinking_blocks(response1) or ""
 
             assert response1 is not None, "First response should not be None"
             assert isinstance(response1, str), f"Response should be a string, got {type(response1)}"
@@ -719,11 +750,14 @@ async def test_tool_execution_with_correct_entity(
             # Clear service calls for next test
             service_calls.clear()
 
-            # Test 2: Control coffee maker specifically
+            # Test 2: Control coffee maker specifically (with /no_think suffix)
             response2 = await agent.process_message(
-                text="Turn on the coffee maker",
+                text="Turn on the coffee maker" + NO_THINK_SUFFIX,
                 conversation_id="test_entity_targeting_2",
             )
+
+            # Strip thinking blocks from response before validation
+            response2 = strip_thinking_blocks(response2) or ""
 
             assert response2 is not None, "Second response should not be None"
             assert isinstance(response2, str), f"Response should be a string, got {type(response2)}"
@@ -756,11 +790,14 @@ async def test_tool_execution_with_correct_entity(
             # Clear service calls for next test
             service_calls.clear()
 
-            # Test 3: Query specific sensor (not controls)
+            # Test 3: Query specific sensor (not controls) (with /no_think suffix)
             response3 = await agent.process_message(
-                text="What is the temperature?",
+                text="What is the temperature?" + NO_THINK_SUFFIX,
                 conversation_id="test_entity_targeting_3",
             )
+
+            # Strip thinking blocks from response before validation
+            response3 = strip_thinking_blocks(response3) or ""
 
             assert response3 is not None, "Third response should not be None"
             assert isinstance(response3, str), f"Response should be a string, got {type(response3)}"

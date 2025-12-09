@@ -122,6 +122,7 @@ from ..const import (
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
     CONF_STREAMING_ENABLED,
+    CONF_THINKING_ENABLED,
     CONF_TOOLS_CUSTOM,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
@@ -130,6 +131,7 @@ from ..const import (
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
     DEFAULT_STREAMING_ENABLED,
     DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_THINKING_ENABLED,
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DOMAIN,
     EVENT_CONVERSATION_FINISHED,
@@ -618,6 +620,15 @@ class HomeAgent(
         if self._session and not self._session.closed:
             await self._session.close()
 
+    def _preprocess_user_message(self, text: str) -> str:
+        """Preprocess user message before sending to LLM.
+
+        Appends /no_think if thinking mode is disabled.
+        """
+        if not self.config.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED):
+            return text.strip() + "\n/no_think"
+        return text
+
     def _build_system_prompt(
         self,
         entity_context: str = "",
@@ -788,7 +799,9 @@ class HomeAgent(
             )
 
         try:
-            response = await self._process_conversation(text, conversation_id, device_id, metrics)
+            # Preprocess user message (e.g., append /no_think if thinking mode disabled)
+            preprocessed_text = self._preprocess_user_message(text)
+            response = await self._process_conversation(preprocessed_text, conversation_id, device_id, metrics)
 
             # Calculate total duration
             duration_ms = int((time.time() - start_time) * 1000)
@@ -877,7 +890,7 @@ class HomeAgent(
         if chat_log is None:
             raise RuntimeError("ChatLog not available in streaming mode")
 
-        user_message = user_input.text
+        user_message = self._preprocess_user_message(user_input.text)
         device_id = user_input.device_id
         user_id = user_input.context.user_id if user_input.context else None
 

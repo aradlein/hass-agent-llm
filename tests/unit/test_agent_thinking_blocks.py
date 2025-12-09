@@ -360,3 +360,78 @@ class TestAgentCoreThinkingBlockEdgeCases:
 
         # Should handle gracefully (empty or whitespace result)
         assert result is not None
+
+
+class TestAgentPreprocessUserMessage:
+    """Test user message preprocessing for thinking control."""
+
+    def test_preprocess_thinking_enabled_by_default(self, agent):
+        """Test that by default, no /no_think is appended."""
+        result = agent._preprocess_user_message("Hello world")
+        assert result == "Hello world"
+        assert "/no_think" not in result
+
+    def test_preprocess_thinking_disabled_appends_no_think(self, mock_hass, mock_session_manager):
+        """Test that when thinking is disabled, /no_think is appended."""
+        config = {
+            "thinking_enabled": False,
+            "llm": {"url": "http://localhost", "model": "test"},
+            "context": {"mode": "direct"},
+            "history": {"enabled": False},
+            "memory": {"enabled": False},
+            "streaming": {"enabled": False},
+            "emit_events": False,
+        }
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
+
+        result = agent._preprocess_user_message("Turn on the lights")
+        assert result == "Turn on the lights\n/no_think"
+
+    def test_preprocess_thinking_enabled_explicit(self, mock_hass, mock_session_manager):
+        """Test that when thinking is explicitly enabled, no /no_think is appended."""
+        config = {
+            "thinking_enabled": True,
+            "llm": {"url": "http://localhost", "model": "test"},
+            "context": {"mode": "direct"},
+            "history": {"enabled": False},
+            "memory": {"enabled": False},
+            "streaming": {"enabled": False},
+            "emit_events": False,
+        }
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
+
+        result = agent._preprocess_user_message("What's the weather?")
+        assert result == "What's the weather?"
+        assert "/no_think" not in result
+
+    def test_preprocess_strips_trailing_whitespace_when_disabled(self, mock_hass, mock_session_manager):
+        """Test that whitespace is stripped before appending /no_think."""
+        config = {
+            "thinking_enabled": False,
+            "llm": {"url": "http://localhost", "model": "test"},
+            "context": {"mode": "direct"},
+            "history": {"enabled": False},
+            "memory": {"enabled": False},
+            "streaming": {"enabled": False},
+            "emit_events": False,
+        }
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
+
+        result = agent._preprocess_user_message("  Message with spaces  ")
+        assert result == "Message with spaces\n/no_think"
+
+    def test_preprocess_empty_message_when_disabled(self, mock_hass, mock_session_manager):
+        """Test preprocessing empty message when thinking disabled."""
+        config = {
+            "thinking_enabled": False,
+            "llm": {"url": "http://localhost", "model": "test"},
+            "context": {"mode": "direct"},
+            "history": {"enabled": False},
+            "memory": {"enabled": False},
+            "streaming": {"enabled": False},
+            "emit_events": False,
+        }
+        agent = HomeAgent(mock_hass, config, mock_session_manager)
+
+        result = agent._preprocess_user_message("")
+        assert result == "\n/no_think"

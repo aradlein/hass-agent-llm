@@ -12,6 +12,7 @@ from custom_components.home_agent.const import (
     CONF_LLM_BASE_URL,
     CONF_LLM_MODEL,
     CONF_STREAMING_ENABLED,
+    CONF_THINKING_ENABLED,
     EVENT_STREAMING_ERROR,
 )
 
@@ -1650,3 +1651,269 @@ class TestStreamingMessageAccumulation:
         # 1. It called the tool
         # 2. The tool executed successfully
         # 3. It can now provide a final response to the user
+
+
+class TestStreamingPreprocessing:
+    """Test that user message preprocessing is applied in streaming path.
+
+    These tests verify that when thinking_enabled is False, the /no_think suffix
+    is correctly appended to user messages in the streaming path.
+
+    Issue: PR #85 - CONF_THINKING_ENABLED config option
+    """
+
+    @pytest.fixture
+    def streaming_agent_thinking_disabled(self, mock_hass):
+        """Create HomeAgent with streaming enabled and thinking disabled."""
+        from custom_components.home_agent.conversation_session import ConversationSessionManager
+
+        config = {
+            CONF_LLM_BASE_URL: "http://localhost:11434/v1",
+            CONF_LLM_API_KEY: "test-key",
+            CONF_LLM_MODEL: "qwen3",
+            CONF_STREAMING_ENABLED: True,
+            CONF_THINKING_ENABLED: False,  # Thinking disabled - should append /no_think
+        }
+        session_manager = ConversationSessionManager(mock_hass)
+        return HomeAgent(mock_hass, config, session_manager)
+
+    @pytest.fixture
+    def streaming_agent_thinking_enabled(self, mock_hass):
+        """Create HomeAgent with streaming enabled and thinking enabled (default)."""
+        from custom_components.home_agent.conversation_session import ConversationSessionManager
+
+        config = {
+            CONF_LLM_BASE_URL: "http://localhost:11434/v1",
+            CONF_LLM_API_KEY: "test-key",
+            CONF_LLM_MODEL: "qwen3",
+            CONF_STREAMING_ENABLED: True,
+            CONF_THINKING_ENABLED: True,  # Thinking enabled - no /no_think appended
+        }
+        session_manager = ConversationSessionManager(mock_hass)
+        return HomeAgent(mock_hass, config, session_manager)
+
+    @pytest.mark.asyncio
+    async def test_streaming_path_applies_preprocessing_when_thinking_disabled(
+        self, streaming_agent_thinking_disabled, mock_hass
+    ):
+        """Verify that /no_think is appended in streaming path when thinking is disabled."""
+        agent = streaming_agent_thinking_disabled
+
+        # Create mock conversation input
+        mock_input = MagicMock(spec=ha_conversation.ConversationInput)
+        mock_input.text = "Turn on the lights"
+        mock_input.conversation_id = "test-conv"
+        mock_input.language = "en"
+        mock_input.context = MagicMock()
+        mock_input.context.user_id = "test-user"
+        mock_input.device_id = None
+
+        # Track what message is sent to the LLM
+        captured_messages = []
+
+        # Mock ChatLog
+        mock_chat_log_instance = MagicMock()
+        mock_chat_log_instance.delta_listener = MagicMock()
+        mock_chat_log_instance.unresponded_tool_results = []
+        mock_chat_log_instance.content = []
+
+        # Mock async_add_delta_content_stream to yield a simple response
+        async def mock_add_delta_stream(entry_id, delta_generator):
+            # Consume the generator to trigger LLM call
+            async for delta in delta_generator:
+                pass
+            # Yield a simple assistant response
+            yield ha_conversation.AssistantContent(
+                agent_id="home_agent",
+                content="Done!",
+                tool_calls=None,
+            )
+
+        mock_chat_log_instance.async_add_delta_content_stream = mock_add_delta_stream
+
+        # Mock async_get_result_from_chat_log
+        mock_result = MagicMock(spec=ha_conversation.ConversationResult)
+        mock_result.response = MagicMock()
+        mock_result.response.speech = {"plain": {"speech": "Done!"}}
+
+        # Mock _call_llm_streaming to capture the messages
+        async def mock_call_llm_streaming(messages):
+            captured_messages.extend(messages)
+            # Yield a simple response
+            yield 'data: {"choices":[{"delta":{"role":"assistant"}}]}\n'
+            yield 'data: {"choices":[{"delta":{"content":"Done!"}}]}\n'
+            yield "data: [DONE]\n"
+
+        with (
+            patch(
+                "homeassistant.components.conversation.chat_log.current_chat_log"
+            ) as mock_chat_log,
+            patch.object(agent, "_call_llm_streaming", side_effect=mock_call_llm_streaming),
+            patch.object(agent.context_manager, "get_formatted_context", new_callable=AsyncMock) as mock_context,
+            patch.object(agent.session_manager, "get_conversation_id", return_value="test-conv"),
+            patch.object(agent.session_manager, "update_activity", new_callable=AsyncMock),
+            patch(
+                "homeassistant.components.conversation.async_get_result_from_chat_log",
+                return_value=mock_result,
+            ),
+        ):
+            mock_chat_log.get.return_value = mock_chat_log_instance
+            mock_context.return_value = ""
+
+            await agent.async_process(mock_input)
+
+            # Verify the user message in the captured messages has /no_think appended
+            user_messages = [m for m in captured_messages if m.get("role") == "user"]
+            assert len(user_messages) >= 1, "Should have at least one user message"
+
+            user_content = user_messages[-1]["content"]
+            assert user_content.endswith("\n/no_think"), (
+                f"User message should end with /no_think when thinking is disabled. "
+                f"Got: {repr(user_content)}"
+            )
+            assert "Turn on the lights" in user_content
+
+    @pytest.mark.asyncio
+    async def test_streaming_path_no_preprocessing_when_thinking_enabled(
+        self, streaming_agent_thinking_enabled, mock_hass
+    ):
+        """Verify that /no_think is NOT appended when thinking is enabled (default)."""
+        agent = streaming_agent_thinking_enabled
+
+        # Create mock conversation input
+        mock_input = MagicMock(spec=ha_conversation.ConversationInput)
+        mock_input.text = "Turn on the lights"
+        mock_input.conversation_id = "test-conv"
+        mock_input.language = "en"
+        mock_input.context = MagicMock()
+        mock_input.context.user_id = "test-user"
+        mock_input.device_id = None
+
+        # Track what message is sent to the LLM
+        captured_messages = []
+
+        # Mock ChatLog
+        mock_chat_log_instance = MagicMock()
+        mock_chat_log_instance.delta_listener = MagicMock()
+        mock_chat_log_instance.unresponded_tool_results = []
+        mock_chat_log_instance.content = []
+
+        # Mock async_add_delta_content_stream
+        async def mock_add_delta_stream(entry_id, delta_generator):
+            async for delta in delta_generator:
+                pass
+            yield ha_conversation.AssistantContent(
+                agent_id="home_agent",
+                content="Done!",
+                tool_calls=None,
+            )
+
+        mock_chat_log_instance.async_add_delta_content_stream = mock_add_delta_stream
+
+        mock_result = MagicMock(spec=ha_conversation.ConversationResult)
+        mock_result.response = MagicMock()
+        mock_result.response.speech = {"plain": {"speech": "Done!"}}
+
+        # Mock _call_llm_streaming to capture the messages
+        async def mock_call_llm_streaming(messages):
+            captured_messages.extend(messages)
+            yield 'data: {"choices":[{"delta":{"role":"assistant"}}]}\n'
+            yield 'data: {"choices":[{"delta":{"content":"Done!"}}]}\n'
+            yield "data: [DONE]\n"
+
+        with (
+            patch(
+                "homeassistant.components.conversation.chat_log.current_chat_log"
+            ) as mock_chat_log,
+            patch.object(agent, "_call_llm_streaming", side_effect=mock_call_llm_streaming),
+            patch.object(agent.context_manager, "get_formatted_context", new_callable=AsyncMock) as mock_context,
+            patch.object(agent.session_manager, "get_conversation_id", return_value="test-conv"),
+            patch.object(agent.session_manager, "update_activity", new_callable=AsyncMock),
+            patch(
+                "homeassistant.components.conversation.async_get_result_from_chat_log",
+                return_value=mock_result,
+            ),
+        ):
+            mock_chat_log.get.return_value = mock_chat_log_instance
+            mock_context.return_value = ""
+
+            await agent.async_process(mock_input)
+
+            # Verify the user message does NOT have /no_think appended
+            user_messages = [m for m in captured_messages if m.get("role") == "user"]
+            assert len(user_messages) >= 1, "Should have at least one user message"
+
+            user_content = user_messages[-1]["content"]
+            assert "/no_think" not in user_content, (
+                f"User message should NOT contain /no_think when thinking is enabled. "
+                f"Got: {repr(user_content)}"
+            )
+            assert user_content == "Turn on the lights"
+
+    @pytest.mark.asyncio
+    async def test_streaming_preprocess_called_before_messages_built(
+        self, streaming_agent_thinking_disabled, mock_hass
+    ):
+        """Verify _preprocess_user_message is called in streaming path."""
+        agent = streaming_agent_thinking_disabled
+
+        mock_input = MagicMock(spec=ha_conversation.ConversationInput)
+        mock_input.text = "  Hello world  "  # With whitespace
+        mock_input.conversation_id = "test-conv"
+        mock_input.language = "en"
+        mock_input.context = MagicMock()
+        mock_input.context.user_id = "test-user"
+        mock_input.device_id = None
+
+        captured_messages = []
+
+        mock_chat_log_instance = MagicMock()
+        mock_chat_log_instance.delta_listener = MagicMock()
+        mock_chat_log_instance.unresponded_tool_results = []
+        mock_chat_log_instance.content = []
+
+        async def mock_add_delta_stream(entry_id, delta_generator):
+            async for delta in delta_generator:
+                pass
+            yield ha_conversation.AssistantContent(
+                agent_id="home_agent",
+                content="Done!",
+                tool_calls=None,
+            )
+
+        mock_chat_log_instance.async_add_delta_content_stream = mock_add_delta_stream
+
+        mock_result = MagicMock(spec=ha_conversation.ConversationResult)
+
+        async def mock_call_llm_streaming(messages):
+            captured_messages.extend(messages)
+            yield 'data: {"choices":[{"delta":{"content":"Done!"}}]}\n'
+            yield "data: [DONE]\n"
+
+        with (
+            patch(
+                "homeassistant.components.conversation.chat_log.current_chat_log"
+            ) as mock_chat_log,
+            patch.object(agent, "_call_llm_streaming", side_effect=mock_call_llm_streaming),
+            patch.object(agent.context_manager, "get_formatted_context", new_callable=AsyncMock) as mock_context,
+            patch.object(agent.session_manager, "get_conversation_id", return_value="test-conv"),
+            patch.object(agent.session_manager, "update_activity", new_callable=AsyncMock),
+            patch(
+                "homeassistant.components.conversation.async_get_result_from_chat_log",
+                return_value=mock_result,
+            ),
+        ):
+            mock_chat_log.get.return_value = mock_chat_log_instance
+            mock_context.return_value = ""
+
+            await agent.async_process(mock_input)
+
+            # Verify whitespace is stripped and /no_think is appended
+            user_messages = [m for m in captured_messages if m.get("role") == "user"]
+            assert len(user_messages) >= 1
+
+            user_content = user_messages[-1]["content"]
+            # Preprocessing should strip whitespace then append /no_think
+            assert user_content == "Hello world\n/no_think", (
+                f"Expected 'Hello world\\n/no_think', got: {repr(user_content)}"
+            )

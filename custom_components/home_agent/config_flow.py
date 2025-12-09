@@ -69,6 +69,7 @@ from .const import (
     CONF_SESSION_PERSISTENCE_ENABLED,
     CONF_SESSION_TIMEOUT,
     CONF_STREAMING_ENABLED,
+    CONF_THINKING_ENABLED,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
     CONF_VECTOR_DB_COLLECTION,
@@ -118,6 +119,7 @@ from .const import (
     DEFAULT_SESSION_TIMEOUT,
     DEFAULT_STREAMING_ENABLED,
     DEFAULT_TEMPERATURE,
+    DEFAULT_THINKING_ENABLED,
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DEFAULT_TOOLS_TIMEOUT,
     DEFAULT_VECTOR_DB_COLLECTION,
@@ -602,6 +604,10 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         CONF_LLM_PROXY_HEADERS,
                         description={"suggested_value": proxy_headers_str},
                     ): str,
+                    vol.Optional(
+                        CONF_THINKING_ENABLED,
+                        default=current_data.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED),
+                    ): bool,
                 }
             ),
             errors=errors,

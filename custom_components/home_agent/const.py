@@ -17,6 +17,7 @@ CONF_LLM_TOP_P: Final = "llm_top_p"
 CONF_LLM_KEEP_ALIVE: Final = "llm_keep_alive"
 CONF_LLM_BACKEND: Final = "llm_backend"
 CONF_LLM_PROXY_HEADERS: Final = "llm_proxy_headers"
+CONF_THINKING_ENABLED: Final = "thinking_enabled"
 
 # Configuration keys - Context Injection
 CONF_CONTEXT_MODE: Final = "context_mode"
@@ -138,6 +139,7 @@ DEFAULT_MAX_TOKENS: Final = 500
 DEFAULT_TOP_P: Final = 1.0
 DEFAULT_LLM_KEEP_ALIVE: Final = "5m"
 DEFAULT_LLM_BACKEND: Final = LLM_BACKEND_DEFAULT
+DEFAULT_THINKING_ENABLED: Final = True  # Default: enabled (no /no_think appended)
 
 # Default values - Context Injection
 DEFAULT_CONTEXT_MODE: Final = CONTEXT_MODE_DIRECT
