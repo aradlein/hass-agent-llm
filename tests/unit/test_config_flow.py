@@ -190,6 +190,71 @@ class TestHomeAgentOptionsFlow:
         assert result["data"]["history_enabled"] is True
         assert result["data"]["memory_enabled"] is False
 
+    async def test_llm_settings_allows_clearing_api_key(self, mock_config_entry, mock_hass):
+        """Test that user can clear API key to empty string for local LLMs.
+
+        This tests the fix for the bug where clearing an API key wouldn't save
+        because Home Assistant forms may not include empty optional fields.
+        """
+        # Set up existing config with an API key
+        mock_config_entry.data = {
+            "llm_base_url": "http://localhost:11434/v1",
+            "llm_api_key": "old-api-key-to-clear",
+            "llm_model": "llama3",
+        }
+
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Simulate user clearing the API key field
+        # Note: HA forms may not include the field at all when cleared
+        user_input = {
+            "llm_base_url": "http://localhost:11434/v1",
+            # llm_api_key intentionally omitted to simulate cleared field
+            "llm_model": "llama3",
+        }
+
+        result = await options_flow.async_step_llm_settings(user_input)
+
+        # Verify the entry was updated
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+
+        # Verify async_update_entry was called with empty API key
+        mock_hass.config_entries.async_update_entry.assert_called_once()
+        call_args = mock_hass.config_entries.async_update_entry.call_args
+        updated_data = call_args.kwargs.get("data") or call_args[1].get("data")
+
+        assert updated_data["llm_api_key"] == "", "API key should be empty string when cleared"
+
+    async def test_llm_settings_preserves_empty_api_key_when_provided(
+        self, mock_config_entry, mock_hass
+    ):
+        """Test that explicitly providing empty API key is preserved."""
+        mock_config_entry.data = {
+            "llm_base_url": "http://localhost:11434/v1",
+            "llm_api_key": "old-api-key",
+            "llm_model": "llama3",
+        }
+
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Simulate user explicitly setting API key to empty string
+        user_input = {
+            "llm_base_url": "http://localhost:11434/v1",
+            "llm_api_key": "",  # Explicitly empty
+            "llm_model": "llama3",
+        }
+
+        result = await options_flow.async_step_llm_settings(user_input)
+
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        mock_hass.config_entries.async_update_entry.assert_called_once()
+        call_args = mock_hass.config_entries.async_update_entry.call_args
+        updated_data = call_args.kwargs.get("data") or call_args[1].get("data")
+
+        assert updated_data["llm_api_key"] == "", "API key should be empty string"
+
     async def test_history_settings_includes_session_persistence_options(
         self, mock_config_entry, mock_hass
     ):
@@ -298,3 +363,45 @@ class TestHomeAgentConfigFlow:
         ]
 
         assert len(streaming_keys) == 0, "Streaming should not be in initial setup"
+
+    async def test_config_flow_accepts_empty_api_key(self):
+        """Test that config flow accepts empty API key for local LLMs."""
+        config_flow = HomeAgentConfigFlow()
+
+        # Get the initial user step form
+        result = await config_flow.async_step_user()
+
+        # Find the API key field and verify it's optional
+        schema_keys = list(result["data_schema"].schema.keys())
+        api_key_key = None
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == "llm_api_key":
+                api_key_key = key
+                break
+
+        assert api_key_key is not None, "API key field not found in schema"
+
+        # Verify it's optional (not required) by checking it's a vol.Optional
+        import voluptuous as vol
+
+        assert isinstance(
+            api_key_key, vol.Optional
+        ), "API key should be Optional, not Required"
+
+    async def test_config_flow_api_key_uses_suggested_value(self):
+        """Test that API key uses suggested_value pattern (not default) to allow clearing."""
+        config_flow = HomeAgentConfigFlow()
+
+        # Get the initial user step form
+        result = await config_flow.async_step_user()
+
+        # Find the API key field and verify it uses suggested_value pattern
+        schema_keys = list(result["data_schema"].schema.keys())
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == "llm_api_key":
+                # Should use description with suggested_value, not default
+                # This allows users to clear the field (empty string is accepted)
+                assert hasattr(key, "description"), "API key should have description"
+                assert "suggested_value" in key.description, "API key should use suggested_value"
+                assert key.description["suggested_value"] == "", "suggested_value should be empty"
+                break

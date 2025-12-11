@@ -443,7 +443,8 @@ class TestMakeJsonSerializable:
         dt = datetime(2025, 11, 24, 13, 18, 7, 730000)
         result = _make_json_serializable(dt)
 
-        assert result == "2025-11-24T13:18:07.730000"
+        # Seconds precision per Issue #73 (microseconds truncated)
+        assert result == "2025-11-24T13:18:07"
         assert isinstance(result, str)
 
     def test_serialize_nested_datetime_in_dict(self):
@@ -519,8 +520,8 @@ class TestMakeJsonSerializable:
         assert result is not None
         assert result["entity_id"] == "media_player.speaker"
         assert result["state"] == "playing"
-        # Verify datetime was converted to string
-        assert result["attributes"]["media_position_updated_at"] == "2025-11-24T13:18:07.730000"
+        # Verify datetime was converted to string (seconds precision per Issue #73)
+        assert result["attributes"]["media_position_updated_at"] == "2025-11-24T13:18:07"
         assert result["attributes"]["volume_level"] == 0.5
 
         # Verify it's JSON serializable
@@ -528,4 +529,4 @@ class TestMakeJsonSerializable:
 
         json_str = json.dumps(result)
         assert "media_player.speaker" in json_str
-        assert "2025-11-24T13:18:07.730000" in json_str
+        assert "2025-11-24T13:18:07" in json_str

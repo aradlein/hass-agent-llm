@@ -122,6 +122,7 @@ from ..const import (
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_USE_DEFAULT,
     CONF_STREAMING_ENABLED,
+    CONF_THINKING_ENABLED,
     CONF_TOOLS_CUSTOM,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
@@ -130,6 +131,7 @@ from ..const import (
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
     DEFAULT_STREAMING_ENABLED,
     DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_THINKING_ENABLED,
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DOMAIN,
     EVENT_CONVERSATION_FINISHED,
@@ -618,6 +620,17 @@ class HomeAgent(
         if self._session and not self._session.closed:
             await self._session.close()
 
+    def _preprocess_user_message(self, text: str) -> str:
+        """Preprocess user message before sending to LLM.
+
+        Appends /no_think if thinking mode is disabled and not already present.
+        """
+        if not self.config.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED):
+            # Only append /no_think if it's not already there (avoid duplicates)
+            if "/no_think" not in text:
+                return text.strip() + "\n/no_think"
+        return text
+
     def _build_system_prompt(
         self,
         entity_context: str = "",
@@ -788,7 +801,9 @@ class HomeAgent(
             )
 
         try:
-            response = await self._process_conversation(text, conversation_id, device_id, metrics)
+            # Preprocess user message (e.g., append /no_think if thinking mode disabled)
+            preprocessed_text = self._preprocess_user_message(text)
+            response = await self._process_conversation(preprocessed_text, conversation_id, device_id, metrics)
 
             # Calculate total duration
             duration_ms = int((time.time() - start_time) * 1000)
@@ -877,7 +892,7 @@ class HomeAgent(
         if chat_log is None:
             raise RuntimeError("ChatLog not available in streaming mode")
 
-        user_message = user_input.text
+        user_message = self._preprocess_user_message(user_input.text)
         device_id = user_input.device_id
         user_id = user_input.context.user_id if user_input.context else None
 
@@ -1086,10 +1101,8 @@ class HomeAgent(
             for content_item in new_content:
                 if isinstance(content_item, conversation.AssistantContent):
                     # Build a single message with both content and tool_calls
-                    msg = {"role": "assistant"}
-
-                    if content_item.content:
-                        msg["content"] = content_item.content
+                    # Always include content (empty string if None) for llama.cpp compatibility
+                    msg = {"role": "assistant", "content": content_item.content or ""}
 
                     if content_item.tool_calls:
                         # Track tool calls
@@ -1359,6 +1372,11 @@ class HomeAgent(
 
             # Extract response message
             response_message = llm_response.get("choices", [{}])[0].get("message", {})
+
+            # Ensure content is never null for llama.cpp compatibility
+            # (llama.cpp chat templates crash on null content with "lstrip on null" error)
+            if response_message.get("content") is None:
+                response_message["content"] = ""
 
             # Log response for debugging
             _LOGGER.debug(

@@ -685,7 +685,7 @@ Return ONLY valid JSON, no other text:
                         "conversation_id": conversation_id,
                         "memories_extracted": stored_count,
                         "extraction_llm": extraction_llm,
-                        "timestamp": datetime.now().isoformat(),
+                        "timestamp": datetime.now().isoformat(timespec='seconds'),
                     },
                 )
 

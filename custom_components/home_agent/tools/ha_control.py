@@ -314,6 +314,38 @@ class HomeAssistantControlTool(BaseTool):
                 f"Action '{action}' is not supported for domain '{domain}'"
             )
 
+        # Special handling for climate domain turn_on/turn_off
+        # These map to set_hvac_mode but need the hvac_mode parameter injected
+        if domain == "climate":
+            if action == ACTION_TURN_OFF and "hvac_mode" not in service_data:
+                service_data["hvac_mode"] = "off"
+                _LOGGER.debug("Auto-injecting hvac_mode='off' for climate turn_off")
+            elif action == ACTION_TURN_ON and "hvac_mode" not in service_data:
+                # For turn_on without explicit hvac_mode, try to use a sensible default
+                # Check entity's hvac_modes attribute for available options
+                state = self.hass.states.get(entity_id)
+                if state and state.attributes.get("hvac_modes"):
+                    hvac_modes = state.attributes.get("hvac_modes", [])
+                    # Prefer heat_cool, auto, heat, cool, then first non-off mode
+                    for preferred in ["heat_cool", "auto", "heat", "cool"]:
+                        if preferred in hvac_modes:
+                            service_data["hvac_mode"] = preferred
+                            _LOGGER.debug(
+                                "Auto-injecting hvac_mode='%s' for climate turn_on",
+                                preferred,
+                            )
+                            break
+                    else:
+                        # Use first non-off mode
+                        for mode in hvac_modes:
+                            if mode != "off":
+                                service_data["hvac_mode"] = mode
+                                _LOGGER.debug(
+                                    "Auto-injecting hvac_mode='%s' for climate turn_on",
+                                    mode,
+                                )
+                                break
+
         # Execute the service call
         _LOGGER.debug(
             "Calling service %s.%s with data: %s",

@@ -140,6 +140,11 @@ from ..const import (
     CONF_LLM_TEMPERATURE,
     CONF_LLM_TOP_P,
     DEFAULT_LLM_KEEP_ALIVE,
+    DEFAULT_RETRY_BACKOFF_FACTOR,
+    DEFAULT_RETRY_INITIAL_DELAY,
+    DEFAULT_RETRY_JITTER,
+    DEFAULT_RETRY_MAX_ATTEMPTS,
+    DEFAULT_RETRY_MAX_DELAY,
     HTTP_TIMEOUT,
 )
 from ..exceptions import AuthenticationError, HomeAgentError
@@ -198,10 +203,14 @@ class LLMMixin:
         session = await self._ensure_session()
 
         url = f"{self.config[CONF_LLM_BASE_URL]}/chat/completions"
-        headers = {
+        headers: dict[str, str] = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.config[CONF_LLM_API_KEY]}",
         }
+
+        # Only include Authorization header if API key is provided
+        api_key = self.config.get(CONF_LLM_API_KEY, "")
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
 
         # Add custom proxy headers if configured
         proxy_headers = self.config.get(CONF_LLM_PROXY_HEADERS, {})
@@ -258,7 +267,11 @@ class LLMMixin:
 
         return await retry_async(
             make_llm_request,
-            max_retries=3,
+            max_retries=DEFAULT_RETRY_MAX_ATTEMPTS,
             retryable_exceptions=(aiohttp.ClientError,),
             non_retryable_exceptions=(AuthenticationError,),
+            initial_delay=DEFAULT_RETRY_INITIAL_DELAY,
+            backoff_factor=DEFAULT_RETRY_BACKOFF_FACTOR,
+            max_delay=DEFAULT_RETRY_MAX_DELAY,
+            jitter=DEFAULT_RETRY_JITTER,
         )

@@ -10,10 +10,9 @@ A highly customizable Home Assistant custom component that provides intelligent 
 
 ## What's New in v0.8.4
 
-🌍 **Multi-lingual Support** - Full support for non-English languages in conversations and responses
 🧠 **Reasoning Model Support** - Works with Qwen3, DeepSeek R1, and o1/o3 models by filtering thinking blocks
 🔧 **OpenAI Compatibility Fix** - Fixed keep_alive parameter causing errors with non-Ollama backends
-🐛 **Debug Logging Fix** - Fixed API key redaction bug that caused massive log spam with streaming
+🐛 **Debug Logging Fix** - Fixed API key redaction bug that caused massive log spam with GPT-4o streaming
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
@@ -307,10 +306,8 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 ## Changelog
 
 ### v0.8.4 (Latest)
-- **Feature**: Multi-lingual support - Full support for non-English languages in conversations and responses
 - **Feature**: Reasoning model support - Filter `<think>...</think>` blocks from LLM output, enabling support for reasoning models like Qwen3, DeepSeek R1, and o1/o3
 - **Fix**: Only send `keep_alive` parameter to Ollama backends; prevents 400 errors with OpenAI and other cloud APIs
-- **Fix**: API key redaction bug causing massive log spam with streaming
 
 ### v0.8.3
 - **Enhancement**: Updated minimum Home Assistant version to 2025.11.0 for improved compatibility
