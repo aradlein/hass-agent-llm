@@ -571,7 +571,7 @@ class VectorDBManager:
             )
 
         # Create OpenAI client with API key
-        client = openai.OpenAI(api_key=self.openai_api_key)
+        client = openai.OpenAI(api_key=self.openai_api_key, base_url=self.embedding_base_url)
 
         # Use the new API for embeddings
         response = await self.hass.async_add_executor_job(
