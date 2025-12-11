@@ -11,7 +11,11 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Sequence, cast
 
+import homeassistant.helpers.httpx_client
+import httpx
 from homeassistant.core import HomeAssistant
+
+from ..helpers import retry_async
 
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI
@@ -292,14 +296,21 @@ class VectorDBContextProvider(ContextProvider):
             )
 
         # Create OpenAI client with API key
-        client = openai.OpenAI(api_key=self.openai_api_key, base_url=self.embedding_base_url)
+        client = openai.AsyncOpenAI(
+            api_key=self.openai_api_key,
+            base_url=self.embedding_base_url,
+            http_client=homeassistant.helpers.httpx_client.get_async_client(hass=self.hass),
+        )
 
         # Use the new API for embeddings
-        response = await self.hass.async_add_executor_job(
-            lambda: client.embeddings.create(
-                model=self.embedding_model,
-                input=text,
-            )
+        async def _request() -> openai.types.CreateEmbeddingResponse:
+            return await client.embeddings.create(model=self.embedding_model, input=text)
+
+        response = await retry_async(
+            _request,
+            max_retries=3,
+            retryable_exceptions=(httpx.HTTPError,),
+            non_retryable_exceptions=(openai.OpenAIError,),
         )
         embedding: list[float] = response.data[0].embedding
         return embedding
