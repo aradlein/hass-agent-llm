@@ -325,3 +325,144 @@ class TestProxyHeadersInStreaming:
         assert headers["X-Ollama-Backend"] == "llama-cpp"
         assert "X-Stream-Priority" in headers
         assert headers["X-Stream-Priority"] == "high"
+
+
+class TestEmptyApiKey:
+    """Tests for empty API key support (local LLMs like Ollama)."""
+
+    @pytest.fixture
+    def mock_llm_mixin(self):
+        """Create a mock class that uses LLMMixin."""
+
+        class MockAgent(LLMMixin):
+            def __init__(self, config):
+                self.config = config
+                self._session = None
+
+        return MockAgent
+
+    @pytest.fixture
+    def mock_streaming_mixin(self):
+        """Create a mock class that uses StreamingMixin."""
+
+        class MockStreamingAgent(StreamingMixin):
+            def __init__(self, config):
+                self.config = config
+                self._session = None
+                # Mock tool_handler required by StreamingMixin
+                self.tool_handler = MagicMock()
+                self.tool_handler.get_tool_definitions.return_value = []
+
+            async def _ensure_session(self):
+                """Override to return mock session."""
+                return self._session
+
+        return MockStreamingAgent
+
+    @pytest.mark.asyncio
+    async def test_empty_api_key_no_authorization_header(self, mock_llm_mixin):
+        """Test that empty API key results in no Authorization header."""
+        config = {
+            CONF_LLM_BASE_URL: "http://localhost:11434/v1",
+            CONF_LLM_API_KEY: "",  # Empty API key for local LLM
+            CONF_LLM_MODEL: "llama3",
+        }
+
+        agent = mock_llm_mixin(config)
+
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(
+            return_value={"choices": [{"message": {"role": "assistant", "content": "test"}}]}
+        )
+
+        mock_session = MagicMock(spec=ClientSession)
+        mock_session.closed = False
+        mock_session.post = MagicMock()
+        mock_session.post.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_session.post.return_value.__aexit__ = AsyncMock()
+
+        agent._session = mock_session
+
+        await agent._call_llm([{"role": "user", "content": "test"}])
+
+        call_args = mock_session.post.call_args
+        headers = call_args.kwargs["headers"]
+
+        # Authorization header should NOT be present when API key is empty
+        assert "Authorization" not in headers
+        # Content-Type should still be present
+        assert "Content-Type" in headers
+
+    @pytest.mark.asyncio
+    async def test_provided_api_key_has_authorization_header(self, mock_llm_mixin):
+        """Test that provided API key results in Authorization header."""
+        config = {
+            CONF_LLM_BASE_URL: "http://localhost:11434/v1",
+            CONF_LLM_API_KEY: "test-key",
+            CONF_LLM_MODEL: "llama3",
+        }
+
+        agent = mock_llm_mixin(config)
+
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(
+            return_value={"choices": [{"message": {"role": "assistant", "content": "test"}}]}
+        )
+
+        mock_session = MagicMock(spec=ClientSession)
+        mock_session.closed = False
+        mock_session.post = MagicMock()
+        mock_session.post.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_session.post.return_value.__aexit__ = AsyncMock()
+
+        agent._session = mock_session
+
+        await agent._call_llm([{"role": "user", "content": "test"}])
+
+        call_args = mock_session.post.call_args
+        headers = call_args.kwargs["headers"]
+
+        assert "Authorization" in headers
+        assert headers["Authorization"] == "Bearer test-key"
+
+    @pytest.mark.asyncio
+    async def test_empty_api_key_streaming_no_authorization_header(self, mock_streaming_mixin):
+        """Test that empty API key in streaming results in no Authorization header."""
+        config = {
+            CONF_LLM_BASE_URL: "http://localhost:11434/v1",
+            CONF_LLM_API_KEY: "",  # Empty API key for local LLM
+            CONF_LLM_MODEL: "llama3",
+        }
+
+        agent = mock_streaming_mixin(config)
+
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.content = MagicMock()
+
+        async def async_iter():
+            yield b'data: {"choices":[{"delta":{"content":"test"}}]}\n\n'
+            yield b"data: [DONE]\n\n"
+
+        mock_response.content.__aiter__ = lambda self: async_iter()
+
+        mock_session = MagicMock(spec=ClientSession)
+        mock_session.closed = False
+        mock_session.post = MagicMock()
+        mock_session.post.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_session.post.return_value.__aexit__ = AsyncMock()
+
+        agent._session = mock_session
+
+        chunks = []
+        async for chunk in agent._call_llm_streaming([{"role": "user", "content": "test"}]):
+            chunks.append(chunk)
+
+        call_args = mock_session.post.call_args
+        headers = call_args.kwargs["headers"]
+
+        # Authorization header should NOT be present when API key is empty
+        assert "Authorization" not in headers
+        assert "Content-Type" in headers

@@ -203,10 +203,14 @@ class LLMMixin:
         session = await self._ensure_session()
 
         url = f"{self.config[CONF_LLM_BASE_URL]}/chat/completions"
-        headers = {
+        headers: dict[str, str] = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.config[CONF_LLM_API_KEY]}",
         }
+
+        # Only include Authorization header if API key is provided
+        api_key = self.config.get(CONF_LLM_API_KEY, "")
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
 
         # Add custom proxy headers if configured
         proxy_headers = self.config.get(CONF_LLM_PROXY_HEADERS, {})

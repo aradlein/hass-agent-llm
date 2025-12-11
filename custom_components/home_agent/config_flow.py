@@ -298,7 +298,10 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                         CONF_LLM_BASE_URL,
                         default=OPENAI_BASE_URL,
                     ): str,
-                    vol.Required(CONF_LLM_API_KEY): str,
+                    vol.Optional(
+                        CONF_LLM_API_KEY,
+                        description={"suggested_value": ""},
+                    ): str,
                     vol.Required(
                         CONF_LLM_MODEL,
                         default=DEFAULT_LLM_MODEL,
@@ -359,10 +362,7 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
         if parsed.scheme not in ("http", "https"):
             raise ValidationError(f"URL scheme must be http or https, got: {parsed.scheme}")
 
-        # Validate API key
-        api_key = config.get(CONF_LLM_API_KEY, "")
-        if not api_key or not api_key.strip():
-            raise ValidationError("API key cannot be empty")
+        # API key is optional - some local LLMs don't require authentication
 
         # Validate model name
         model = config.get(CONF_LLM_MODEL, "")
@@ -528,6 +528,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            _LOGGER.debug("LLM settings form submitted with user_input: %s", user_input)
             # Validate LLM configuration
             try:
                 # Parse and validate proxy headers
@@ -535,24 +536,37 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     validated_headers = _validate_proxy_headers(user_input[CONF_LLM_PROXY_HEADERS])
                     user_input[CONF_LLM_PROXY_HEADERS] = validated_headers
 
+                # Ensure API key is included even if empty (for local LLMs that don't need auth)
+                # Home Assistant forms may not include empty optional fields in user_input
+                if CONF_LLM_API_KEY not in user_input:
+                    _LOGGER.debug("API key not in user_input, setting to empty string")
+                    user_input[CONF_LLM_API_KEY] = ""
+
                 # Merge user input with entry data (not options)
                 # LLM settings should update the entry.data
                 test_config = dict(self._config_entry.data) | user_input
+                _LOGGER.debug("Merged test_config for validation: %s", test_config)
 
                 # Create a temporary config flow instance to validate
                 temp_flow = HomeAgentConfigFlow()
                 temp_flow.hass = self.hass
                 await temp_flow._validate_llm_config(test_config)
+                _LOGGER.debug("LLM config validation passed")
 
                 # Migrate legacy backend setting if needed
                 user_input = _migrate_legacy_backend(user_input)
 
                 # Update the config entry data with new LLM settings
+                # Note: async_update_entry is synchronous despite the name in HA
+                new_data = {**self._config_entry.data, **user_input}
+                _LOGGER.debug("Updating config entry data to: %s", new_data)
                 self.hass.config_entries.async_update_entry(
-                    self._config_entry, data={**self._config_entry.data, **user_input}
+                    self._config_entry, data=new_data
                 )
+                _LOGGER.debug("Config entry data updated successfully")
 
                 # Return current options to preserve them
+                # The data update above modifies entry.data, this preserves entry.options
                 return self.async_create_entry(title="", data=self._config_entry.options)
 
             except ValidationError as err:
@@ -580,9 +594,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         CONF_LLM_BASE_URL,
                         default=current_data.get(CONF_LLM_BASE_URL, OPENAI_BASE_URL),
                     ): str,
-                    vol.Required(
+                    vol.Optional(
                         CONF_LLM_API_KEY,
-                        default=current_data.get(CONF_LLM_API_KEY, ""),
+                        description={
+                            "suggested_value": current_data.get(CONF_LLM_API_KEY, "")
+                        },
                     ): str,
                     vol.Required(
                         CONF_LLM_MODEL,
