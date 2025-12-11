@@ -830,6 +830,25 @@ def pytest_configure(config: Any) -> None:
     asyncio.get_event_loop_policy()  # Ensure policy is initialized
 
 
+def pytest_collection_modifyitems(config: Any, items: list) -> None:
+    """Modify test items to add timeout markers for integration tests.
+
+    Integration tests that call real LLM services need longer timeouts
+    than the default 10 seconds, as each LLM call can take 2-5+ seconds.
+
+    Args:
+        config: Pytest config object
+        items: List of collected test items
+    """
+    import pytest
+
+    for item in items:
+        # Add 30-second timeout to all integration tests that don't already have a timeout
+        if item.get_closest_marker("integration"):
+            if not item.get_closest_marker("timeout"):
+                item.add_marker(pytest.mark.timeout(30))
+
+
 def pytest_sessionstart(session: Any) -> None:
     """Enable sockets at session start, after all plugins have configured.
 
