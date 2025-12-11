@@ -19,6 +19,7 @@ docs/ISSUE_57_BRANDS_SUBMISSION.md export-ignore
 docs/reference/ export-ignore
 docs/images/README.md export-ignore
 docs/ENTITY_SERVICES_REFERENCE.md export-ignore
+docs/ISSUE_SYNC_SETUP.md export-ignore
 
 # Exclude agent/planning markdown files
 ICON_SUBMISSION.md export-ignore
