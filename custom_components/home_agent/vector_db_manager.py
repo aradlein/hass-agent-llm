@@ -13,7 +13,6 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Callable, Sequence, cast
 
 import aiohttp
-
 from homeassistant.components import conversation as ha_conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.const import EVENT_STATE_CHANGED

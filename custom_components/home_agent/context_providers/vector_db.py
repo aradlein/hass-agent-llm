@@ -306,8 +306,9 @@ class VectorDBContextProvider(ContextProvider):
 
     async def _embed_with_ollama(self, text: str) -> list[float]:
         """Generate embedding using Ollama API."""
-        import aiohttp
         import asyncio
+
+        import aiohttp
 
         url = f"{self.embedding_base_url.rstrip('/')}/api/embeddings"
         payload = {"model": self.embedding_model, "prompt": text}
