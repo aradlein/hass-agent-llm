@@ -1,6 +1,6 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.8.4-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.8.5-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11.0+-blue.svg)](https://www.home-assistant.io/)
@@ -8,11 +8,11 @@
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.8.4
+## What's New in v0.8.5
 
-🧠 **Reasoning Model Support** - Works with Qwen3, DeepSeek R1, and o1/o3 models by filtering thinking blocks
-🔧 **OpenAI Compatibility Fix** - Fixed keep_alive parameter causing errors with non-Ollama backends
-🐛 **Debug Logging Fix** - Fixed API key redaction bug that caused massive log spam with GPT-4o streaming
+🔗 **OpenAI-Compatible Embedding Endpoints** - Vector DB embeddings now work with any OpenAI-compatible server (LocalAI, vLLM, etc.) - fixes #6
+⚡ **Async OpenAI Client** - Non-blocking embedding generation using Home Assistant's native HTTP client
+🔄 **Improved Retry Logic** - Proper exponential backoff for embedding API calls
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
@@ -305,7 +305,12 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.8.4 (Latest)
+### v0.8.5 (Latest)
+- **Feature**: OpenAI-compatible embedding endpoints - Vector DB now respects configured `embedding_base_url` for OpenAI provider (fixes #6)
+- **Enhancement**: Switched to async OpenAI client using Home Assistant's native HTTP client
+- **Enhancement**: Improved retry logic with proper exponential backoff for embedding requests
+
+### v0.8.4
 - **Feature**: Reasoning model support - Filter `<think>...</think>` blocks from LLM output, enabling support for reasoning models like Qwen3, DeepSeek R1, and o1/o3
 - **Fix**: Only send `keep_alive` parameter to Ollama backends; prevents 400 errors with OpenAI and other cloud APIs
 
