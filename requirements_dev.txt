@@ -1,5 +1,10 @@
 # Testing
 pytest>=7.4.0
+
+# DNS resolver - pin for aiodns/pycares compatibility
+# pycares 5.0.0 removed ares_query_* types that aiodns expects
+# See: https://github.com/aio-libs/aiodns/issues/97
+pycares>=4.4.0,<5.0.0
 pytest-xdist>=3.5.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0

@@ -952,6 +952,109 @@ async def test_embedding_provider_openai(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_openai_embedding_with_custom_base_url(
+    session_manager,
+    test_hass,
+    chromadb_config,
+    embedding_config,
+    sample_entity_states,
+    test_collection_name,
+):
+    """Test OpenAI embedding with custom base_url for OpenAI-compatible endpoints.
+
+    This test validates the fix for issue #6: VectorDB Embedding API Base URL.
+    It verifies that when using the OpenAI embedding provider with a custom base_url,
+    the embedding requests are sent to the custom URL instead of the default OpenAI API.
+
+    This enables using OpenAI-compatible embedding servers like:
+    - LocalAI
+    - vLLM
+    - Text Generation Inference
+    - Other OpenAI API-compatible services
+    """
+    custom_base_url = "http://my-custom-embedding-server:8080/v1"
+    config = {
+        CONF_VECTOR_DB_ENABLED: True,
+        CONF_VECTOR_DB_HOST: chromadb_config["host"],
+        CONF_VECTOR_DB_PORT: chromadb_config["port"],
+        CONF_VECTOR_DB_COLLECTION: test_collection_name,
+        CONF_VECTOR_DB_EMBEDDING_PROVIDER: EMBEDDING_PROVIDER_OPENAI,
+        CONF_VECTOR_DB_EMBEDDING_MODEL: "text-embedding-3-small",
+        CONF_VECTOR_DB_EMBEDDING_BASE_URL: custom_base_url,
+        CONF_OPENAI_API_KEY: "test-custom-server-key",
+    }
+
+    with patch(
+        "custom_components.home_agent.agent.core.async_should_expose",
+        return_value=True,
+    ):
+        test_hass.states.async_all = MagicMock(return_value=sample_entity_states)
+
+        def mock_get_state(entity_id):
+            for state in sample_entity_states:
+                if state.entity_id == entity_id:
+                    return state
+            return None
+
+        test_hass.states.get = MagicMock(side_effect=mock_get_state)
+
+        # Mock ChromaDB client to avoid needing real ChromaDB
+        with patch(
+            "custom_components.home_agent.vector_db_manager.chromadb.HttpClient"
+        ) as mock_chromadb:
+            mock_collection = MagicMock()
+            mock_client = MagicMock()
+            mock_client.get_or_create_collection.return_value = mock_collection
+            mock_chromadb.return_value = mock_client
+
+            vector_db_manager = VectorDBManager(test_hass, config)
+
+            # Verify the embedding_base_url is set from config
+            assert (
+                vector_db_manager.embedding_base_url == custom_base_url
+            ), "Custom base_url should be set from config"
+
+            # Mock the OpenAI client and embedding call
+            with patch("openai.AsyncOpenAI") as mock_openai_class:
+                mock_embedding_data = MagicMock()
+                mock_embedding_data.embedding = [0.1] * 1536
+                mock_response = MagicMock()
+                mock_response.data = [mock_embedding_data]
+
+                mock_client_instance = MagicMock()
+                mock_client_instance.embeddings.create = AsyncMock(return_value=mock_response)
+                mock_openai_class.return_value = mock_client_instance
+
+                # Call embed_text to trigger OpenAI client creation
+                text = "test entity text"
+                result = await vector_db_manager._embed_text(text)
+
+                # Verify AsyncOpenAI was instantiated with the custom base_url
+                mock_openai_class.assert_called_once()
+                call_kwargs = mock_openai_class.call_args.kwargs
+                assert (
+                    "base_url" in call_kwargs
+                ), "base_url should be passed to AsyncOpenAI constructor"
+                assert (
+                    call_kwargs["base_url"] == custom_base_url
+                ), f"Expected base_url {custom_base_url}, got {call_kwargs.get('base_url')}"
+
+                # Verify the API key was also passed
+                assert (
+                    call_kwargs["api_key"] == "test-custom-server-key"
+                ), "API key should be passed to AsyncOpenAI constructor"
+
+                # Verify embedding was generated
+                assert len(result) == 1536, "Should return OpenAI-sized embedding"
+
+            # Verify provider is set correctly
+            assert (
+                vector_db_manager.embedding_provider == EMBEDDING_PROVIDER_OPENAI
+            ), "Embedding provider should be openai"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_embedding_provider_ollama(
     session_manager,
     test_hass,
@@ -1939,6 +2042,7 @@ This test file provides comprehensive coverage for all alternative configuration
 
 3. Embedding Providers (CONF_VECTOR_DB_EMBEDDING_PROVIDER):
    - ✓ openai: test_embedding_provider_openai
+   - ✓ openai with custom base_url (issue #6 fix): test_openai_embedding_with_custom_base_url
    - ✓ ollama (baseline): test_embedding_provider_ollama
 
 4. Memory Extraction LLM (CONF_MEMORY_EXTRACTION_LLM):

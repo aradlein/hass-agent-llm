@@ -11,7 +11,11 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Sequence, cast
 
+import homeassistant.helpers.httpx_client
+import httpx
 from homeassistant.core import HomeAssistant
+
+from ..helpers import retry_async
 
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI
@@ -34,6 +38,11 @@ from ..const import (
     DEFAULT_ADDITIONAL_COLLECTIONS,
     DEFAULT_ADDITIONAL_L2_DISTANCE_THRESHOLD,
     DEFAULT_ADDITIONAL_TOP_K,
+    DEFAULT_RETRY_BACKOFF_FACTOR,
+    DEFAULT_RETRY_INITIAL_DELAY,
+    DEFAULT_RETRY_JITTER,
+    DEFAULT_RETRY_MAX_ATTEMPTS,
+    DEFAULT_RETRY_MAX_DELAY,
     DEFAULT_VECTOR_DB_COLLECTION,
     DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
     DEFAULT_VECTOR_DB_EMBEDDING_MODEL,
@@ -292,22 +301,34 @@ class VectorDBContextProvider(ContextProvider):
             )
 
         # Create OpenAI client with API key
-        client = openai.OpenAI(api_key=self.openai_api_key)
+        client = openai.AsyncOpenAI(
+            api_key=self.openai_api_key,
+            base_url=self.embedding_base_url,
+            http_client=homeassistant.helpers.httpx_client.get_async_client(hass=self.hass),
+        )
 
         # Use the new API for embeddings
-        response = await self.hass.async_add_executor_job(
-            lambda: client.embeddings.create(
-                model=self.embedding_model,
-                input=text,
-            )
+        async def _request() -> openai.types.CreateEmbeddingResponse:
+            return await client.embeddings.create(model=self.embedding_model, input=text)
+
+        response = await retry_async(
+            _request,
+            max_retries=DEFAULT_RETRY_MAX_ATTEMPTS,
+            retryable_exceptions=(httpx.HTTPError,),
+            non_retryable_exceptions=(openai.OpenAIError,),
+            initial_delay=DEFAULT_RETRY_INITIAL_DELAY,
+            backoff_factor=DEFAULT_RETRY_BACKOFF_FACTOR,
+            max_delay=DEFAULT_RETRY_MAX_DELAY,
+            jitter=DEFAULT_RETRY_JITTER,
         )
         embedding: list[float] = response.data[0].embedding
         return embedding
 
     async def _embed_with_ollama(self, text: str) -> list[float]:
         """Generate embedding using Ollama API."""
-        import aiohttp
         import asyncio
+
+        import aiohttp
 
         url = f"{self.embedding_base_url.rstrip('/')}/api/embeddings"
         payload = {"model": self.embedding_model, "prompt": text}

@@ -8,7 +8,7 @@ This document describes the comprehensive test coverage for alternative configur
 
 **Location**: `/workspaces/home-agent/tests/integration/test_config_variations.py`
 
-**Total Tests**: 12 comprehensive integration tests
+**Total Tests**: 13 comprehensive integration tests
 
 ## Configuration Options Tested
 
@@ -92,12 +92,18 @@ This document describes the comprehensive test coverage for alternative configur
    - Validates OpenAI API key requirement
    - Mocks OpenAI library to avoid real API calls
 
-2. `test_embedding_provider_ollama`
+2. `test_openai_embedding_with_custom_base_url`
+   - Validates fix for issue #6: VectorDB Embedding API Base URL
+   - Verifies custom `base_url` is passed to OpenAI client
+   - Tests OpenAI-compatible endpoints (LocalAI, vLLM, etc.)
+   - Confirms embedding requests go to custom URL
+
+3. `test_embedding_provider_ollama`
    - Baseline test for Ollama provider
    - Confirms `_embed_with_ollama` is called
    - Validates Ollama endpoint usage
 
-**Verification Method**: Mocks embedding methods to verify correct method is called based on provider configuration
+**Verification Method**: Mocks embedding methods to verify correct method is called based on provider configuration, and verifies AsyncOpenAI client receives custom base_url
 
 ---
 
@@ -225,9 +231,9 @@ TEST_EMBEDDING_MODEL=mxbai-embed-large
 |---------------------|---------|--------------------:|------:|--------------|
 | LLM Backend | default | 3 | 4 | agent.py:534-536, 598-600 |
 | Context Format | json | 2 | 3 | context_manager.py:139-141, direct.py |
-| Embedding Provider | ollama | 1 | 2 | vector_db_manager.py:528-609 |
+| Embedding Provider | ollama | 1 | 3 | vector_db_manager.py:528-609 |
 | Memory Extraction LLM | external | 1 | 2 | agent.py:1754-1802 |
-| **Total** | - | **7** | **12** | **Multiple modules** |
+| **Total** | - | **7** | **13** | **Multiple modules** |
 
 ---
 

@@ -5,7 +5,7 @@ for semantic entity search and intelligent context injection.
 """
 
 import json
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from homeassistant.core import State
@@ -17,6 +17,7 @@ from custom_components.home_agent.const import (
     CONF_EMIT_EVENTS,
     CONF_OPENAI_API_KEY,
     CONF_VECTOR_DB_COLLECTION,
+    CONF_VECTOR_DB_EMBEDDING_BASE_URL,
     CONF_VECTOR_DB_EMBEDDING_MODEL,
     CONF_VECTOR_DB_EMBEDDING_PROVIDER,
     CONF_VECTOR_DB_HOST,
@@ -226,9 +227,10 @@ class TestEmbedQuery:
         mock_response = MagicMock()
         mock_response.data = [mock_embedding_data]
 
-        with patch("openai.OpenAI") as mock_openai:
+        with patch("openai.AsyncOpenAI") as mock_openai, \
+             patch("homeassistant.helpers.httpx_client.get_async_client"):
             mock_client = MagicMock()
-            mock_client.embeddings.create.return_value = mock_response
+            mock_client.embeddings.create = AsyncMock(return_value=mock_response)
             mock_openai.return_value = mock_client
             result = await provider._embed_query("test query")
 
@@ -301,6 +303,69 @@ class TestEmbedQuery:
                 await provider._embed_query("test")
 
             assert "Embedding failed" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_openai_embedding_uses_configured_base_url(self, mock_hass):
+        """Test that OpenAI embedding respects custom base_url (fixes issue #6)."""
+        if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
+            pytest.skip("ChromaDB or OpenAI not available")
+
+        custom_url = "http://my-openai-compatible-server:8080/v1"
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_VECTOR_DB_EMBEDDING_PROVIDER: EMBEDDING_PROVIDER_OPENAI,
+            CONF_VECTOR_DB_EMBEDDING_BASE_URL: custom_url,
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        # Mock the OpenAI API client.embeddings.create call
+        mock_embedding_data = MagicMock()
+        mock_embedding_data.embedding = [0.1, 0.2, 0.3]
+        mock_response = MagicMock()
+        mock_response.data = [mock_embedding_data]
+
+        with patch("openai.AsyncOpenAI") as mock_openai, \
+             patch("homeassistant.helpers.httpx_client.get_async_client"):
+            mock_client = MagicMock()
+            mock_client.embeddings.create = AsyncMock(return_value=mock_response)
+            mock_openai.return_value = mock_client
+
+            result = await provider._embed_query("test query")
+
+            # Verify base_url was passed correctly
+            assert mock_openai.call_args.kwargs["base_url"] == custom_url
+            assert result == [0.1, 0.2, 0.3]
+
+    @pytest.mark.asyncio
+    async def test_openai_embedding_uses_default_base_url(self, mock_hass):
+        """Test that OpenAI embedding uses default base_url when not configured."""
+        if not CHROMADB_AVAILABLE or not OPENAI_AVAILABLE:
+            pytest.skip("ChromaDB or OpenAI not available")
+
+        config = {
+            CONF_OPENAI_API_KEY: "sk-test",
+            CONF_VECTOR_DB_EMBEDDING_PROVIDER: EMBEDDING_PROVIDER_OPENAI,
+            # No CONF_VECTOR_DB_EMBEDDING_BASE_URL specified
+        }
+        provider = VectorDBContextProvider(mock_hass, config)
+
+        # Mock the OpenAI API client.embeddings.create call
+        mock_embedding_data = MagicMock()
+        mock_embedding_data.embedding = [0.4, 0.5, 0.6]
+        mock_response = MagicMock()
+        mock_response.data = [mock_embedding_data]
+
+        with patch("openai.AsyncOpenAI") as mock_openai, \
+             patch("homeassistant.helpers.httpx_client.get_async_client"):
+            mock_client = MagicMock()
+            mock_client.embeddings.create = AsyncMock(return_value=mock_response)
+            mock_openai.return_value = mock_client
+
+            result = await provider._embed_query("test query")
+
+            # Verify default base_url was used (http://localhost:11434)
+            assert mock_openai.call_args.kwargs["base_url"] == "http://localhost:11434"
+            assert result == [0.4, 0.5, 0.6]
 
 
 class TestAdditionalCollections:
