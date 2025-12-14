@@ -58,6 +58,7 @@ CONF_HISTORY_ENABLED: Final = "history_enabled"
 CONF_HISTORY_MAX_MESSAGES: Final = "history_max_messages"
 CONF_HISTORY_MAX_TOKENS: Final = "history_max_tokens"
 CONF_HISTORY_PERSIST: Final = "history_persist"
+CONF_MAX_CONTEXT_TOKENS: Final = "max_context_tokens"
 
 # Configuration keys - Context Optimization
 CONF_COMPRESSION_LEVEL: Final = "compression_level"
@@ -296,6 +297,9 @@ HTTP_TIMEOUT_EXTERNAL_LLM: Final = 90
 # Token limits and warnings
 TOKEN_WARNING_THRESHOLD: Final = 0.8  # Warn at 80% of limit
 MAX_CONTEXT_TOKENS: Final = 8000  # Maximum tokens for context before truncation
+
+# Default values - Context Tokens
+DEFAULT_MAX_CONTEXT_TOKENS: Final = 8000
 
 # Update intervals (seconds)
 CONTEXT_UPDATE_INTERVAL: Final = 60  # Update entity context every 60 seconds

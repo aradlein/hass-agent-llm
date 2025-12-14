@@ -324,8 +324,10 @@ class ContextManager:
             )
             raise TokenLimitExceeded(
                 f"Context size {estimated_tokens} tokens exceeds limit "
-                f"{self._max_context_tokens}. Consider reducing entity count "
-                f"or conversation history."
+                f"{self._max_context_tokens}. To reduce context size: "
+                f"decrease 'Max Messages' in History Settings, "
+                f"lower 'Top K' in Vector DB Settings, "
+                f"or increase 'Max Context Tokens' in Context Settings."
             )
 
         # Warn if approaching limit

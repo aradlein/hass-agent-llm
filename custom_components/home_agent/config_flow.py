@@ -55,6 +55,7 @@ from .const import (
     CONF_LLM_MODEL,
     CONF_LLM_PROXY_HEADERS,
     CONF_LLM_TEMPERATURE,
+    CONF_MAX_CONTEXT_TOKENS,
     CONF_MEMORY_COLLECTION_NAME,
     CONF_MEMORY_CONTEXT_TOP_K,
     CONF_MEMORY_ENABLED,
@@ -104,6 +105,7 @@ from .const import (
     DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_LLM_KEEP_ALIVE,
     DEFAULT_LLM_MODEL,
+    DEFAULT_MAX_CONTEXT_TOKENS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MEMORY_COLLECTION_NAME,
     DEFAULT_MEMORY_CONTEXT_TOP_K,
@@ -682,6 +684,13 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                             CONF_DIRECT_ENTITIES, current_data.get(CONF_DIRECT_ENTITIES, "")
                         ),
                     ): str,
+                    vol.Optional(
+                        CONF_MAX_CONTEXT_TOKENS,
+                        default=current_options.get(
+                            CONF_MAX_CONTEXT_TOKENS,
+                            current_data.get(CONF_MAX_CONTEXT_TOKENS, DEFAULT_MAX_CONTEXT_TOKENS),
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1000, max=128000)),
                 }
             ),
             description_placeholders={

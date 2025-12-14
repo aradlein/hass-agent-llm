@@ -216,12 +216,14 @@
         "data": {
           "context_mode": "Context Mode",
           "context_format": "Context Format",
-          "direct_entities": "Entities to Include"
+          "direct_entities": "Entities to Include",
+          "max_context_tokens": "Max Context Tokens"
         },
         "data_description": {
           "context_mode": "Choose how to inject entity context",
           "context_format": "Format for entity data (JSON, Natural Language, or Hybrid)",
-          "direct_entities": "Comma-separated list of entity IDs (e.g., sensor.temperature,light.*)"
+          "direct_entities": "Comma-separated list of entity IDs (e.g., sensor.temperature,light.*)",
+          "max_context_tokens": "Maximum total tokens for context (entities + history + prompt). Increase if you have a model with large context window. Default: 8000."
         }
       },
       "vector_db_settings": {
