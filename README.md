@@ -1,6 +1,6 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.8.5-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.8.6-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11.0+-blue.svg)](https://www.home-assistant.io/)
@@ -8,11 +8,12 @@
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.8.5
+## What's New in v0.8.6
 
-🔗 **OpenAI-Compatible Embedding Endpoints** - Vector DB embeddings now work with any OpenAI-compatible server (LocalAI, vLLM, etc.) - fixes #6
-⚡ **Async OpenAI Client** - Non-blocking embedding generation using Home Assistant's native HTTP client
-🔄 **Improved Retry Logic** - Proper exponential backoff for embedding API calls
+📊 **TTFT & Voice Pipeline Metrics** - Track Time To First Token and end-to-end voice conversation performance
+🎛️ **Configurable Max Context Tokens** - Control how many tokens are sent to the LLM (fixes #65)
+🐛 **Memory System Fix** - Fixed memory retrieval issues with transient memories and duplicates
+🧪 **Testing Improvements** - Comprehensive test coverage improvements and bug fixes
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
@@ -305,7 +306,13 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.8.5 (Latest)
+### v0.8.6 (Latest)
+- **Feature**: TTFT (Time To First Token) and voice pipeline metrics for performance monitoring
+- **Feature**: Configurable max context tokens option (fixes #65)
+- **Fix**: Memory retrieval no longer creates transient memories or duplicates
+- **Enhancement**: Comprehensive testing improvements and GitHub issue fixes
+
+### v0.8.5
 - **Feature**: OpenAI-compatible embedding endpoints - Vector DB now respects configured `embedding_base_url` for OpenAI provider (fixes #6)
 - **Enhancement**: Switched to async OpenAI client using Home Assistant's native HTTP client
 - **Enhancement**: Improved retry logic with proper exponential backoff for embedding requests

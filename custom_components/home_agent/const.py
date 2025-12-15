@@ -5,7 +5,7 @@ from typing import Final
 # Domain and component info
 DOMAIN: Final = "home_agent"
 DEFAULT_NAME: Final = "Home Agent"
-VERSION: Final = "0.8.3"
+VERSION: Final = "0.8.6"
 
 # Configuration keys - LLM Configuration
 CONF_LLM_BASE_URL: Final = "llm_base_url"
