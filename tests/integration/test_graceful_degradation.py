@@ -128,16 +128,21 @@ class TestGracefulDegradation:
                     for record in caplog.records
                 )
 
-    async def test_vector_db_unavailable_during_query(
+    async def test_context_retrieval_failure_raises_error(
         self, mock_hass, base_config, mock_llm_response, session_manager, caplog
     ):
-        """Test that conversation continues when Vector DB fails during a query.
+        """Test that context retrieval failures raise appropriate errors.
 
         Verifies:
-        - Agent handles Vector DB query failures gracefully
-        - Conversation continues without vector context
-        - User receives a response (possibly with reduced context quality)
-        - Error is logged but doesn't crash the agent
+        - Agent raises HomeAgentError when context retrieval fails
+        - Error is logged appropriately
+        - No graceful degradation (context is critical for proper operation)
+
+        Note: This test was renamed from test_vector_db_unavailable_during_query
+        to accurately reflect that it tests error handling, not graceful degradation.
+        For true graceful degradation, the agent would need to either:
+        1. Continue with empty/minimal context, or
+        2. Use a fallback context provider
         """
         caplog.set_level(logging.ERROR)
 
@@ -152,31 +157,20 @@ class TestGracefulDegradation:
             "get_formatted_context",
             side_effect=Exception("Context retrieval failed"),
         ):
-            # Mock LLM call to succeed
+            # Mock LLM call to succeed (though we won't get there)
             with patch.object(agent, "_call_llm", return_value=mock_llm_response):
-                # Despite context failure, this will raise an error
-                # because context is critical
-                try:
+                # Context failure should raise an error (not gracefully degrade)
+                with pytest.raises((HomeAgentError, Exception)):
                     await agent.process_message(
                         text="Hello, are you there?",
                         conversation_id="test_conv_1",
                     )
 
-                    # If we get here, an error should have been logged
-                    # (though current implementation will likely raise)
-                    assert any(
-                        "Error processing message" in record.message
-                        or "error" in record.message.lower()
-                        for record in caplog.records
-                    )
-                except (HomeAgentError, Exception):
-                    # If it raises an error, that's expected
-                    # The key is that an appropriate error was logged
-                    assert any(
-                        "Error processing message" in record.message
-                        or "error" in record.message.lower()
-                        for record in caplog.records
-                    )
+                # Verify error was logged
+                assert any(
+                    "error" in record.message.lower()
+                    for record in caplog.records
+                ), "Expected error to be logged when context retrieval fails"
 
     async def test_memory_system_unavailable(
         self, mock_hass, base_config, mock_llm_response, session_manager, caplog

@@ -72,6 +72,7 @@ filterwarnings = [
     "ignore:coroutine.*was never awaited:RuntimeWarning",
     "ignore:Unclosed client session:ResourceWarning",
     "ignore:Enable tracemalloc:ResourceWarning",
+    "ignore:Task was destroyed but it is pending:ResourceWarning",
 ]
 markers = [
     "integration: Integration tests requiring external services (ChromaDB, LLM, etc.)",

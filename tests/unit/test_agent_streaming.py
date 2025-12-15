@@ -551,19 +551,36 @@ class TestStreamingMemoryExtraction:
 class TestStreamingMessageConstruction:
     """Test that streaming properly constructs messages with both content and tool_calls."""
 
-    def test_assistant_content_with_both_creates_single_message(self):
+    @pytest.mark.asyncio
+    async def test_assistant_content_with_both_creates_single_message(self, agent):
         """Test that AssistantContent with BOTH content AND tool_calls creates ONE message.
 
         This is a regression test for Bug #63 where messages were being split into
         separate messages for content and tool_calls, causing issues with the LLM API.
         The fix in core.py ensures a single message with both fields is appended.
         """
-        from homeassistant.components.conversation import AssistantContent
+        from homeassistant.components.conversation import AssistantContent, ToolResultContent
         from homeassistant.helpers.llm import ToolInput
         import json
 
+        # Enable streaming to test the streaming message construction path
+        agent.config[CONF_STREAMING_ENABLED] = True
+
+        # Create mock conversation input
+        mock_input = MagicMock(spec=ha_conversation.ConversationInput)
+        mock_input.text = "Turn on the lights"
+        mock_input.conversation_id = "test-conv"
+        mock_input.language = "en"
+        mock_input.context = MagicMock()
+        mock_input.context.user_id = "test-user"
+        mock_input.device_id = None
+
+        # Mock ChatLog
+        mock_chat_log_instance = MagicMock()
+        mock_chat_log_instance.delta_listener = MagicMock()
+        mock_chat_log_instance.unresponded_tool_results = []
+
         # Create AssistantContent with BOTH content AND tool_calls
-        # This simulates what the LLM stream returns
         mock_tool_call = ToolInput(
             id="call_123",
             tool_name="ha_control",
@@ -576,51 +593,75 @@ class TestStreamingMessageConstruction:
             tool_calls=[mock_tool_call],
         )
 
-        # Simulate the message construction logic from core.py lines 1070-1094
-        messages = []
+        # Mock async_add_delta_content_stream to yield our test content
+        async def mock_content_stream(*args, **kwargs):
+            yield content_item
+            # Also yield a tool result to complete the flow
+            yield ToolResultContent(
+                agent_id="home_agent",
+                tool_call_id="call_123",
+                tool_name="ha_control",
+                tool_result={"success": True},
+            )
+            # Final message to end the loop
+            yield AssistantContent(
+                agent_id="home_agent",
+                content="Done!",
+                tool_calls=None,
+            )
 
-        # This is the FIXED code that creates a single message
-        msg = {"role": "assistant"}
+        mock_chat_log_instance.async_add_delta_content_stream = mock_content_stream
 
-        if content_item.content:
-            msg["content"] = content_item.content
+        # Mock the result extraction
+        mock_result = MagicMock(spec=ha_conversation.ConversationResult)
+        mock_result.conversation_id = "test-conv"
 
-        if content_item.tool_calls:
-            msg["tool_calls"] = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.tool_name,
-                        "arguments": json.dumps(tc.tool_args),
-                    },
+        # Track messages passed to LLM
+        captured_messages = []
+
+        def capture_llm_messages(messages):
+            """Capture messages and return mock stream."""
+            captured_messages.append([m.copy() for m in messages])
+            async def mock_stream():
+                yield "data: {}"
+            return mock_stream()
+
+        with (
+            patch("homeassistant.components.conversation.chat_log.current_chat_log") as mock_chat_log,
+            patch.object(agent, "_call_llm_streaming", side_effect=capture_llm_messages),
+            patch("homeassistant.components.conversation.async_get_result_from_chat_log", return_value=mock_result),
+        ):
+            mock_chat_log.get.return_value = mock_chat_log_instance
+
+            # Process the message
+            await agent.async_process(mock_input)
+
+            # Verify messages were constructed correctly
+            # After first iteration, should have messages with both content and tool_calls
+            assert len(captured_messages) >= 1, "Should have captured at least one LLM call"
+
+            # Find the assistant message with tool_calls in the second iteration
+            if len(captured_messages) > 1:
+                second_call_messages = captured_messages[1]
+
+                # Find assistant message with tool_calls
+                assistant_msgs = [m for m in second_call_messages if m.get("role") == "assistant" and "tool_calls" in m]
+                assert len(assistant_msgs) >= 1, "Should have at least one assistant message with tool_calls"
+
+                # Verify it's a SINGLE message with BOTH fields
+                msg = assistant_msgs[0]
+                assert "content" in msg, "Message should have 'content' field"
+                assert "tool_calls" in msg, "Message should have 'tool_calls' field"
+                assert msg["content"] == "Let me turn on the lights for you."
+                assert len(msg["tool_calls"]) == 1
+
+                tool_call = msg["tool_calls"][0]
+                assert tool_call["id"] == "call_123"
+                assert tool_call["function"]["name"] == "ha_control"
+                assert json.loads(tool_call["function"]["arguments"]) == {
+                    "entity_id": "light.living_room",
+                    "action": "turn_on",
                 }
-                for tc in content_item.tool_calls
-            ]
-
-        messages.append(msg)
-
-        # ASSERTIONS: Verify only ONE message was created with BOTH fields
-        assert len(messages) == 1, "Should create exactly ONE message, not split into two"
-
-        message = messages[0]
-        assert message["role"] == "assistant"
-
-        # Both content and tool_calls should be in the SAME message
-        assert "content" in message, "Message should have 'content' field"
-        assert message["content"] == "Let me turn on the lights for you."
-
-        assert "tool_calls" in message, "Message should have 'tool_calls' field"
-        assert len(message["tool_calls"]) == 1
-
-        tool_call = message["tool_calls"][0]
-        assert tool_call["id"] == "call_123"
-        assert tool_call["type"] == "function"
-        assert tool_call["function"]["name"] == "ha_control"
-        assert json.loads(tool_call["function"]["arguments"]) == {
-            "entity_id": "light.living_room",
-            "action": "turn_on",
-        }
 
     def test_assistant_content_only_text_creates_message(self):
         """Test that AssistantContent with only text content works correctly."""

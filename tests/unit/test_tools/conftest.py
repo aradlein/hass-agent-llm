@@ -7,22 +7,8 @@ import pytest
 from homeassistant.core import State
 from homeassistant.util import dt as dt_util
 
-
-@pytest.fixture
-def mock_hass():
-    """Create a mock Home Assistant instance for tools testing."""
-    hass = MagicMock()
-    hass.states = MagicMock()
-    hass.services = MagicMock()
-    hass.data = {}
-
-    # Mock async_add_executor_job to execute synchronously
-    async def mock_executor_job(func, *args):
-        return func(*args)
-
-    hass.async_add_executor_job = AsyncMock(side_effect=mock_executor_job)
-
-    return hass
+# Note: mock_hass fixture is now defined in tests/conftest.py
+# and is automatically available to all tests
 
 
 @pytest.fixture

@@ -290,7 +290,8 @@ class TestGetFormattedContext:
         assert context is not None
         assert isinstance(context, str)
         assert len(context) > 0
-        assert "Test context" in context or "Test" in context
+        # Verify the exact expected content is returned
+        assert "Test context" in context, f"Expected 'Test context' in result, got: {context}"
         assert provider.get_context_called
         assert provider.last_user_input == "test input"
 

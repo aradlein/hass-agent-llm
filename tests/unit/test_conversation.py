@@ -455,3 +455,633 @@ class TestConversationHistoryManager:
         history = manager.get_history("conv_123")
 
         assert len(history) == min(expected_count, 20)
+
+
+class TestConversationPersistence:
+    """Test conversation persistence functionality."""
+
+    @pytest.mark.asyncio
+    async def test_load_from_storage_success(self):
+        """Test successfully loading conversation history from storage."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        # Mock Home Assistant
+        mock_hass = MagicMock()
+
+        # Create manager with persistence enabled
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        # Mock storage data
+        storage_data = {
+            "version": 1,
+            "conversations": {
+                "conv_123": [
+                    {"role": "user", "content": "Hello", "timestamp": 1234567890},
+                    {"role": "assistant", "content": "Hi there!", "timestamp": 1234567891},
+                ],
+                "conv_456": [
+                    {"role": "user", "content": "How are you?", "timestamp": 1234567892},
+                ],
+            },
+        }
+
+        # Mock the store's async_load method
+        manager._store.async_load = AsyncMock(return_value=storage_data)
+
+        # Load from storage
+        await manager.load_from_storage()
+
+        # Verify conversations were loaded
+        assert len(manager._histories) == 2
+        assert len(manager._histories["conv_123"]) == 2
+        assert len(manager._histories["conv_456"]) == 1
+        assert manager._histories["conv_123"][0]["content"] == "Hello"
+        assert manager._histories["conv_456"][0]["role"] == "user"
+
+    @pytest.mark.asyncio
+    async def test_load_from_storage_no_existing_data(self):
+        """Test loading when no storage data exists."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        # Mock async_load returning None (no data)
+        manager._store.async_load = AsyncMock(return_value=None)
+
+        # Should not raise error
+        await manager.load_from_storage()
+
+        # Histories should be empty
+        assert len(manager._histories) == 0
+
+    @pytest.mark.asyncio
+    async def test_load_from_storage_corrupted_data(self):
+        """Test loading handles corrupted storage data gracefully."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        # Mock corrupted storage data
+        corrupted_data = {
+            "version": 1,
+            "conversations": {
+                "conv_123": [
+                    {"role": "user", "content": "Valid message", "timestamp": 1234567890},
+                    "invalid_message_string",  # Invalid: should be dict
+                    {"role": "assistant"},  # Invalid: missing content
+                    {"content": "No role"},  # Invalid: missing role
+                ],
+                "conv_456": "invalid_not_a_list",  # Invalid: should be list
+            },
+        }
+
+        manager._store.async_load = AsyncMock(return_value=corrupted_data)
+
+        # Should handle gracefully without crashing
+        await manager.load_from_storage()
+
+        # Should only load valid messages
+        assert "conv_123" in manager._histories
+        assert len(manager._histories["conv_123"]) == 1
+        assert manager._histories["conv_123"][0]["content"] == "Valid message"
+
+        # Invalid conversation should be skipped
+        assert "conv_456" not in manager._histories
+
+    @pytest.mark.asyncio
+    async def test_load_from_storage_without_persistence(self):
+        """Test that load_from_storage returns early when persistence disabled."""
+        from unittest.mock import AsyncMock
+
+        # Create manager without persistence
+        manager = ConversationHistoryManager(max_messages=10, persist=False)
+
+        # Should return early without error
+        await manager.load_from_storage()
+
+        # No histories should be loaded
+        assert len(manager._histories) == 0
+
+    @pytest.mark.asyncio
+    async def test_load_from_storage_handles_exception(self):
+        """Test that storage load errors are caught and logged."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        # Mock async_load raising an exception
+        manager._store.async_load = AsyncMock(side_effect=Exception("Storage error"))
+
+        # Should not raise exception (catches and logs)
+        await manager.load_from_storage()
+
+        # Histories should remain empty
+        assert len(manager._histories) == 0
+
+    @pytest.mark.asyncio
+    async def test_save_to_storage_success(self):
+        """Test successfully saving conversation history to storage."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_hass = MagicMock()
+        mock_hass.bus = MagicMock()
+        mock_hass.bus.async_fire = MagicMock()
+
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        # Add some messages
+        manager.add_message("conv_123", "user", "Hello")
+        manager.add_message("conv_123", "assistant", "Hi!")
+
+        # Mock the store's async_save method
+        manager._store.async_save = AsyncMock()
+
+        # Save to storage
+        await manager.save_to_storage()
+
+        # Verify async_save was called
+        manager._store.async_save.assert_called_once()
+
+        # Verify the data structure passed to async_save
+        call_args = manager._store.async_save.call_args[0][0]
+        assert call_args["version"] == 1
+        assert "conversations" in call_args
+        assert "conv_123" in call_args["conversations"]
+        assert len(call_args["conversations"]["conv_123"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_save_to_storage_without_persistence(self):
+        """Test that save_to_storage returns early when persistence disabled."""
+        from unittest.mock import AsyncMock
+
+        manager = ConversationHistoryManager(max_messages=10, persist=False)
+        manager.add_message("conv_123", "user", "Hello")
+
+        # Should return early without error (no _store to call)
+        await manager.save_to_storage()
+
+    @pytest.mark.asyncio
+    async def test_save_to_storage_failure(self):
+        """Test that save_to_storage handles errors gracefully."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        manager.add_message("conv_123", "user", "Hello")
+
+        # Mock async_save raising an exception
+        manager._store.async_save = AsyncMock(side_effect=Exception("Storage error"))
+
+        # Should not raise exception (catches and logs)
+        await manager.save_to_storage()
+
+    @pytest.mark.asyncio
+    async def test_save_to_storage_fires_event(self):
+        """Test that save_to_storage fires history saved event."""
+        from unittest.mock import AsyncMock, MagicMock
+        from custom_components.home_agent.const import EVENT_HISTORY_SAVED
+
+        mock_hass = MagicMock()
+        mock_hass.bus = MagicMock()
+        mock_hass.bus.async_fire = MagicMock()
+
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        manager.add_message("conv_123", "user", "Hello")
+        manager._store.async_save = AsyncMock()
+
+        await manager.save_to_storage()
+
+        # Verify event was fired
+        mock_hass.bus.async_fire.assert_called()
+        call_args = mock_hass.bus.async_fire.call_args[0]
+        assert call_args[0] == EVENT_HISTORY_SAVED
+
+        # Verify event data
+        event_data = call_args[1]
+        assert "conversation_count" in event_data
+        assert "message_count" in event_data
+        assert "size_bytes" in event_data
+        assert "timestamp" in event_data
+
+    @pytest.mark.asyncio
+    async def test_save_to_storage_warns_on_large_size(self):
+        """Test that save_to_storage warns when storage size exceeds limit."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10000, hass=mock_hass, persist=True
+        )
+
+        # Add many large messages to exceed size limit
+        for i in range(1000):
+            manager.add_message(f"conv_{i}", "user", "A" * 10000)
+
+        manager._store.async_save = AsyncMock()
+
+        # Should complete without crashing (just logs warning)
+        await manager.save_to_storage()
+
+        # Verify save was still called
+        manager._store.async_save.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_debounced_save_coalesces_multiple_saves(self):
+        """Test that debounced save coalesces multiple save requests."""
+        from unittest.mock import AsyncMock, MagicMock
+        import asyncio
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True, save_delay=0.1
+        )
+
+        # Mock save_to_storage
+        manager.save_to_storage = AsyncMock()
+
+        # Trigger multiple debounced saves rapidly
+        await manager._debounced_save()
+        await manager._debounced_save()
+        await manager._debounced_save()
+
+        # Wait for debounce delay plus a bit
+        await asyncio.sleep(0.2)
+
+        # Should have only saved once (debounced)
+        assert manager.save_to_storage.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_debounced_save_cancels_previous_task(self):
+        """Test that debounced save cancels previous pending save."""
+        from unittest.mock import AsyncMock, MagicMock
+        import asyncio
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True, save_delay=0.2
+        )
+
+        manager.save_to_storage = AsyncMock()
+
+        # Start first debounced save
+        await manager._debounced_save()
+        first_task = manager._save_task
+
+        # Start second debounced save before first completes
+        await asyncio.sleep(0.05)
+        await manager._debounced_save()
+        second_task = manager._save_task
+
+        # First task should be cancelled
+        assert first_task.cancelled() or first_task != second_task
+
+        # Wait for second task to complete
+        await asyncio.sleep(0.25)
+
+        # Should have only saved once
+        assert manager.save_to_storage.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_debounced_save_handles_cancellation(self):
+        """Test that debounced save handles cancellation gracefully."""
+        from unittest.mock import AsyncMock, MagicMock
+        import asyncio
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True, save_delay=0.2
+        )
+
+        manager.save_to_storage = AsyncMock()
+
+        # Start debounced save
+        await manager._debounced_save()
+        task = manager._save_task
+
+        # Cancel the task
+        task.cancel()
+
+        # Wait a bit
+        await asyncio.sleep(0.05)
+
+        # Should handle cancellation without error
+        assert task.cancelled()
+
+    def test_enable_persistence_activates_storage(self):
+        """Test that enable_persistence creates storage when enabled."""
+        from unittest.mock import MagicMock
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=False
+        )
+
+        # Initially no store
+        assert manager._persist is False
+        assert manager._store is None
+
+        # Enable persistence
+        manager.enable_persistence(True)
+
+        # Should have store now
+        assert manager._persist is True
+        assert manager._store is not None
+
+    def test_enable_persistence_without_hass(self):
+        """Test that enable_persistence fails gracefully without hass."""
+        manager = ConversationHistoryManager(max_messages=10, persist=False)
+
+        # Try to enable persistence without hass
+        manager.enable_persistence(True)
+
+        # Should remain disabled
+        assert manager._persist is False
+        assert manager._store is None
+
+    def test_enable_persistence_disable(self):
+        """Test that enable_persistence can disable persistence."""
+        from unittest.mock import MagicMock
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        assert manager._persist is True
+
+        # Disable persistence
+        manager.enable_persistence(False)
+
+        assert manager._persist is False
+        # Store should still exist (data not deleted)
+        assert manager._store is not None
+
+    @pytest.mark.asyncio
+    async def test_migrate_storage_v1_to_v2(self):
+        """Test storage migration from version 1 to current version."""
+        from unittest.mock import MagicMock
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        # Mock v1 data (currently v1 is the only version)
+        old_data = {
+            "version": 1,
+            "conversations": {
+                "conv_123": [{"role": "user", "content": "Hello"}],
+            },
+        }
+
+        # Migrate (currently should return unchanged)
+        migrated_data = await manager._migrate_storage(1, old_data)
+
+        # Should return same data for v1
+        assert migrated_data == old_data
+
+    @pytest.mark.asyncio
+    async def test_migrate_storage_unknown_version(self):
+        """Test migration handles unknown versions gracefully."""
+        from unittest.mock import MagicMock
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        # Mock future version data
+        future_data = {
+            "version": 99,
+            "conversations": {},
+        }
+
+        # Should return data as-is with warning
+        migrated_data = await manager._migrate_storage(99, future_data)
+
+        assert migrated_data == future_data
+
+    @pytest.mark.asyncio
+    async def test_scheduled_cleanup_removes_old_conversations(self):
+        """Test that scheduled cleanup removes conversations older than 24 hours."""
+        from unittest.mock import AsyncMock, MagicMock
+        import time
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        # Mock save_to_storage
+        manager.save_to_storage = AsyncMock()
+
+        # Add old conversation (>24 hours ago)
+        old_timestamp = int(time.time()) - (25 * 60 * 60)  # 25 hours ago
+        manager._histories["old_conv"] = [
+            {"role": "user", "content": "Old message", "timestamp": old_timestamp}
+        ]
+
+        # Add recent conversation
+        recent_timestamp = int(time.time()) - (1 * 60 * 60)  # 1 hour ago
+        manager._histories["recent_conv"] = [
+            {"role": "user", "content": "Recent message", "timestamp": recent_timestamp}
+        ]
+
+        # Add empty conversation
+        manager._histories["empty_conv"] = []
+
+        # Run cleanup
+        await manager._async_cleanup_old_conversations()
+
+        # Old and empty conversations should be deleted
+        assert "old_conv" not in manager._histories
+        assert "empty_conv" not in manager._histories
+
+        # Recent conversation should remain
+        assert "recent_conv" in manager._histories
+
+        # Save should have been called
+        manager.save_to_storage.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_scheduled_cleanup_no_deletions(self):
+        """Test that cleanup doesn't save when nothing to delete."""
+        from unittest.mock import AsyncMock, MagicMock
+        import time
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        manager.save_to_storage = AsyncMock()
+
+        # Add only recent conversations
+        recent_timestamp = int(time.time()) - (1 * 60 * 60)
+        manager._histories["recent_conv"] = [
+            {"role": "user", "content": "Recent", "timestamp": recent_timestamp}
+        ]
+
+        # Run cleanup
+        await manager._async_cleanup_old_conversations()
+
+        # Conversation should remain
+        assert "recent_conv" in manager._histories
+
+        # Save should not be called (nothing deleted)
+        manager.save_to_storage.assert_not_called()
+
+    def test_setup_scheduled_cleanup(self):
+        """Test that setup_scheduled_cleanup schedules periodic cleanup."""
+        from unittest.mock import MagicMock, patch
+
+        mock_hass = MagicMock()
+
+        with patch(
+            "custom_components.home_agent.conversation.async_track_time_interval"
+        ) as mock_track:
+            manager = ConversationHistoryManager(
+                max_messages=10, hass=mock_hass, persist=True
+            )
+
+            # Setup scheduled cleanup
+            manager.setup_scheduled_cleanup()
+
+            # Should have called async_track_time_interval
+            mock_track.assert_called_once()
+
+            # Verify cleanup listener was set
+            assert manager._cleanup_listener is not None
+
+    def test_shutdown_scheduled_cleanup(self):
+        """Test that shutdown_scheduled_cleanup stops the scheduler."""
+        from unittest.mock import MagicMock
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        # Mock cleanup listener
+        mock_listener = MagicMock()
+        manager._cleanup_listener = mock_listener
+
+        # Shutdown cleanup
+        manager.shutdown_scheduled_cleanup()
+
+        # Listener should be called to cancel
+        mock_listener.assert_called_once()
+
+        # Listener should be cleared
+        assert manager._cleanup_listener is None
+
+    @pytest.mark.asyncio
+    async def test_add_message_triggers_debounced_save(self):
+        """Test that adding a message triggers debounced save when persistence enabled."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        import asyncio
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True, save_delay=0.1
+        )
+
+        manager.save_to_storage = AsyncMock()
+
+        # Add message (should trigger debounced save)
+        manager.add_message("conv_123", "user", "Hello")
+
+        # Wait for debounce
+        await asyncio.sleep(0.15)
+
+        # Save should have been called
+        manager.save_to_storage.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_clear_history_triggers_debounced_save(self):
+        """Test that clearing history triggers debounced save when persistence enabled."""
+        from unittest.mock import AsyncMock, MagicMock
+        import asyncio
+
+        mock_hass = MagicMock()
+        manager = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True, save_delay=0.1
+        )
+
+        manager.save_to_storage = AsyncMock()
+
+        # Add and clear message
+        manager.add_message("conv_123", "user", "Hello")
+        await asyncio.sleep(0.15)  # Wait for first save
+        manager.save_to_storage.reset_mock()
+
+        manager.clear_history("conv_123")
+
+        # Wait for debounce
+        await asyncio.sleep(0.15)
+
+        # Save should have been called again
+        manager.save_to_storage.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_persistence_integration_flow(self):
+        """Test full persistence flow: save, load, verify."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_hass = MagicMock()
+
+        # Create first manager and add data
+        manager1 = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        manager1.add_message("conv_123", "user", "Hello")
+        manager1.add_message("conv_123", "assistant", "Hi there!")
+
+        # Capture saved data
+        saved_data = None
+
+        async def capture_save(data):
+            nonlocal saved_data
+            saved_data = data
+
+        manager1._store.async_save = AsyncMock(side_effect=capture_save)
+
+        # Save
+        await manager1.save_to_storage()
+
+        assert saved_data is not None
+
+        # Create second manager and load data
+        manager2 = ConversationHistoryManager(
+            max_messages=10, hass=mock_hass, persist=True
+        )
+
+        manager2._store.async_load = AsyncMock(return_value=saved_data)
+
+        await manager2.load_from_storage()
+
+        # Verify data matches
+        history = manager2.get_history("conv_123")
+        assert len(history) == 2
+        assert history[0]["content"] == "Hello"
+        assert history[1]["content"] == "Hi there!"

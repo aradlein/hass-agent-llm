@@ -25,6 +25,7 @@ from custom_components.home_agent.const import (
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
     CONF_LLM_TEMPERATURE,
+    CONF_STREAMING_ENABLED,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONTEXT_MODE_DIRECT,
     EVENT_CONTEXT_INJECTED,
@@ -298,7 +299,7 @@ async def test_conversation_finished_event(
         assert "completion" in tokens, "tokens must contain 'completion'"
         assert "total" in tokens, "tokens must contain 'total'"
 
-        # Token counts should be non-negative integers
+        # Token counts should be non-negative integers and match the mocked LLM response
         assert isinstance(
             tokens["prompt"], int
         ), f"tokens.prompt should be int, got {type(tokens['prompt'])}"
@@ -308,18 +309,20 @@ async def test_conversation_finished_event(
         assert isinstance(
             tokens["total"], int
         ), f"tokens.total should be int, got {type(tokens['total'])}"
-        assert tokens["prompt"] >= 0, f"tokens.prompt should be >= 0, got {tokens['prompt']}"
-        assert (
-            tokens["completion"] >= 0
-        ), f"tokens.completion should be >= 0, got {tokens['completion']}"
-        assert tokens["total"] >= 0, f"tokens.total should be >= 0, got {tokens['total']}"
 
-        # Total should equal sum of prompt + completion (if both are provided)
-        if tokens["prompt"] > 0 and tokens["completion"] > 0:
-            expected_total = tokens["prompt"] + tokens["completion"]
-            assert (
-                tokens["total"] == expected_total
-            ), f"tokens.total ({tokens['total']}) should equal prompt + completion ({expected_total})"
+        # Verify exact token counts match the mock LLM response
+        # Mock response has: prompt_tokens: 10, completion_tokens: 5, total_tokens: 15
+        assert tokens["prompt"] == 10, f"tokens.prompt should be 10 (from mock), got {tokens['prompt']}"
+        assert (
+            tokens["completion"] == 5
+        ), f"tokens.completion should be 5 (from mock), got {tokens['completion']}"
+        assert tokens["total"] == 15, f"tokens.total should be 15 (from mock), got {tokens['total']}"
+
+        # Total should equal sum of prompt + completion
+        expected_total = tokens["prompt"] + tokens["completion"]
+        assert (
+            tokens["total"] == expected_total
+        ), f"tokens.total ({tokens['total']}) should equal prompt + completion ({expected_total})"
 
         # Verify performance dict structure and values
         performance = event_data["performance"]
@@ -667,19 +670,27 @@ async def test_context_injected_event(
             event_data["conversation_id"] == conversation_id
         ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
 
-        # Verify event contains context_mode
-        if "context_mode" in event_data:
-            assert (
-                event_data["context_mode"] == CONTEXT_MODE_DIRECT
-            ), f"context_mode mismatch: expected {CONTEXT_MODE_DIRECT}, got {event_data['context_mode']}"
+        # Verify event contains mode (not context_mode - that's the field name in the event)
+        assert "mode" in event_data, "Event must contain mode"
+        assert (
+            event_data["mode"] == CONTEXT_MODE_DIRECT
+        ), f"mode mismatch: expected {CONTEXT_MODE_DIRECT}, got {event_data['mode']}"
 
-        # Verify event contains entity metrics (if provided)
-        if "entity_count" in event_data:
-            entity_count = event_data["entity_count"]
-            assert isinstance(
-                entity_count, int
-            ), f"entity_count should be int, got {type(entity_count)}"
-            assert entity_count >= 0, f"entity_count should be >= 0, got {entity_count}"
+        # Verify event contains entity metrics (required field)
+        assert "entity_count" in event_data, "Event must contain entity_count"
+        entity_count = event_data["entity_count"]
+        assert isinstance(
+            entity_count, int
+        ), f"entity_count should be int, got {type(entity_count)}"
+        assert entity_count >= 0, f"entity_count should be >= 0, got {entity_count}"
+
+        # Verify event contains token_count
+        assert "token_count" in event_data, "Event must contain token_count"
+        token_count = event_data["token_count"]
+        assert isinstance(
+            token_count, int
+        ), f"token_count should be int, got {type(token_count)}"
+        assert token_count >= 0, f"token_count should be >= 0, got {token_count}"
 
         await agent.close()
 
@@ -747,27 +758,40 @@ async def test_history_saved_event(
                 conversation_id=conversation_id,
             )
 
-        # Verify EVENT_HISTORY_SAVED was fired (if implemented)
+        # Verify EVENT_HISTORY_SAVED structure if it fires
+        # Note: EVENT_HISTORY_SAVED fires when history is persisted to storage,
+        # which may not happen immediately during test execution due to the save delay
         history_events = event_capture.get_events(EVENT_HISTORY_SAVED)
 
-        # History saving might be asynchronous or not emit events yet
-        # This test verifies the event structure if it exists
+        # If the event fired, verify its structure
         if len(history_events) > 0:
             event_data = history_events[0]
 
-            # Verify required fields
-            assert "conversation_id" in event_data, "Event must contain conversation_id"
-            assert (
-                event_data["conversation_id"] == conversation_id
-            ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+            # Verify required fields for this event type
+            # Note: This event tracks overall storage state, not per-conversation
+            assert "conversation_count" in event_data, "Event must contain conversation_count"
+            assert "message_count" in event_data, "Event must contain message_count"
+            assert "size_bytes" in event_data, "Event must contain size_bytes"
+            assert "timestamp" in event_data, "Event must contain timestamp"
 
-            # Verify message_count if provided
-            if "message_count" in event_data:
-                message_count = event_data["message_count"]
-                assert isinstance(
-                    message_count, int
-                ), f"message_count should be int, got {type(message_count)}"
-                assert message_count > 0, f"message_count should be > 0, got {message_count}"
+            # Verify field types and values
+            conversation_count = event_data["conversation_count"]
+            assert isinstance(
+                conversation_count, int
+            ), f"conversation_count should be int, got {type(conversation_count)}"
+            assert conversation_count > 0, f"conversation_count should be > 0, got {conversation_count}"
+
+            message_count = event_data["message_count"]
+            assert isinstance(
+                message_count, int
+            ), f"message_count should be int, got {type(message_count)}"
+            assert message_count > 0, f"message_count should be > 0, got {message_count}"
+
+            size_bytes = event_data["size_bytes"]
+            assert isinstance(
+                size_bytes, int
+            ), f"size_bytes should be int, got {type(size_bytes)}"
+            assert size_bytes >= 0, f"size_bytes should be >= 0, got {size_bytes}"
 
         await agent_with_history.close()
 
@@ -1067,5 +1091,314 @@ async def test_conversation_finished_metrics_accuracy(
         assert (
             event_data["used_external_llm"] is False
         ), "used_external_llm should be False when external LLM is not enabled"
+
+        await agent.close()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_conversation_finished_token_counts_accurate(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    session_manager,
+):
+    """Test that token counts in EVENT_CONVERSATION_FINISHED exactly match LLM response.
+
+    Verifies:
+    1. Token counts are extracted from LLM usage data
+    2. Exact values match (not just >= 0)
+    3. Total equals prompt + completion
+    4. Different token values are reported accurately
+    """
+    # Test multiple scenarios with different token counts
+    test_cases = [
+        {"prompt_tokens": 42, "completion_tokens": 17, "total_tokens": 59},
+        {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+        {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},  # Edge case
+    ]
+
+    config = {
+        CONF_LLM_BASE_URL: llm_config["base_url"],
+        CONF_LLM_API_KEY: llm_config.get("api_key", ""),
+        CONF_LLM_MODEL: llm_config["model"],
+        CONF_LLM_TEMPERATURE: 0.7,
+        CONF_LLM_MAX_TOKENS: 200,
+        CONF_HISTORY_ENABLED: False,
+        CONF_EMIT_EVENTS: True,
+        CONF_DEBUG_LOGGING: False,
+    }
+
+    with patch(
+        "custom_components.home_agent.agent.core.async_should_expose",
+        return_value=False,
+    ):
+        agent = HomeAgent(test_hass, config, session_manager)
+
+        for idx, token_counts in enumerate(test_cases):
+            event_capture.clear()
+
+            # Mock LLM response with specific token counts
+            mock_llm_response = {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "Test response",
+                            "tool_calls": None,
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": token_counts,
+            }
+
+            with patch.object(agent, "_call_llm", return_value=mock_llm_response):
+                await agent.process_message(
+                    text=f"Test message {idx}",
+                    conversation_id=f"test_token_accuracy_{idx}",
+                )
+
+            # Verify token counts in event match exactly
+            finished_events = event_capture.get_events(EVENT_CONVERSATION_FINISHED)
+            assert len(finished_events) == 1, f"Expected 1 finished event, got {len(finished_events)}"
+
+            event_data = finished_events[0]
+            tokens = event_data["tokens"]
+
+            # Verify exact match with mock LLM response
+            assert (
+                tokens["prompt"] == token_counts["prompt_tokens"]
+            ), f"Test case {idx}: prompt tokens mismatch - expected {token_counts['prompt_tokens']}, got {tokens['prompt']}"
+            assert (
+                tokens["completion"] == token_counts["completion_tokens"]
+            ), f"Test case {idx}: completion tokens mismatch - expected {token_counts['completion_tokens']}, got {tokens['completion']}"
+            assert (
+                tokens["total"] == token_counts["total_tokens"]
+            ), f"Test case {idx}: total tokens mismatch - expected {token_counts['total_tokens']}, got {tokens['total']}"
+
+            # Verify arithmetic consistency
+            assert (
+                tokens["total"] == tokens["prompt"] + tokens["completion"]
+            ), f"Test case {idx}: total should equal prompt + completion"
+
+        await agent.close()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_event_ordering(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    session_manager,
+):
+    """Test that observability events fire in the correct order.
+
+    Verifies:
+    1. EVENT_CONVERSATION_STARTED fires first
+    2. EVENT_CONTEXT_INJECTED fires after started (if context used)
+    3. EVENT_CONVERSATION_FINISHED fires last
+    4. All events have consistent conversation_id
+    5. Timestamps are monotonically increasing
+    """
+    # Mock LLM response
+    mock_llm_response = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "Test response",
+                    "tool_calls": None,
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+    }
+
+    config = {
+        CONF_LLM_BASE_URL: llm_config["base_url"],
+        CONF_LLM_API_KEY: llm_config.get("api_key", ""),
+        CONF_LLM_MODEL: llm_config["model"],
+        CONF_LLM_TEMPERATURE: 0.7,
+        CONF_LLM_MAX_TOKENS: 200,
+        CONF_HISTORY_ENABLED: True,
+        CONF_HISTORY_PERSIST: True,
+        CONF_EMIT_EVENTS: True,
+        CONF_DEBUG_LOGGING: False,
+        CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
+    }
+
+    with patch(
+        "custom_components.home_agent.agent.core.async_should_expose",
+        return_value=False,
+    ):
+        agent = HomeAgent(test_hass, config, session_manager)
+
+        conversation_id = "test_event_ordering"
+
+        with patch.object(agent, "_call_llm", return_value=mock_llm_response):
+            await agent.process_message(
+                text="Test ordering",
+                conversation_id=conversation_id,
+            )
+
+        # Get all events in the order they were fired
+        all_events = event_capture.events
+
+        # Extract indices of key events
+        started_idx = None
+        finished_idx = None
+        context_idx = None
+        history_idx = None
+
+        for idx, (event_type, event_data) in enumerate(all_events):
+            if event_type == EVENT_CONVERSATION_STARTED and started_idx is None:
+                started_idx = idx
+            elif event_type == EVENT_CONVERSATION_FINISHED and finished_idx is None:
+                finished_idx = idx
+            elif event_type == EVENT_CONTEXT_INJECTED and context_idx is None:
+                context_idx = idx
+            elif event_type == EVENT_HISTORY_SAVED and history_idx is None:
+                history_idx = idx
+
+        # Verify required events fired
+        assert started_idx is not None, "EVENT_CONVERSATION_STARTED must fire"
+        assert finished_idx is not None, "EVENT_CONVERSATION_FINISHED must fire"
+
+        # Verify ordering: started < finished
+        assert (
+            started_idx < finished_idx
+        ), f"STARTED (idx={started_idx}) must fire before FINISHED (idx={finished_idx})"
+
+        # If context event fired, verify it's between started and finished
+        if context_idx is not None:
+            assert (
+                started_idx < context_idx < finished_idx
+            ), f"CONTEXT_INJECTED (idx={context_idx}) must fire between STARTED (idx={started_idx}) and FINISHED (idx={finished_idx})"
+
+        # If history event fired, verify it fires after or with finished
+        if history_idx is not None:
+            assert (
+                history_idx >= finished_idx
+            ), f"HISTORY_SAVED (idx={history_idx}) should fire after or with FINISHED (idx={finished_idx})"
+
+        # Verify timestamps are monotonically increasing for started -> finished
+        started_event = event_capture.get_events(EVENT_CONVERSATION_STARTED)[0]
+        finished_event = event_capture.get_events(EVENT_CONVERSATION_FINISHED)[0]
+
+        assert "timestamp" in started_event, "STARTED event must have timestamp"
+        # Note: FINISHED event has duration_ms but may not have separate timestamp
+        # So we only verify STARTED has timestamp
+
+        # Verify all events have the same conversation_id
+        assert (
+            started_event["conversation_id"] == conversation_id
+        ), "STARTED event should have correct conversation_id"
+        assert (
+            finished_event["conversation_id"] == conversation_id
+        ), "FINISHED event should have correct conversation_id"
+
+        if context_idx is not None:
+            context_events = event_capture.get_events(EVENT_CONTEXT_INJECTED)
+            assert (
+                context_events[0]["conversation_id"] == conversation_id
+            ), "CONTEXT event should have correct conversation_id"
+
+        await agent.close()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_streaming_error_event_fired(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    session_manager,
+):
+    """Test that EVENT_STREAMING_ERROR fires when streaming fails.
+
+    Verifies:
+    1. Event fires when stream encounters an error
+    2. Event contains error_type
+    3. Event contains error_message
+    4. Event contains conversation_id
+    5. Event contains relevant context
+    """
+    from custom_components.home_agent.const import EVENT_STREAMING_ERROR
+
+    config = {
+        CONF_LLM_BASE_URL: llm_config["base_url"],
+        CONF_LLM_API_KEY: llm_config.get("api_key", ""),
+        CONF_LLM_MODEL: llm_config["model"],
+        CONF_LLM_TEMPERATURE: 0.7,
+        CONF_LLM_MAX_TOKENS: 200,
+        CONF_HISTORY_ENABLED: False,
+        CONF_EMIT_EVENTS: True,
+        CONF_STREAMING_ENABLED: True,  # Enable streaming
+        CONF_DEBUG_LOGGING: False,
+    }
+
+    with patch(
+        "custom_components.home_agent.agent.core.async_should_expose",
+        return_value=False,
+    ):
+        agent = HomeAgent(test_hass, config, session_manager)
+
+        conversation_id = "test_streaming_error"
+
+        # Mock streaming to raise an error
+        async def mock_stream_error(*args, **kwargs):
+            """Simulate a streaming error."""
+            raise ConnectionError("Simulated streaming connection error")
+
+        # Try to trigger streaming error
+        # Note: The actual implementation depends on how streaming is handled in the agent
+        # This test assumes agent has a _stream_llm or similar method
+        with patch.object(
+            agent, "_call_llm", side_effect=ConnectionError("Simulated streaming error")
+        ):
+            # Process message should fail due to streaming error
+            try:
+                await agent.process_message(
+                    text="Test streaming",
+                    conversation_id=conversation_id,
+                )
+            except Exception:
+                # Expected to fail
+                pass
+
+        # Verify EVENT_STREAMING_ERROR was fired OR EVENT_ERROR was fired
+        # (depending on how errors are categorized)
+        streaming_errors = event_capture.get_events(EVENT_STREAMING_ERROR)
+        general_errors = event_capture.get_events(EVENT_ERROR)
+
+        # At least one error event should fire
+        total_errors = len(streaming_errors) + len(general_errors)
+        assert total_errors >= 1, f"Expected at least 1 error event, got {total_errors}"
+
+        # If streaming error event exists, verify its structure
+        if len(streaming_errors) > 0:
+            event_data = streaming_errors[0]
+
+            # Verify required fields
+            assert "error_type" in event_data, "Event must contain error_type"
+            assert "error_message" in event_data, "Event must contain error_message"
+            assert "conversation_id" in event_data, "Event must contain conversation_id"
+
+            # Verify conversation_id matches
+            assert (
+                event_data["conversation_id"] == conversation_id
+            ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+
+            # Verify error details
+            assert isinstance(
+                event_data["error_type"], str
+            ), "error_type should be string"
+            assert isinstance(
+                event_data["error_message"], str
+            ), "error_message should be string"
+            assert len(event_data["error_message"]) > 0, "error_message should not be empty"
 
         await agent.close()

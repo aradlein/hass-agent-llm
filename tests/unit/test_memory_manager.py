@@ -26,14 +26,8 @@ from custom_components.home_agent.memory_manager import (
     MemoryManager,
 )
 
-
-@pytest.fixture
-def mock_hass():
-    """Create a mock Home Assistant instance."""
-    mock = MagicMock()
-    mock.data = {}
-    mock.async_add_executor_job = AsyncMock(side_effect=lambda func: func())
-    return mock
+# Note: mock_hass fixture is now defined in tests/conftest.py
+# and is automatically available to all tests
 
 
 @pytest.fixture

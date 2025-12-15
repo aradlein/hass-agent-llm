@@ -141,39 +141,26 @@ async def chromadb_client(chromadb_config: dict[str, Any]) -> AsyncGenerator[Any
     Raises:
         pytest.skip: If ChromaDB is not available
     """
-    import socket as socket_module
-
-    import _socket
-
-    # Enable real sockets for this session-scoped fixture
-    # (pytest-socket may have blocked them before session fixtures run)
-    original_socket = socket_module.socket
-    socket_module.socket = _socket.socket
-
     host = chromadb_config["host"]
     port = chromadb_config["port"]
 
+    # Check if ChromaDB is available
+    is_healthy = await check_chromadb_health(host, port)
+    if not is_healthy:
+        pytest.skip(f"ChromaDB not available at {host}:{port}")
+
+    # Import ChromaDB (skip if not installed)
     try:
-        # Check if ChromaDB is available
-        is_healthy = await check_chromadb_health(host, port)
-        if not is_healthy:
-            pytest.skip(f"ChromaDB not available at {host}:{port}")
+        import chromadb
+    except ImportError:
+        pytest.skip("ChromaDB not installed")
 
-        # Import ChromaDB (skip if not installed)
-        try:
-            import chromadb
-        except ImportError:
-            pytest.skip("ChromaDB not installed")
+    # Create client
+    client = chromadb.HttpClient(host=host, port=port)
 
-        # Create client
-        client = chromadb.HttpClient(host=host, port=port)
+    yield client
 
-        yield client
-
-        # Cleanup is handled by cleanup_test_collections in individual tests
-    finally:
-        # Restore original socket implementation
-        socket_module.socket = original_socket
+    # Cleanup is handled by cleanup_test_collections in individual tests
 
 
 @pytest.fixture
@@ -249,9 +236,27 @@ async def test_collection(
 
 
 @pytest.fixture
-def mock_hass_integration() -> HomeAssistant:
-    """Alias for test_hass for backward compatibility."""
-    return _create_test_hass()
+def mock_hass_integration(tmp_path) -> HomeAssistant:
+    """Alias for test_hass for backward compatibility.
+
+    Uses the shared _create_mock_hass function from tests.conftest.
+    """
+    from tests.conftest import _create_mock_hass
+
+    hass = _create_mock_hass(minimal=False, with_loop=True, tmp_path=tmp_path)
+
+    # Add default entity IDs for integration tests
+    hass.states.async_entity_ids = MagicMock(
+        return_value=[
+            "light.living_room",
+            "light.bedroom",
+            "sensor.temperature",
+            "switch.coffee_maker",
+            "climate.thermostat",
+        ]
+    )
+
+    return hass
 
 
 @pytest.fixture(autouse=True)
@@ -285,162 +290,23 @@ async def cleanup_background_tasks(request):
         pass
 
 
-def _create_test_hass() -> HomeAssistant:
-    """Create a test Home Assistant instance."""
-    import asyncio
-    import tempfile
-
-    hass = MagicMock(spec=HomeAssistant)
-
-    # Mock exposed entities data structure (required by VectorDBManager)
-    # All test entities are exposed by default
-    mock_exposed_entities = MagicMock()
-    mock_exposed_entities.async_should_expose.return_value = True
-
-    hass.data = {
-        "homeassistant.exposed_entites": mock_exposed_entities,
-    }
-
-    # Add event loop reference (required by some HA helpers)
-    try:
-        hass.loop = asyncio.get_running_loop()
-    except RuntimeError:
-        hass.loop = asyncio.new_event_loop()
-
-    # Add state attribute for HA lifecycle checks
-    hass.state = MagicMock()
-
-    # Mock states with some realistic entities
-    hass.states = MagicMock()
-    hass.states.async_entity_ids = MagicMock(
-        return_value=[
-            "light.living_room",
-            "light.bedroom",
-            "sensor.temperature",
-            "switch.coffee_maker",
-            "climate.thermostat",
-        ]
-    )
-    hass.states.async_all = MagicMock(return_value=[])
-
-    # Mock services
-    hass.services = MagicMock()
-    hass.services.async_call = AsyncMock()
-    hass.services.async_services = MagicMock(
-        return_value={
-            "light": {"turn_on": {}, "turn_off": {}, "toggle": {}},
-            "switch": {"turn_on": {}, "turn_off": {}, "toggle": {}},
-            "climate": {"set_temperature": {}, "set_hvac_mode": {}},
-            "homeassistant": {"turn_on": {}, "turn_off": {}, "toggle": {}},
-        }
-    )
-
-    # Mock config with proper path method for storage
-    temp_dir = tempfile.mkdtemp(prefix="ha_test_")
-    hass.config = MagicMock()
-    hass.config.config_dir = temp_dir
-    hass.config.path = MagicMock(side_effect=lambda *args: "/".join([temp_dir] + list(args)))
-    hass.config.location_name = "Test Home"
-
-    # Mock bus for events
-    hass.bus = MagicMock()
-    # async_fire is sync in HA, not actually async
-    hass.bus.async_fire = MagicMock(return_value=None)
-    hass.bus.async_listen = MagicMock(return_value=lambda: None)
-
-    # Mock async_add_executor_job - executes the callable immediately
-    async def mock_executor_job(func, *args):
-        """Execute job immediately in test context."""
-        return func(*args) if args else func()
-
-    hass.async_add_executor_job = AsyncMock(side_effect=mock_executor_job)
-
-    # Track created tasks for cleanup
-    created_tasks = []
-
-    # Mock async_create_task - schedule the coroutine properly
-    def mock_create_task(coro, *args, **kwargs):
-        """Create a task that properly awaits the coroutine."""
-        task = hass.loop.create_task(coro)
-        created_tasks.append(task)
-        return task
-
-    hass.async_create_task = MagicMock(side_effect=mock_create_task)
-
-    # Store tasks list for cleanup
-    hass._test_tasks = created_tasks
-
-    # Mock entity registry to prevent AttributeError
-    # This is needed for get_exposed_entities() in agent.py
-    mock_entity_registry = MagicMock()
-    mock_entity_registry.async_get = MagicMock(return_value=None)
-
-    # Store the mock in hass.data for er.async_get(hass) to find
-    from homeassistant.helpers import entity_registry as er
-
-    hass.data[er.DATA_REGISTRY] = mock_entity_registry
-
-    # Mock area registry to prevent template rendering errors
-    # This is needed for area_name() and area_id() template functions
-    from homeassistant.helpers import area_registry as ar
-
-    mock_area_registry = MagicMock()
-    # Mock the areas attribute as a dict for template compatibility
-    mock_area_registry.areas = {}
-    # Mock async_get_area to return None for unknown areas
-    mock_area_registry.async_get_area = MagicMock(return_value=None)
-
-    hass.data[ar.DATA_REGISTRY] = mock_area_registry
-
-    # Mock device registry to prevent template rendering errors
-    # This is needed for device_id() and related template functions
-    from homeassistant.helpers import device_registry as dr
-
-    mock_device_registry = MagicMock()
-    # Mock the devices attribute/method for template compatibility
-    mock_device_registry.devices = {}
-    mock_device_registry._device_data = {}
-    # Mock async_get to return None for unknown devices
-    mock_device_registry.async_get = MagicMock(return_value=None)
-
-    hass.data[dr.DATA_REGISTRY] = mock_device_registry
-
-    return hass
-
-
 @pytest.fixture
-def test_hass() -> HomeAssistant:
+def test_hass(tmp_path) -> HomeAssistant:
     """Create a test Home Assistant instance with real-ish states.
 
     This provides a more realistic mock than the basic mock_hass fixture,
     with actual entity states and service registrations for integration testing.
 
+    Uses the shared _create_mock_hass function for consistency.
+
     Returns:
         Mock Home Assistant instance
     """
-    import asyncio
+    from tests.conftest import _create_mock_hass
 
-    hass = MagicMock(spec=HomeAssistant)
+    hass = _create_mock_hass(minimal=False, with_loop=True, tmp_path=tmp_path)
 
-    # Mock exposed entities data structure (required by VectorDBManager)
-    mock_exposed_entities = MagicMock()
-    mock_exposed_entities.async_should_expose.return_value = True
-
-    hass.data = {
-        "homeassistant.exposed_entites": mock_exposed_entities,
-    }
-
-    # Add event loop reference (required by HA helpers like Store)
-    try:
-        hass.loop = asyncio.get_running_loop()
-    except RuntimeError:
-        hass.loop = asyncio.new_event_loop()
-
-    # Add state attribute for HA lifecycle checks
-    hass.state = MagicMock()
-
-    # Mock states with some realistic entities
-    hass.states = MagicMock()
+    # Add default entity IDs for integration tests
     hass.states.async_entity_ids = MagicMock(
         return_value=[
             "light.living_room",
@@ -450,90 +316,6 @@ def test_hass() -> HomeAssistant:
             "climate.thermostat",
         ]
     )
-
-    # Mock services
-    hass.services = MagicMock()
-    hass.services.async_call = AsyncMock()
-    hass.services.async_services = MagicMock(
-        return_value={
-            "light": {"turn_on": {}, "turn_off": {}, "toggle": {}},
-            "switch": {"turn_on": {}, "turn_off": {}, "toggle": {}},
-            "climate": {"set_temperature": {}, "set_hvac_mode": {}},
-            "homeassistant": {"turn_on": {}, "turn_off": {}, "toggle": {}},
-        }
-    )
-
-    # Mock config with proper path method for storage
-    import tempfile
-
-    temp_dir = tempfile.mkdtemp(prefix="ha_test_")
-    hass.config = MagicMock()
-    hass.config.config_dir = temp_dir
-    hass.config.path = MagicMock(side_effect=lambda *args: "/".join([temp_dir] + list(args)))
-    hass.config.location_name = "Test Home"
-
-    # Mock bus for events
-    hass.bus = MagicMock()
-    # async_fire is sync in HA, not actually async
-    hass.bus.async_fire = MagicMock(return_value=None)
-    hass.bus.async_listen = MagicMock(return_value=lambda: None)
-
-    # Mock async_add_executor_job - executes the callable immediately
-    async def mock_executor_job(func, *args):
-        """Execute job immediately in test context."""
-        return func(*args) if args else func()
-
-    hass.async_add_executor_job = AsyncMock(side_effect=mock_executor_job)
-
-    # Track created tasks for cleanup
-    created_tasks = []
-
-    # Mock async_create_task - schedule the coroutine properly
-    def mock_create_task(coro, *args, **kwargs):
-        """Create a task that properly awaits the coroutine."""
-        task = hass.loop.create_task(coro)
-        created_tasks.append(task)
-        return task
-
-    hass.async_create_task = MagicMock(side_effect=mock_create_task)
-
-    # Store tasks list for cleanup
-    hass._test_tasks = created_tasks
-
-    # Mock entity registry to prevent AttributeError
-    # This is needed for get_exposed_entities() in agent.py
-    mock_entity_registry = MagicMock()
-    mock_entity_registry.async_get = MagicMock(return_value=None)
-
-    # Store the mock in hass.data for er.async_get(hass) to find
-    from homeassistant.helpers import entity_registry as er
-
-    hass.data[er.DATA_REGISTRY] = mock_entity_registry
-
-    # Mock area registry to prevent template rendering errors
-    # This is needed for area_name() and area_id() template functions
-    from homeassistant.helpers import area_registry as ar
-
-    mock_area_registry = MagicMock()
-    # Mock the areas attribute as a dict for template compatibility
-    mock_area_registry.areas = {}
-    # Mock async_get_area to return None for unknown areas
-    mock_area_registry.async_get_area = MagicMock(return_value=None)
-
-    hass.data[ar.DATA_REGISTRY] = mock_area_registry
-
-    # Mock device registry to prevent template rendering errors
-    # This is needed for device_id() and related template functions
-    from homeassistant.helpers import device_registry as dr
-
-    mock_device_registry = MagicMock()
-    # Mock the devices attribute/method for template compatibility
-    mock_device_registry.devices = {}
-    mock_device_registry._device_data = {}
-    # Mock async_get to return None for unknown devices
-    mock_device_registry.async_get = MagicMock(return_value=None)
-
-    hass.data[dr.DATA_REGISTRY] = mock_device_registry
 
     return hass
 
@@ -800,9 +582,6 @@ def pytest_configure(config: Any) -> None:
     Args:
         config: Pytest config object
     """
-    import asyncio
-    import sys
-
     # Disable socket blocking for integration tests
     # pytest-homeassistant-custom-component blocks sockets by default
     # but integration tests need real network access
@@ -814,20 +593,16 @@ def pytest_configure(config: Any) -> None:
         "markers", "requires_embedding: mark test as requiring embedding service"
     )
 
-    # Suppress "Task was destroyed but it is pending!" messages from asyncio
-    # These are printed directly to stderr and aren't actual errors in test context
-    original_stderr_write = sys.stderr.write
-
-    def filtered_stderr_write(text: str) -> int:
-        """Filter out asyncio task destruction messages."""
-        if "Task was destroyed but it is pending" in text or "source_traceback:" in text:
-            return len(text)  # Pretend we wrote it
-        return original_stderr_write(text)
-
-    sys.stderr.write = filtered_stderr_write  # type: ignore[method-assign]
-
-    # Also disable asyncio debug mode which generates verbose tracebacks
-    asyncio.get_event_loop_policy()  # Ensure policy is initialized
+    # Add filterwarnings to suppress asyncio task destruction messages
+    # Instead of hijacking stderr globally, use pytest's built-in filtering
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore::pytest.PytestUnraisableExceptionWarning:_pytest"
+    )
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore:Task was destroyed but it is pending:ResourceWarning"
+    )
 
 
 def pytest_collection_modifyitems(config: Any, items: list) -> None:
@@ -881,27 +656,16 @@ def pytest_sessionstart(session: Any) -> None:
 def socket_enabled(request: pytest.FixtureRequest):
     """Enable real socket connections for all integration tests.
 
-    This fixture uses pytest-socket's socket_enabled fixture name
-    to disable socket blocking for integration tests, allowing
-    real network calls to external services.
+    This fixture ensures that sockets are enabled for integration tests
+    without globally manipulating the socket module.
 
     Args:
         request: Pytest request object
     """
-    import socket as socket_module
-
-    import _socket
-
-    # Store the current socket implementation
-    current_socket = socket_module.socket
-
-    # Replace with the real socket implementation from _socket
-    socket_module.socket = _socket.socket
-
+    # pytest-socket is disabled by default via pytest_configure (config.option.disable_socket = False)
+    # This fixture exists to maintain compatibility with tests that depend on it
+    # but now just serves as a marker without global state manipulation
     yield
-
-    # Cleanup - restore previous socket
-    socket_module.socket = current_socket
 
 
 # =============================================================================

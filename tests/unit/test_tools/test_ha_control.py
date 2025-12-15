@@ -94,13 +94,37 @@ class TestHomeAssistantControlTool:
             mock_registry.async_get.return_value = MagicMock()
             mock_er.return_value = mock_registry
 
-            # Mock state
-            mock_hass.states.get.return_value = sample_light_state
+            # Start with light off
+            initial_state = State("light.living_room", "off", {"friendly_name": "Living Room Light"})
 
-            # Mock service call
-            mock_hass.services.async_call = AsyncMock()
+            # Track state changes
+            current_state = initial_state
+
+            def get_state_mock(entity_id):
+                return current_state
+
+            mock_hass.states.get = MagicMock(side_effect=get_state_mock)
+
+            # Mock service call to update state
+            async def mock_service_call(domain, service, service_data, **kwargs):
+                nonlocal current_state
+                # Simulate state change after service call
+                if service == SERVICE_TURN_ON:
+                    current_state = State(
+                        "light.living_room",
+                        "on",
+                        {"friendly_name": "Living Room Light"}
+                    )
+
+            mock_hass.services.async_call = AsyncMock(side_effect=mock_service_call)
+
+            # Verify initial state is off
+            assert mock_hass.states.get("light.living_room").state == "off"
 
             result = await tool.execute(action=ACTION_TURN_ON, entity_id="light.living_room")
+
+            # Verify the state actually changed to on
+            assert mock_hass.states.get("light.living_room").state == "on"
 
             assert result["success"] is True
             assert result["entity_id"] == "light.living_room"
