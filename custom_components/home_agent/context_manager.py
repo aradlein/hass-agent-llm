@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, cast
 
 from homeassistant.core import HomeAssistant
 
@@ -240,16 +240,28 @@ class ContextManager:
                     raise ContextInjectionError(
                         f"Failed to retrieve entity context: {results[0]}"
                     ) from results[0]
-                context = results[0]
+                context = cast(str, results[0])
 
                 # Handle memory context result
                 if isinstance(results[1], Exception):
                     _LOGGER.warning("Failed to get memory context: %s", results[1])
                     # Continue without memory context
                 elif results[1]:
-                    # Combine entity and memory context
-                    context = f"{context}\n{results[1]}"
-                    _LOGGER.debug("Added memory context to entity context")
+                    # Check if entity context is a "no context" message
+                    # If so, replace it entirely with memory context
+                    no_context_messages = [
+                        "No relevant context found.",
+                        "No relevant context found",
+                        "[Fallback mode - Vector DB unavailable]",
+                    ]
+                    if any(msg in context for msg in no_context_messages):
+                        # Replace unhelpful entity context with memory context
+                        context = cast(str, results[1])
+                        _LOGGER.debug("Replaced empty entity context with memory context")
+                    else:
+                        # Combine entity and memory context
+                        context = f"{context}\n{cast(str, results[1])}"
+                        _LOGGER.debug("Added memory context to entity context")
             else:
                 # No memory provider, just get entity context
                 context = await self._provider.get_context(user_input)

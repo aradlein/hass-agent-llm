@@ -99,24 +99,18 @@ class MemoryValidator:
         "we were discussing",
     ]
 
-    # Patterns that indicate transient device state
+    # Patterns that indicate transient device state (organized by category)
+    # These patterns indicate ephemeral information that shouldn't be stored as memories
     TRANSIENT_STATE_PATTERNS: list[str] = [
+        # === Device State Patterns ===
         "is on",
         "is off",
         "are on",
         "are off",
-        "is currently",
-        "are currently",
-        "is now",
-        "are now",
         "was on",
         "was off",
         "were on",
         "were off",
-        "temperature is",
-        "humidity is",
-        "status is",
-        "state is",
         "is open",
         "is closed",
         "is locked",
@@ -127,15 +121,91 @@ class MemoryValidator:
         "is paused",
         "is stopped",
         "is running",
+        "status is",
+        "state is",
+        # === Temporal State Patterns ===
+        "is currently",
+        "are currently",
+        "is now",
+        "are now",
+        "right now",
+        "at the moment",
+        "at this time",
+        # === Time/Clock Patterns ===
+        "current time is",
+        "the time is",
+        "time is currently",
+        "it is currently",
+        "it's currently",
+        # === Weather Patterns ===
+        "weather is",
+        "it's raining",
+        "it is raining",
+        "it's snowing",
+        "it is snowing",
+        "it's sunny",
+        "it is sunny",
+        "it's cloudy",
+        "it is cloudy",
+        "forecast is",
+        "forecast shows",
+        "weather forecast",
+        "temperature outside is",
+        "outside temperature is",
+        "humidity outside is",
+        "wind speed is",
+        "wind is",
+        # === Indoor Environment (current readings) ===
+        "temperature is",
+        "humidity is",
+        "indoor temperature is",
+        "room temperature is",
+        # === Current Date/Day Patterns ===
+        "today is",
+        "it's monday",
+        "it's tuesday",
+        "it's wednesday",
+        "it's thursday",
+        "it's friday",
+        "it's saturday",
+        "it's sunday",
+        "it is monday",
+        "it is tuesday",
+        "it is wednesday",
+        "it is thursday",
+        "it is friday",
+        "it is saturday",
+        "it is sunday",
+        "this week",
+        "this month",
+        "this year",
+        # === Location/Presence Patterns ===
+        "user is at",
+        "user is home",
+        "user is away",
+        "user is not home",
+        "nobody is home",
+        "someone is home",
+        "is at home",
+        "is away",
+        "just arrived",
+        "just left",
     ]
 
-    # Words that indicate temporal context (not transient state)
+    # Words that indicate permanent temporal facts (not transient state)
+    # When these words precede patterns like "is on", they indicate
+    # permanent facts (e.g., "birthday is on May 4th") not device states
     TEMPORAL_CONTEXT_WORDS: list[str] = [
         "birthday",
         "event",
         "date",
         "day",
         "anniversary",
+        "holiday",
+        "vacation",
+        "appointment",
+        "meeting",
+        "schedule",
     ]
 
     def __init__(

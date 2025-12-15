@@ -486,3 +486,129 @@ class TestIsTransientStateMethod:
 
         for sample in non_transient_samples:
             assert not validator.is_transient_state(sample), f"Should not flag: {sample}"
+
+
+class TestExpandedTransientPatterns:
+    """Test the expanded transient state patterns for time, weather, date, and presence."""
+
+    def test_detects_current_time_patterns(self):
+        """Test detection of current time patterns."""
+        validator = MemoryValidator()
+        time_patterns = [
+            "The current time is 10:30 PM and the lights need adjustment",
+            "The time is 8:45 AM so we should start the morning routine",
+            "It is currently 3:00 PM in the afternoon during the workday",
+            "It's currently late evening according to the system clock here",
+        ]
+
+        for content in time_patterns:
+            assert validator.is_transient_state(content), f"Should detect time pattern: {content}"
+
+    def test_detects_weather_patterns(self):
+        """Test detection of weather-related patterns."""
+        validator = MemoryValidator()
+        weather_patterns = [
+            "The weather is sunny outside today in the neighborhood",
+            "It's raining heavily outside so keep the windows closed",
+            "It is raining and the humidity levels are rising fast",
+            "It's snowing outside which means the roads are getting icy",
+            "The forecast is showing rain for the next few days",
+            "The forecast shows thunderstorms arriving later this evening",
+            "Temperature outside is 85 degrees Fahrenheit today",
+            "The outside temperature is quite cold at 32 degrees",
+            "The humidity outside is very high at 90 percent currently",
+            "The wind speed is 25 mph from the northwest direction",
+        ]
+
+        for content in weather_patterns:
+            assert validator.is_transient_state(content), f"Should detect weather pattern: {content}"
+
+    def test_detects_current_day_patterns(self):
+        """Test detection of current date/day patterns."""
+        validator = MemoryValidator()
+        day_patterns = [
+            "Today is Monday and the weekly cleaning schedule starts",
+            "It's Tuesday which means the garbage needs collection",
+            "It is Wednesday and the user works from home today",
+            "This week has been particularly busy with many meetings",
+            "This month the electricity bill was higher than usual",
+        ]
+
+        for content in day_patterns:
+            assert validator.is_transient_state(content), f"Should detect day pattern: {content}"
+
+    def test_detects_presence_patterns(self):
+        """Test detection of presence/location patterns."""
+        validator = MemoryValidator()
+        presence_patterns = [
+            "User is home right now working in the office area",
+            "User is away and will return later this evening sometime",
+            "User is not home so the thermostat should be adjusted",
+            "Nobody is home currently so all lights can be turned off",
+            "Someone is home based on the motion sensor detection",
+            "User just arrived home from work a few minutes ago",
+            "User just left the house to run some errands nearby",
+        ]
+
+        for content in presence_patterns:
+            assert validator.is_transient_state(content), f"Should detect presence pattern: {content}"
+
+    def test_allows_permanent_date_facts(self):
+        """Test that permanent date facts are NOT flagged as transient."""
+        validator = MemoryValidator()
+        permanent_facts = [
+            "User's birthday is on May 4th every single year",
+            "The anniversary event is on December 25th annually",
+            "User has a dentist appointment scheduled for January 15th",
+            "The meeting is on the third Tuesday of every month",
+            "User's vacation starts on July 1st this summer",
+        ]
+
+        for content in permanent_facts:
+            assert not validator.is_transient_state(content), f"Should NOT flag permanent fact: {content}"
+
+    def test_allows_weather_preferences(self):
+        """Test that weather preferences are NOT flagged as transient."""
+        validator = MemoryValidator()
+        preferences = [
+            "User prefers to close blinds when it gets sunny outside",
+            "User wants notifications when rain is in the forecast",
+            "User likes to adjust heating based on outside temperature readings",
+        ]
+
+        for content in preferences:
+            assert not validator.is_transient_state(content), f"Should NOT flag preference: {content}"
+
+    def test_detects_at_the_moment_pattern(self):
+        """Test detection of 'at the moment' temporal pattern."""
+        validator = MemoryValidator()
+        assert validator.is_transient_state("At the moment the lights are dimmed to 50 percent")
+        assert validator.is_transient_state("Right now the temperature is comfortable at 72 degrees")
+
+    def test_full_validation_with_new_patterns(self):
+        """Test full memory validation with the new transient patterns."""
+        validator = MemoryValidator()
+
+        # These should be rejected by full validation
+        transient_memories = [
+            {"content": "The current time is 10:29 PM according to the system clock in the living room area", "importance": 0.8},
+            {"content": "It's raining outside right now so all the windows should be kept closed properly", "importance": 0.7},
+            {"content": "User is currently at home working from the office area on important projects", "importance": 0.6},
+            {"content": "Today is Wednesday and the weekly garbage collection schedule is starting soon", "importance": 0.5},
+        ]
+
+        for memory in transient_memories:
+            is_valid, reason = validator.validate(memory)
+            assert not is_valid, f"Should reject transient memory: {memory['content']}"
+            assert "transient_state" in reason
+
+        # These should be accepted
+        valid_memories = [
+            {"content": "User's birthday is on September 28th and they want special lighting for celebrations", "importance": 0.9},
+            {"content": "User prefers the bedroom temperature at 68 degrees Fahrenheit for comfortable sleeping", "importance": 0.8},
+            {"content": "User works night shifts from Monday to Friday and prefers to sleep during daytime", "importance": 0.7},
+        ]
+
+        for memory in valid_memories:
+            is_valid, reason = validator.validate(memory)
+            assert is_valid, f"Should accept valid memory: {memory['content']}, rejected with: {reason}"

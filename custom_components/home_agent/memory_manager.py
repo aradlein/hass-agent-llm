@@ -26,6 +26,8 @@ from .const import (
     CONF_MEMORY_MAX_MEMORIES,
     CONF_MEMORY_MIN_IMPORTANCE,
     CONF_MEMORY_PREFERENCE_TTL,
+    CONF_MEMORY_QUALITY_VALIDATION_ENABLED,
+    CONF_MEMORY_QUALITY_VALIDATION_INTERVAL,
     CONTEXT_MODE_VECTOR_DB,
     DEFAULT_CONTEXT_MODE,
     DEFAULT_MEMORY_CLEANUP_INTERVAL,
@@ -37,10 +39,13 @@ from .const import (
     DEFAULT_MEMORY_MAX_MEMORIES,
     DEFAULT_MEMORY_MIN_IMPORTANCE,
     DEFAULT_MEMORY_PREFERENCE_TTL,
+    DEFAULT_MEMORY_QUALITY_VALIDATION_ENABLED,
+    DEFAULT_MEMORY_QUALITY_VALIDATION_INTERVAL,
     MEMORY_STORAGE_KEY,
     MEMORY_STORAGE_VERSION,
 )
 from .exceptions import ContextInjectionError
+from .memory.validator import MemoryValidator
 
 # Conditional import for ChromaDB
 try:
@@ -100,6 +105,12 @@ class MemoryManager:
         self.cleanup_interval = config.get(
             CONF_MEMORY_CLEANUP_INTERVAL, DEFAULT_MEMORY_CLEANUP_INTERVAL
         )
+        self.quality_validation_enabled = config.get(
+            CONF_MEMORY_QUALITY_VALIDATION_ENABLED, DEFAULT_MEMORY_QUALITY_VALIDATION_ENABLED
+        )
+        self.quality_validation_interval = config.get(
+            CONF_MEMORY_QUALITY_VALIDATION_INTERVAL, DEFAULT_MEMORY_QUALITY_VALIDATION_INTERVAL
+        )
 
         # State
         self._store: Store[dict[str, Any]] = Store(hass, MEMORY_STORAGE_VERSION, MEMORY_STORAGE_KEY)
@@ -110,6 +121,7 @@ class MemoryManager:
         self._save_task: asyncio.Task[None] | None = None
         self._pending_save = False
         self._cleanup_task: asyncio.Task[None] | None = None
+        self._last_quality_validation: float = 0.0  # Track last quality validation time
 
         _LOGGER.info(
             "Memory Manager initialized (max=%d, collection=%s)",
@@ -150,6 +162,15 @@ class MemoryManager:
             else:
                 _LOGGER.info("ChromaDB not available, using store-only mode")
                 self._chromadb_available = False
+
+            # Run initial quality validation on startup (if enabled)
+            if self.quality_validation_enabled and self._memories:
+                removed = await self._cleanup_transient_memories()
+                if removed > 0:
+                    _LOGGER.info(
+                        "Startup quality validation removed %d transient memories", removed
+                    )
+                self._last_quality_validation = time.time()
 
             # Start periodic cleanup task
             self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
@@ -734,7 +755,8 @@ class MemoryManager:
         """Detect if content represents a transient state or low-quality content.
 
         This includes both device state patterns and conversational meta-information
-        that should not be stored as memories.
+        that should not be stored as memories. Delegates to MemoryValidator for
+        centralized pattern matching.
 
         Args:
             content: Memory content to check
@@ -742,83 +764,10 @@ class MemoryManager:
         Returns:
             True if content appears to be transient state or low-quality
         """
-        # Patterns that indicate transient device state
-        transient_patterns = [
-            "is on",
-            "is off",
-            "are on",
-            "are off",
-            "is currently",
-            "are currently",
-            "is now",
-            "are now",
-            "was on",
-            "was off",
-            "were on",
-            "were off",
-            "temperature is",
-            "humidity is",
-            "status is",
-            "state is",
-            "is open",
-            "is closed",
-            "is locked",
-            "is unlocked",
-            "lights are",
-            "light is",
-            "is playing",
-            "is paused",
-            "is stopped",
-            "is running",
-        ]
-
-        # Patterns that indicate low-value conversational meta-information
-        low_value_patterns = [
-            "conversation occurred",
-            "conversation took place",
-            "we discussed",
-            "we talked about",
-            "user asked about",
-            "i mentioned",
-            "there is no",
-            "there are no",
-            "no specific",
-            "does not have",
-            "doesn't have",
-            "do not have",
-            "don't have",
-            "at the time",
-            "during the conversation",
-            "in the conversation",
-            "during our conversation",
-            "we were discussing",
-        ]
-
-        content_lower = content.lower()
-
-        # Check low-value patterns first (always reject these)
-        if any(pattern in content_lower for pattern in low_value_patterns):
-            return True
-
-        # Check transient state patterns with context awareness
-        # Avoid false positives like "birthday is on"
-        for pattern in transient_patterns:
-            if pattern in content_lower:
-                # Check if this is a false positive (e.g., "is on" in "birthday is on")
-                # by looking at what comes before the pattern
-                idx = content_lower.find(pattern)
-                if idx > 0:
-                    # Get the word before the pattern
-                    before = content_lower[:idx].strip().split()
-                    if before:
-                        last_word = before[-1]
-                        # "birthday is on", "event is on", etc. are temporal, not state
-                        if last_word in ["birthday", "event", "date", "day", "anniversary"]:
-                            continue
-                # This appears to be a genuine transient state pattern
-                return True
-
-        return False
+        # Use the centralized MemoryValidator for pattern detection
+        # This ensures consistency between extraction and storage validation
+        validator = MemoryValidator()
+        return validator.is_transient_state(content)
 
     async def _find_duplicate(self, content: str) -> str | None:
         """Find duplicate memory using semantic similarity.
@@ -1045,12 +994,64 @@ class MemoryManager:
 
         return len(expired_ids)
 
+    async def _cleanup_transient_memories(self) -> int:
+        """Remove memories that match transient state patterns.
+
+        Re-validates existing memories against current MemoryValidator patterns.
+        This catches memories that slipped through initial validation or now match
+        updated patterns (e.g., after a code update adding new patterns).
+
+        Returns:
+            Number of memories removed
+        """
+        if not self._memories:
+            return 0
+
+        validator = MemoryValidator()
+        transient_ids = []
+
+        # Find memories that match transient patterns
+        for memory_id, memory in self._memories.items():
+            content = memory.get("content", "")
+            if validator.is_transient_state(content):
+                transient_ids.append(memory_id)
+                _LOGGER.debug(
+                    "Memory matches transient pattern: %s (%s)",
+                    memory_id,
+                    content[:50],
+                )
+
+        # Delete transient memories
+        for memory_id in transient_ids:
+            await self.delete_memory(memory_id)
+
+        if transient_ids:
+            _LOGGER.info(
+                "Quality validation removed %d transient memories",
+                len(transient_ids),
+            )
+
+        return len(transient_ids)
+
     async def _periodic_cleanup(self) -> None:
         """Periodic cleanup task that runs at configured interval."""
         while True:
             try:
                 await asyncio.sleep(self.cleanup_interval)
                 await self._cleanup_expired_memories()
+
+                # Check if quality validation is due
+                if self.quality_validation_enabled:
+                    current_time = time.time()
+                    time_since_last = current_time - self._last_quality_validation
+                    if time_since_last >= self.quality_validation_interval:
+                        removed = await self._cleanup_transient_memories()
+                        self._last_quality_validation = current_time
+                        if removed > 0:
+                            _LOGGER.info(
+                                "Periodic quality validation removed %d transient memories",
+                                removed,
+                            )
             except asyncio.CancelledError:
                 _LOGGER.info("Periodic cleanup task cancelled")
                 break

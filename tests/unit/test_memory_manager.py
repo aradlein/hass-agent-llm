@@ -16,6 +16,8 @@ from custom_components.home_agent.const import (
     CONF_MEMORY_IMPORTANCE_DECAY,
     CONF_MEMORY_MAX_MEMORIES,
     CONF_MEMORY_MIN_IMPORTANCE,
+    CONF_MEMORY_QUALITY_VALIDATION_ENABLED,
+    CONF_MEMORY_QUALITY_VALIDATION_INTERVAL,
     DEFAULT_MEMORY_COLLECTION_NAME,
 )
 from custom_components.home_agent.memory_manager import (
@@ -788,3 +790,182 @@ class TestDualStorage:
                 )
 
                 assert memory_id in manager._memories
+
+
+class TestTransientMemoryCleanup:
+    """Test transient memory cleanup functionality."""
+
+    async def test_cleanup_transient_memories_removes_matching(
+        self, mock_hass, mock_vector_db_manager, memory_config
+    ):
+        """Test that transient memories are removed during cleanup."""
+        # Enable quality validation
+        memory_config[CONF_MEMORY_QUALITY_VALIDATION_ENABLED] = True
+        memory_config[CONF_MEMORY_QUALITY_VALIDATION_INTERVAL] = 3600
+
+        with patch("custom_components.home_agent.memory_manager.Store") as mock_store_cls:
+            with patch("custom_components.home_agent.memory_manager.CHROMADB_AVAILABLE", False):
+                store = MagicMock()
+                # Pre-populate with transient memories
+                existing_memories = {
+                    "mem1": {
+                        "id": "mem1",
+                        "type": MEMORY_TYPE_FACT,
+                        "content": "The current time is 10:30 PM according to system",
+                        "importance": 0.8,
+                        "extracted_at": time.time(),
+                        "last_accessed": time.time(),
+                        "metadata": {},
+                    },
+                    "mem2": {
+                        "id": "mem2",
+                        "type": MEMORY_TYPE_FACT,
+                        "content": "User's birthday is on May 4th and they want celebration",
+                        "importance": 0.9,
+                        "extracted_at": time.time(),
+                        "last_accessed": time.time(),
+                        "metadata": {},
+                    },
+                    "mem3": {
+                        "id": "mem3",
+                        "type": MEMORY_TYPE_FACT,
+                        "content": "It's raining outside currently and roads are wet",
+                        "importance": 0.6,
+                        "extracted_at": time.time(),
+                        "last_accessed": time.time(),
+                        "metadata": {},
+                    },
+                }
+                store.async_load = AsyncMock(return_value={"memories": existing_memories})
+                store.async_save = AsyncMock()
+                mock_store_cls.return_value = store
+
+                manager = MemoryManager(
+                    hass=mock_hass,
+                    vector_db_manager=mock_vector_db_manager,
+                    config=memory_config,
+                )
+
+                # Initialize (should run quality validation on startup)
+                await manager.async_initialize()
+
+                # mem1 (current time) and mem3 (weather) should be removed
+                # mem2 (birthday) should remain
+                assert "mem1" not in manager._memories
+                assert "mem2" in manager._memories
+                assert "mem3" not in manager._memories
+
+                await manager.async_shutdown()
+
+    async def test_cleanup_transient_memories_preserves_valid(
+        self, mock_hass, mock_vector_db_manager, memory_config
+    ):
+        """Test that valid memories are preserved during cleanup."""
+        memory_config[CONF_MEMORY_QUALITY_VALIDATION_ENABLED] = True
+
+        with patch("custom_components.home_agent.memory_manager.Store") as mock_store_cls:
+            with patch("custom_components.home_agent.memory_manager.CHROMADB_AVAILABLE", False):
+                store = MagicMock()
+                existing_memories = {
+                    "valid1": {
+                        "id": "valid1",
+                        "type": MEMORY_TYPE_PREFERENCE,
+                        "content": "User prefers bedroom temperature at 68 degrees for sleeping",
+                        "importance": 0.8,
+                        "extracted_at": time.time(),
+                        "last_accessed": time.time(),
+                        "metadata": {},
+                    },
+                    "valid2": {
+                        "id": "valid2",
+                        "type": MEMORY_TYPE_FACT,
+                        "content": "User works night shifts from Monday to Friday every week",
+                        "importance": 0.7,
+                        "extracted_at": time.time(),
+                        "last_accessed": time.time(),
+                        "metadata": {},
+                    },
+                }
+                store.async_load = AsyncMock(return_value={"memories": existing_memories})
+                store.async_save = AsyncMock()
+                mock_store_cls.return_value = store
+
+                manager = MemoryManager(
+                    hass=mock_hass,
+                    vector_db_manager=mock_vector_db_manager,
+                    config=memory_config,
+                )
+
+                await manager.async_initialize()
+
+                # All valid memories should be preserved
+                assert "valid1" in manager._memories
+                assert "valid2" in manager._memories
+                assert len(manager._memories) == 2
+
+                await manager.async_shutdown()
+
+    async def test_quality_validation_disabled(
+        self, mock_hass, mock_vector_db_manager, memory_config
+    ):
+        """Test that quality validation is skipped when disabled."""
+        memory_config[CONF_MEMORY_QUALITY_VALIDATION_ENABLED] = False
+
+        with patch("custom_components.home_agent.memory_manager.Store") as mock_store_cls:
+            with patch("custom_components.home_agent.memory_manager.CHROMADB_AVAILABLE", False):
+                store = MagicMock()
+                # Include a transient memory
+                existing_memories = {
+                    "transient": {
+                        "id": "transient",
+                        "type": MEMORY_TYPE_FACT,
+                        "content": "The current time is 10:30 PM according to system",
+                        "importance": 0.8,
+                        "extracted_at": time.time(),
+                        "last_accessed": time.time(),
+                        "metadata": {},
+                    },
+                }
+                store.async_load = AsyncMock(return_value={"memories": existing_memories})
+                store.async_save = AsyncMock()
+                mock_store_cls.return_value = store
+
+                manager = MemoryManager(
+                    hass=mock_hass,
+                    vector_db_manager=mock_vector_db_manager,
+                    config=memory_config,
+                )
+
+                await manager.async_initialize()
+
+                # Transient memory should NOT be removed when validation disabled
+                assert "transient" in manager._memories
+
+                await manager.async_shutdown()
+
+    async def test_cleanup_transient_memories_empty_store(self, memory_manager):
+        """Test cleanup with no memories returns 0."""
+        memory_manager._memories = {}
+
+        count = await memory_manager._cleanup_transient_memories()
+
+        assert count == 0
+
+    async def test_quality_validation_config_defaults(
+        self, mock_hass, mock_vector_db_manager
+    ):
+        """Test quality validation config defaults are applied."""
+        config = {
+            CONF_MEMORY_MAX_MEMORIES: 100,
+        }
+
+        with patch("custom_components.home_agent.memory_manager.Store"):
+            manager = MemoryManager(
+                hass=mock_hass,
+                vector_db_manager=mock_vector_db_manager,
+                config=config,
+            )
+
+            # Check defaults are applied
+            assert manager.quality_validation_enabled is True
+            assert manager.quality_validation_interval == 3600

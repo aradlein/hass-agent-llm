@@ -103,6 +103,8 @@ CONF_MEMORY_FACT_TTL: Final = "memory_fact_ttl"
 CONF_MEMORY_PREFERENCE_TTL: Final = "memory_preference_ttl"
 CONF_MEMORY_CLEANUP_INTERVAL: Final = "memory_cleanup_interval"
 CONF_MEMORY_MIN_WORDS: Final = "memory_min_words"
+CONF_MEMORY_QUALITY_VALIDATION_ENABLED: Final = "memory_quality_validation_enabled"
+CONF_MEMORY_QUALITY_VALIDATION_INTERVAL: Final = "memory_quality_validation_interval"
 
 # Configuration keys - Debugging and Events
 CONF_DEBUG_LOGGING: Final = "debug_logging"
@@ -213,7 +215,7 @@ DEFAULT_MEMORY_MAX_MEMORIES: Final = 100
 DEFAULT_MEMORY_MIN_IMPORTANCE: Final = 0.3
 DEFAULT_MEMORY_COLLECTION_NAME: Final = "home_agent_memories"
 DEFAULT_MEMORY_IMPORTANCE_DECAY: Final = 0.0  # No decay by default
-DEFAULT_MEMORY_DEDUP_THRESHOLD: Final = 0.95
+DEFAULT_MEMORY_DEDUP_THRESHOLD: Final = 0.85  # Lowered to catch near-duplicate memories
 DEFAULT_MEMORY_EXTRACTION_ENABLED: Final = True
 DEFAULT_MEMORY_EXTRACTION_LLM: Final = "external"  # "external" or "local"
 DEFAULT_MEMORY_CONTEXT_TOP_K: Final = 5
@@ -222,6 +224,8 @@ DEFAULT_MEMORY_FACT_TTL: Final = None  # No expiration for facts
 DEFAULT_MEMORY_PREFERENCE_TTL: Final = 7776000  # 90 days for preferences
 DEFAULT_MEMORY_CLEANUP_INTERVAL: Final = 300  # Run cleanup every 5 minutes
 DEFAULT_MEMORY_MIN_WORDS: Final = 10
+DEFAULT_MEMORY_QUALITY_VALIDATION_ENABLED: Final = True
+DEFAULT_MEMORY_QUALITY_VALIDATION_INTERVAL: Final = 3600  # Run quality validation every hour
 
 # Default values - Debugging
 DEFAULT_DEBUG_LOGGING: Final = False
