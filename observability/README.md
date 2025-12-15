@@ -119,6 +119,18 @@ template:
         unit_of_measurement: "ms"
         state_class: measurement
 
+      - name: "Home Agent Last TTFT"
+        unique_id: home_agent_last_ttft
+        state: >
+          {% if trigger.event.event_type == 'home_agent.conversation.finished' %}
+            {{ trigger.event.data.performance.ttft_ms }}
+          {% else %}
+            {% set current = states('sensor.home_agent_last_ttft') %}
+            {{ current if current not in ['unknown', 'unavailable'] else 0 }}
+          {% endif %}
+        unit_of_measurement: "ms"
+        state_class: measurement
+
       - name: "Home Agent Last Tool Calls"
         unique_id: home_agent_last_tool_calls
         state: >
@@ -224,6 +236,7 @@ influxdb:
       - sensor.home_agent_last_llm_latency
       - sensor.home_agent_last_tool_latency
       - sensor.home_agent_last_context_latency
+      - sensor.home_agent_last_ttft
       - sensor.home_agent_last_tool_calls
       - sensor.home_agent_used_external_llm
       - counter.home_agent_conversations_total
@@ -307,12 +320,78 @@ observability/
 | LLM Latency | `home_agent_last_llm_latency` | LLM API response time (ms) |
 | Tool Latency | `home_agent_last_tool_latency` | Tool execution time (ms) |
 | Context Latency | `home_agent_last_context_latency` | Context retrieval time (ms) |
+| TTFT | `home_agent_last_ttft` | Time to First Token from LLM (ms) |
 | Tool Calls | `home_agent_last_tool_calls` | Number of tools called |
 | External LLM Used | `home_agent_used_external_llm` | 1 if external LLM was used, 0 otherwise |
 | Total Conversations | `counter.home_agent_conversations_total` | Cumulative conversation count |
 | Tool Successes | `counter.home_agent_tool_successes` | Successful tool executions |
 | Tool Failures | `counter.home_agent_tool_failures` | Failed tool executions |
 | Total Errors | `counter.home_agent_errors_total` | Cumulative error count |
+
+## 🎙️ Voice Pipeline Metrics (STT/TTS)
+
+Home Agent tracks **TTFT (Time to First Token)** natively as part of its performance metrics. However, **STT (Speech-to-Text) and TTS (Text-to-Speech) timing** is handled by Home Assistant's assist pipeline, which operates outside Home Agent's scope.
+
+### Monitoring STT/TTS Performance
+
+To track complete voice pipeline performance including STT and TTS metrics:
+
+#### Option 1: StreamAssist (Recommended)
+
+Install **[StreamAssist](https://github.com/AlexxIT/StreamAssist)** from HACS for comprehensive voice pipeline monitoring:
+
+1. Install StreamAssist via HACS
+2. StreamAssist provides sensors for each pipeline stage:
+   - **WAKE**: Wake word detection timing
+   - **STT**: Speech-to-text conversion timing
+   - **INTENT**: Intent processing timing (includes Home Agent processing)
+   - **TTS**: Text-to-speech generation timing
+
+3. Each sensor includes timing attributes that can be added to your monitoring:
+   ```yaml
+   influxdb:
+     include:
+       entities:
+         - sensor.streamassist_wake
+         - sensor.streamassist_stt
+         - sensor.streamassist_intent
+         - sensor.streamassist_tts
+   ```
+
+4. Add these sensors to your Grafana dashboard for end-to-end voice pipeline visualization
+
+**StreamAssist Benefits:**
+- Complete pipeline visibility (wake word to final speech output)
+- Historical timing data for each stage
+- Easy integration with existing InfluxDB + Grafana setup
+- Identifies bottlenecks in your voice pipeline
+
+#### Option 2: Home Assistant Debug View
+
+For quick debugging without installing additional components:
+
+1. Go to **Settings** → **Voice assistants**
+2. Select your pipeline
+3. Click **Debug**
+4. Run a test conversation
+5. View timing breakdown for each stage
+
+This provides real-time insight but doesn't persist historical data for trend analysis.
+
+### Complete Voice Pipeline Timing
+
+When using StreamAssist alongside Home Agent observability, you can track:
+
+| Stage | Metric Source | What It Measures |
+|-------|--------------|------------------|
+| Wake Word | StreamAssist | Time to detect wake word |
+| STT | StreamAssist | Speech → text conversion |
+| Intent + LLM | Home Agent + StreamAssist | Combined: context retrieval, LLM processing, tool execution |
+| TTFT | Home Agent | LLM time to first token (streaming responsiveness) |
+| TTS | StreamAssist | Text → speech generation |
+| **Total** | StreamAssist | End-to-end pipeline duration |
+
+This complete picture helps you optimize the entire voice experience, not just the Home Agent portion.
 
 ## 🎨 Dashboard Features
 

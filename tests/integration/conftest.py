@@ -604,6 +604,22 @@ def pytest_configure(config: Any) -> None:
         "ignore:Task was destroyed but it is pending:ResourceWarning"
     )
 
+    # Suppress "Task was destroyed but it is pending" errors from loggers
+    # These occur when background tasks (like memory extraction) are cancelled
+    # during test teardown - this is expected behavior, not an error
+    import logging
+
+    class TaskDestroyedFilter(logging.Filter):
+        """Filter out 'Task was destroyed but it is pending' messages."""
+
+        def filter(self, record: logging.LogRecord) -> bool:
+            return "Task was destroyed but it is pending" not in record.getMessage()
+
+    # Apply filter to all relevant loggers
+    logging.getLogger("homeassistant").addFilter(TaskDestroyedFilter())
+    logging.getLogger("asyncio").addFilter(TaskDestroyedFilter())
+    logging.getLogger().addFilter(TaskDestroyedFilter())  # Root logger as fallback
+
 
 def pytest_collection_modifyitems(config: Any, items: list) -> None:
     """Modify test items to add timeout markers for integration tests.

@@ -330,6 +330,7 @@ async def test_conversation_finished_event(
         assert "llm_latency_ms" in performance, "performance must contain 'llm_latency_ms'"
         assert "tool_latency_ms" in performance, "performance must contain 'tool_latency_ms'"
         assert "context_latency_ms" in performance, "performance must contain 'context_latency_ms'"
+        assert "ttft_ms" in performance, "performance must contain 'ttft_ms'"
 
         # Latency metrics should be non-negative integers
         assert isinstance(
@@ -341,6 +342,9 @@ async def test_conversation_finished_event(
         assert isinstance(
             performance["context_latency_ms"], int
         ), f"context_latency_ms should be int, got {type(performance['context_latency_ms'])}"
+        assert isinstance(
+            performance["ttft_ms"], int
+        ), f"ttft_ms should be int, got {type(performance['ttft_ms'])}"
 
         assert (
             performance["llm_latency_ms"] >= 0
@@ -351,6 +355,20 @@ async def test_conversation_finished_event(
         assert (
             performance["context_latency_ms"] >= 0
         ), f"context_latency_ms should be >= 0, got {performance['context_latency_ms']}"
+        assert (
+            performance["ttft_ms"] >= 0
+        ), f"ttft_ms should be >= 0, got {performance['ttft_ms']}"
+
+        # For non-streaming, TTFT should equal LLM latency (first iteration)
+        # TTFT is set on the first LLM call, so it should be > 0 if LLM was called
+        if performance["llm_latency_ms"] > 0:
+            assert (
+                performance["ttft_ms"] > 0
+            ), f"ttft_ms should be > 0 when llm_latency_ms > 0, got {performance['ttft_ms']}"
+            # For non-streaming, TTFT should be <= total LLM latency
+            assert (
+                performance["ttft_ms"] <= performance["llm_latency_ms"]
+            ), f"ttft_ms ({performance['ttft_ms']}) should be <= llm_latency_ms ({performance['llm_latency_ms']}) for non-streaming"
 
         # Verify context is a dict
         context = event_data["context"]
@@ -1400,5 +1418,89 @@ async def test_streaming_error_event_fired(
                 event_data["error_message"], str
             ), "error_message should be string"
             assert len(event_data["error_message"]) > 0, "error_message should not be empty"
+
+        await agent.close()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_ttft_metric_in_conversation_finished_event(
+    test_hass: HomeAssistant,
+    llm_config: dict[str, Any],
+    event_capture: EventCapture,
+    session_manager,
+):
+    """Test that TTFT (Time To First Token) metric is present and valid in EVENT_CONVERSATION_FINISHED.
+
+    Verifies:
+    1. ttft_ms is present in the performance dict
+    2. ttft_ms is a non-negative integer
+    3. For non-streaming, ttft_ms should be > 0 when LLM is called
+    4. For non-streaming, ttft_ms should be <= llm_latency_ms
+    """
+    # Mock LLM response
+    mock_llm_response = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "The answer is 4",
+                    "tool_calls": None,
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 15, "completion_tokens": 8, "total_tokens": 23},
+    }
+
+    config = {
+        CONF_LLM_BASE_URL: llm_config["base_url"],
+        CONF_LLM_API_KEY: llm_config.get("api_key", ""),
+        CONF_LLM_MODEL: llm_config["model"],
+        CONF_LLM_TEMPERATURE: 0.7,
+        CONF_LLM_MAX_TOKENS: 200,
+        CONF_HISTORY_ENABLED: False,
+        CONF_EMIT_EVENTS: True,
+        CONF_DEBUG_LOGGING: False,
+    }
+
+    with patch(
+        "custom_components.home_agent.agent.core.async_should_expose",
+        return_value=False,
+    ):
+        agent = HomeAgent(test_hass, config, session_manager)
+
+        conversation_id = "test_ttft_metric"
+
+        # Mock LLM call
+        with patch.object(agent, "_call_llm", return_value=mock_llm_response):
+            await agent.process_message(
+                text="What is 2 + 2?",
+                conversation_id=conversation_id,
+            )
+
+        # Get the finished event
+        finished_events = event_capture.get_events(EVENT_CONVERSATION_FINISHED)
+        assert len(finished_events) == 1, "Expected 1 conversation_finished event"
+
+        event_data = finished_events[0]
+        performance = event_data["performance"]
+
+        # Verify ttft_ms is present
+        assert "ttft_ms" in performance, "performance dict must contain 'ttft_ms'"
+
+        # Verify ttft_ms is a non-negative integer
+        ttft_ms = performance["ttft_ms"]
+        assert isinstance(ttft_ms, int), f"ttft_ms should be int, got {type(ttft_ms)}"
+        assert ttft_ms >= 0, f"ttft_ms should be >= 0, got {ttft_ms}"
+
+        # For non-streaming mode, TTFT should be > 0 when LLM was called
+        llm_latency_ms = performance["llm_latency_ms"]
+        if llm_latency_ms > 0:
+            assert ttft_ms > 0, f"ttft_ms should be > 0 when LLM was called, got {ttft_ms}"
+            # TTFT should not exceed total LLM latency in non-streaming mode
+            assert (
+                ttft_ms <= llm_latency_ms
+            ), f"ttft_ms ({ttft_ms}) should be <= llm_latency_ms ({llm_latency_ms})"
 
         await agent.close()

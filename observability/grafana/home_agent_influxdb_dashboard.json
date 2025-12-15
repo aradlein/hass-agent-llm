@@ -274,6 +274,71 @@
       "fieldConfig": {
         "defaults": {
           "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 500
+              },
+              {
+                "color": "red",
+                "value": 1000
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 8
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["mean"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB}"
+          },
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_ttft\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> mean()",
+          "refId": "A"
+        }
+      ],
+      "title": "Average TTFT",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
             "mode": "palette-classic"
           },
           "custom": {
@@ -363,6 +428,21 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "TTFT"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#9d4edd",
+                  "mode": "fixed"
+                }
+              }
+            ]
           }
         ]
       },
@@ -370,7 +450,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 12
       },
       "id": 5,
       "options": {
@@ -410,9 +490,144 @@
           },
           "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_context_latency\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB}"
+          },
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] == \"home_agent_last_ttft\")\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "refId": "D"
         }
       ],
       "title": "Performance Metrics - Latency Breakdown",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB}"
+      },
+      "description": "Voice pipeline latency metrics from StreamAssist. Note: Requires StreamAssist integration to be installed and configured.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Latency (ms)",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "STT Latency"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "TTS Latency"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB}"
+          },
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] =~ /streamassist.*stt/)\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB}"
+          },
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"entity_id\"] =~ /streamassist.*tts/)\n  |> filter(fn: (r) => r[\"domain\"] == \"sensor\")\n  |> filter(fn: (r) => r[\"_field\"] == \"value\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)",
+          "refId": "B"
+        }
+      ],
+      "title": "Voice Pipeline Latency",
       "type": "timeseries"
     },
     {
@@ -473,7 +688,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 30
       },
       "id": 6,
       "options": {
@@ -568,7 +783,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 17
+        "y": 30
       },
       "id": 7,
       "options": {
@@ -625,7 +840,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 26
+        "y": 39
       },
       "id": 8,
       "options": {
@@ -712,7 +927,7 @@
         "h": 8,
         "w": 18,
         "x": 6,
-        "y": 26
+        "y": 39
       },
       "id": 9,
       "options": {
@@ -803,7 +1018,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 47
       },
       "id": 10,
       "options": {

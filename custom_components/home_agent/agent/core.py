@@ -782,6 +782,7 @@ class HomeAgent(
                 "llm_latency_ms": 0,
                 "tool_latency_ms": 0,
                 "context_latency_ms": 0,
+                "ttft_ms": 0,
             },
             "context": {},
             "tool_calls": 0,
@@ -976,7 +977,7 @@ class HomeAgent(
         # Initialize metrics that will be passed to the adapter
         metrics: dict[str, Any] = {
             "tokens": {"prompt": 0, "completion": 0, "total": 0},
-            "performance": {"llm_latency_ms": 0, "tool_latency_ms": 0, "context_latency_ms": 0},
+            "performance": {"llm_latency_ms": 0, "tool_latency_ms": 0, "context_latency_ms": 0, "ttft_ms": 0},
             "context": {},
             "tool_calls": 0,
         }
@@ -1046,6 +1047,9 @@ class HomeAgent(
             _LOGGER.warning("Could not find entry_id for streaming, using 'home_agent'")
             entry_id = "home_agent"
 
+        # Track TTFT (Time To First Token) - only set once on first iteration
+        first_content_time: float | None = None
+
         for iteration in range(max_iterations):
             _LOGGER.debug("Starting streaming iteration %d/%d", iteration + 1, max_iterations)
             # Call LLM with streaming
@@ -1065,6 +1069,11 @@ class HomeAgent(
                 entry_id,
                 handler.transform_openai_stream(stream),
             ):
+                # Track TTFT on first content item
+                if first_content_time is None:
+                    first_content_time = time.time()
+                    ttft_ms = int((first_content_time - llm_start) * 1000)
+                    metrics["performance"]["ttft_ms"] = ttft_ms
                 new_content.append(content)
 
             _LOGGER.debug("Iteration %d: Received %d content items from stream", iteration + 1, len(new_content))
@@ -1362,6 +1371,10 @@ class HomeAgent(
             llm_response = await self._call_llm(messages, tools=tool_definitions)
             llm_latency_ms = int((time.time() - llm_start) * 1000)
             total_llm_latency_ms += llm_latency_ms
+
+            # Track TTFT on first iteration (for non-streaming, TTFT = full response time)
+            if iteration == 1 and "performance" in metrics:
+                metrics["performance"]["ttft_ms"] = llm_latency_ms
 
             # Track token usage from LLM response
             usage = llm_response.get("usage", {})
