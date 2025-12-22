@@ -1,0 +1,305 @@
+# Home Agent Services
+# Service definitions for the Home Agent custom component
+
+process:
+  name: Process message
+  description: Process a conversation message through the Home Agent
+  fields:
+    text:
+      name: Text
+      description: The user's message text to process
+      required: true
+      example: "Turn on the living room lights"
+      selector:
+        text:
+          multiline: true
+    conversation_id:
+      name: Conversation ID
+      description: Optional conversation ID for history tracking
+      required: false
+      example: "living_room_conversation"
+      selector:
+        text:
+    user_id:
+      name: User ID
+      description: Optional user ID for the conversation
+      required: false
+      example: "user123"
+      selector:
+        text:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+clear_history:
+  name: Clear history
+  description: Clear conversation history for a specific conversation or all conversations
+  fields:
+    conversation_id:
+      name: Conversation ID
+      description: Specific conversation to clear (omit to clear all)
+      required: false
+      example: "living_room_conversation"
+      selector:
+        text:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+reload_context:
+  name: Reload context
+  description: Reload entity context (useful after entity changes)
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+execute_tool:
+  name: Execute tool (debug)
+  description: Manually execute a tool for testing and debugging purposes
+  fields:
+    tool_name:
+      name: Tool name
+      description: The name of the tool to execute (e.g., ha_control, ha_query)
+      required: true
+      example: "ha_query"
+      selector:
+        text:
+    parameters:
+      name: Parameters
+      description: Tool parameters as a JSON object
+      required: true
+      example: '{"entity_id": "light.living_room"}'
+      selector:
+        object:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+reindex_entities:
+  name: Reindex entities
+  description: Force a full reindex of all Home Assistant entities into the vector database
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+index_entity:
+  name: Index entity
+  description: Index a specific entity into the vector database
+  fields:
+    entity_id:
+      name: Entity ID
+      description: The entity ID to index (e.g., light.living_room, sensor.temperature)
+      required: true
+      example: "sensor.temperature"
+      selector:
+        entity:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+list_memories:
+  name: List memories
+  description: List all stored memories with optional filtering by type and limit
+  fields:
+    memory_type:
+      name: Memory type
+      description: Filter by memory type
+      required: false
+      example: "preference"
+      selector:
+        select:
+          options:
+            - "fact"
+            - "preference"
+            - "context"
+            - "event"
+    limit:
+      name: Limit
+      description: Maximum number of memories to return
+      required: false
+      example: 50
+      selector:
+        number:
+          min: 1
+          max: 1000
+          mode: box
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+delete_memory:
+  name: Delete memory
+  description: Delete a specific memory by its ID
+  fields:
+    memory_id:
+      name: Memory ID
+      description: The ID of the memory to delete
+      required: true
+      example: "mem_abc123xyz"
+      selector:
+        text:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+clear_memories:
+  name: Clear all memories
+  description: Delete all stored memories (requires confirmation - this cannot be undone!)
+  fields:
+    confirm:
+      name: Confirm
+      description: Must be set to true to confirm deletion of all memories
+      required: true
+      example: true
+      selector:
+        boolean:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+search_memories:
+  name: Search memories
+  description: Search memories using semantic similarity to find relevant information
+  fields:
+    query:
+      name: Query
+      description: What to search for in stored memories
+      required: true
+      example: "temperature preferences"
+      selector:
+        text:
+    limit:
+      name: Limit
+      description: Maximum number of results to return
+      required: false
+      example: 10
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    min_importance:
+      name: Minimum importance
+      description: Filter results by minimum importance score (0.0 to 1.0)
+      required: false
+      example: 0.5
+      selector:
+        number:
+          min: 0.0
+          max: 1.0
+          step: 0.1
+          mode: slider
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+add_memory:
+  name: Add memory
+  description: Manually add a memory to the system
+  fields:
+    content:
+      name: Content
+      description: The memory content to store
+      required: true
+      example: "User prefers bedroom temperature at 68°F for sleeping"
+      selector:
+        text:
+          multiline: true
+    type:
+      name: Type
+      description: Memory type (fact, preference, context, or event)
+      required: false
+      example: "preference"
+      selector:
+        select:
+          options:
+            - "fact"
+            - "preference"
+            - "context"
+            - "event"
+    importance:
+      name: Importance
+      description: Importance score from 0.0 (trivial) to 1.0 (critical)
+      required: false
+      example: 0.7
+      selector:
+        number:
+          min: 0.0
+          max: 1.0
+          step: 0.1
+          mode: slider
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+clear_conversation:
+  name: Clear conversation
+  description: Clear conversation session and start fresh with no previous context. Allows resetting voice conversations for a specific user or device, or all conversations at once.
+  fields:
+    user_id:
+      name: User ID
+      description: Clear conversation for specific user (leave empty to clear all conversations)
+      required: false
+      example: "a1b2c3d4e5f6"
+      selector:
+        text:
+    device_id:
+      name: Device ID
+      description: Clear conversation for specific device (leave empty to clear all conversations)
+      required: false
+      example: "kitchen_satellite"
+      selector:
+        text:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:

@@ -1,0 +1,44 @@
+# Testing
+pytest>=7.4.0
+
+# DNS resolver - pin for aiodns/pycares compatibility
+# pycares 5.0.0 removed ares_query_* types that aiodns expects
+# See: https://github.com/aio-libs/aiodns/issues/97
+pycares>=4.4.0,<5.0.0
+pytest-xdist>=3.5.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-homeassistant-custom-component>=0.13.0
+pytest-timeout>=2.1.0
+
+# Code Quality
+black>=23.7.0
+isort>=5.12.0
+pylint>=2.17.0
+flake8>=6.1.0
+mypy>=1.5.0
+
+# Type Stubs
+types-aiofiles>=23.1.0
+types-requests>=2.31.0
+
+# Pre-commit
+pre-commit>=3.3.0
+
+# Home Assistant (for testing)
+# Pinned to specific version to ensure dependency compatibility
+homeassistant==2025.11.0
+hassil>=3.4.0
+home-assistant-intents>=2025.11.0
+
+# Optional dependencies (for testing optional features)
+chromadb>=0.4.0
+openai>=1.3.8
+
+# Development tools
+ipython>=8.14.0
+ipdb>=0.13.13
+
+# Documentation
+mkdocs>=1.5.0
+mkdocs-material>=9.1.0

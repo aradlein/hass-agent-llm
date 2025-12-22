@@ -1,0 +1,422 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Home Agent",
+        "description": "Configure your Home Agent integration with an OpenAI-compatible LLM endpoint.",
+        "data": {
+          "name": "Integration Name",
+          "llm_base_url": "LLM API Base URL",
+          "llm_api_key": "API Key",
+          "llm_model": "Model Name",
+          "llm_temperature": "Temperature",
+          "llm_max_tokens": "Max Tokens",
+          "llm_keep_alive": "Keep Alive",
+          "llm_proxy_headers": "Proxy Headers"
+        },
+        "data_description": {
+          "name": "A friendly name for this Home Agent instance",
+          "llm_base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
+          "llm_api_key": "API key for authentication (leave empty if not required)",
+          "llm_model": "The model to use (e.g., gpt-4o-mini, llama3.1, etc.)",
+          "llm_temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
+          "llm_max_tokens": "Maximum tokens per response",
+          "llm_keep_alive": "How long Ollama keeps model in memory (e.g., 5m, 24h). Use -1 for indefinite.",
+          "llm_proxy_headers": "Optional custom HTTP headers as JSON, e.g. X-Ollama-Backend: llama-cpp"
+        }
+      },
+      "context": {
+        "title": "Context Injection",
+        "description": "Configure how Home Agent provides entity information to the LLM.",
+        "data": {
+          "context_mode": "Context Mode",
+          "context_format": "Context Format",
+          "context_entities": "Entities to Include"
+        },
+        "data_description": {
+          "context_mode": "Choose how to inject entity context: Direct (always include specified entities) or Vector DB (dynamically retrieve relevant entities)",
+          "context_format": "Format for entity data: JSON (structured) or Natural Language (human-readable)",
+          "context_entities": "Comma-separated list of entity IDs or patterns (e.g., sensor.temperature, light.*, climate.thermostat)"
+        }
+      },
+      "vector_db": {
+        "title": "Vector Database Configuration",
+        "description": "Configure ChromaDB integration for dynamic context retrieval.",
+        "data": {
+          "vector_db_host": "ChromaDB Host",
+          "vector_db_port": "ChromaDB Port",
+          "vector_db_collection": "Collection Name",
+          "vector_db_embedding_provider": "Embedding Provider",
+          "vector_db_embedding_base_url": "Embedding API Base URL",
+          "vector_db_embedding_model": "Embedding Model",
+          "openai_api_key": "OpenAI API Key",
+          "vector_db_top_k": "Top K Results",
+          "vector_db_similarity_threshold": "Similarity Threshold"
+        },
+        "data_description": {
+          "vector_db_host": "ChromaDB server hostname or IP address",
+          "vector_db_port": "ChromaDB server port",
+          "vector_db_collection": "Name of the collection containing entity embeddings",
+          "vector_db_embedding_provider": "Choose between OpenAI or Ollama for generating embeddings",
+          "vector_db_embedding_base_url": "Base URL for embedding API (e.g., http://localhost:11434 for Ollama)",
+          "vector_db_embedding_model": "Model name (e.g., text-embedding-3-small for OpenAI, mxbai-embed-large for Ollama)",
+          "openai_api_key": "Your OpenAI API key (only required if using OpenAI provider)",
+          "vector_db_top_k": "Number of most relevant entities to retrieve",
+          "vector_db_similarity_threshold": "Maximum L2 distance threshold (lower = stricter matching, typical range: 150-300)"
+        }
+      },
+      "history": {
+        "title": "Conversation History",
+        "description": "Configure how conversation history is managed and included in context.",
+        "data": {
+          "history_enabled": "Enable Conversation History",
+          "history_max_messages": "Max Messages",
+          "history_max_tokens": "Max Tokens",
+          "history_persist": "Persist Across Restarts"
+        },
+        "data_description": {
+          "history_enabled": "Include previous conversation turns in LLM context",
+          "history_max_messages": "Maximum number of conversation turns to retain (0 for unlimited)",
+          "history_max_tokens": "Token-based limit for history (0 for unlimited)",
+          "history_persist": "Save conversation history across Home Assistant restarts"
+        }
+      },
+      "prompt": {
+        "title": "System Prompt",
+        "description": "Configure the system prompt that guides the LLM's behavior.",
+        "data": {
+          "use_default_prompt": "Use Default System Prompt",
+          "custom_prompt_additions": "Custom Prompt Additions"
+        },
+        "data_description": {
+          "use_default_prompt": "Use Home Agent's built-in system prompt that explains tool usage and guidelines",
+          "custom_prompt_additions": "Additional instructions to append to the system prompt (e.g., preferences, house rules)"
+        }
+      },
+      "tools": {
+        "title": "Tool Configuration",
+        "description": "Configure which tools are available to the LLM and execution limits.",
+        "data": {
+          "enable_native_tools": "Enable Native Tools",
+          "max_tool_calls_per_turn": "Max Tool Calls Per Turn",
+          "tool_timeout_seconds": "Tool Timeout (seconds)"
+        },
+        "data_description": {
+          "enable_native_tools": "Enable ha_control and ha_query tools for Home Assistant integration",
+          "max_tool_calls_per_turn": "Maximum number of tool executions per conversation turn",
+          "tool_timeout_seconds": "Maximum execution time for each tool call"
+        }
+      },
+      "external_llm": {
+        "title": "External LLM Tool (Optional)",
+        "description": "Configure an optional external LLM that the primary LLM can consult for complex queries.",
+        "data": {
+          "external_llm_enabled": "Enable External LLM Tool",
+          "external_llm_base_url": "External LLM Base URL",
+          "external_llm_api_key": "External LLM API Key",
+          "external_llm_model": "External LLM Model",
+          "external_llm_temperature": "External LLM Temperature",
+          "external_llm_max_tokens": "External LLM Max Tokens",
+          "external_llm_auto_context": "Auto-include Context"
+        },
+        "data_description": {
+          "external_llm_enabled": "Expose query_external_llm tool to primary LLM for complex analysis and detailed explanations",
+          "external_llm_base_url": "OpenAI-compatible API endpoint for external LLM",
+          "external_llm_api_key": "API key for external LLM authentication",
+          "external_llm_model": "External model name (e.g., gpt-4o, claude-3-opus)",
+          "external_llm_temperature": "Temperature for external LLM responses",
+          "external_llm_max_tokens": "Maximum tokens for external LLM responses",
+          "external_llm_auto_context": "Automatically pass conversation history and entity context to external LLM"
+        }
+      },
+      "advanced": {
+        "title": "Advanced Settings",
+        "description": "Configure advanced features and debugging options.",
+        "data": {
+          "debug_logging": "Enable Debug Logging",
+          "emit_events": "Emit Events"
+        },
+        "data_description": {
+          "debug_logging": "Enable detailed logging for troubleshooting",
+          "emit_events": "Fire Home Assistant events for conversation tracking and automation triggers"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the LLM API. Please check the base URL and network connection.",
+      "invalid_auth": "Invalid API key. Please check your credentials.",
+      "invalid_url": "Invalid base URL format. Please enter a valid HTTP or HTTPS URL.",
+      "invalid_model": "Model name cannot be empty.",
+      "invalid_temperature": "Temperature must be between 0.0 and 2.0.",
+      "invalid_top_p": "Top P must be between 0.0 and 1.0.",
+      "invalid_max_tokens": "Max tokens must be a positive number.",
+      "invalid_entities": "Invalid entity ID format or pattern.",
+      "vector_db_connection_failed": "Failed to connect to ChromaDB. Please check host, port, and ensure ChromaDB is running.",
+      "vector_db_collection_not_found": "ChromaDB collection not found. Please create the collection first.",
+      "invalid_port": "Port must be between 1 and 65535.",
+      "invalid_top_k": "Top K must be a positive integer.",
+      "invalid_similarity_threshold": "Similarity threshold must be a positive number (typical range: 150-300).",
+      "invalid_history_max_messages": "Max messages must be a non-negative integer.",
+      "invalid_history_max_tokens": "Max tokens must be a non-negative integer.",
+      "invalid_tool_timeout": "Tool timeout must be a positive number.",
+      "invalid_max_tool_calls": "Max tool calls must be a positive integer.",
+      "external_llm_connection_failed": "Failed to connect to external LLM API. Please check the configuration.",
+      "invalid_proxy_headers": "Invalid proxy headers format. Must be valid JSON object with string keys and values.",
+      "unknown": "An unexpected error occurred. Please check the logs for details."
+    },
+    "abort": {
+      "already_configured": "This Home Agent instance is already configured.",
+      "single_instance_allowed": "Only a single instance of Home Agent is allowed."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Home Agent",
+        "description": "Update your Home Agent configuration.",
+        "menu_options": {
+          "llm_settings": "LLM Settings",
+          "context_settings": "Context Settings",
+          "vector_db_settings": "Vector Database",
+          "history_settings": "Conversation History",
+          "memory_settings": "Memory System",
+          "prompt_settings": "System Prompt",
+          "tool_settings": "Tool Configuration",
+          "external_llm_settings": "External LLM",
+          "debug_settings": "Debug Settings"
+        }
+      },
+      "llm_settings": {
+        "title": "LLM Settings",
+        "description": "Configure the primary LLM connection and parameters.",
+        "data": {
+          "llm_base_url": "LLM Base URL",
+          "llm_api_key": "API Key",
+          "llm_model": "Model Name",
+          "llm_temperature": "Temperature",
+          "llm_max_tokens": "Max Tokens",
+          "llm_keep_alive": "Keep Alive",
+          "llm_proxy_headers": "Proxy Headers",
+          "thinking_enabled": "Enable Thinking Mode"
+        },
+        "data_description": {
+          "llm_base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
+          "llm_api_key": "API key for authentication",
+          "llm_model": "Model to use (e.g., gpt-4o-mini, llama3.1)",
+          "llm_temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
+          "llm_max_tokens": "Maximum tokens per response",
+          "llm_keep_alive": "How long Ollama keeps model in memory (e.g., 5m, 24h). Use -1 for indefinite.",
+          "llm_proxy_headers": "Optional custom HTTP headers as JSON, e.g. X-Ollama-Backend: llama-cpp",
+          "thinking_enabled": "Allow reasoning models to use extended thinking. Disable to automatically append /no_think to prompts for faster responses."
+        }
+      },
+      "context_settings": {
+        "title": "Context Settings",
+        "description": "Configure how entity context is provided to the LLM.",
+        "data": {
+          "context_mode": "Context Mode",
+          "context_format": "Context Format",
+          "direct_entities": "Entities to Include",
+          "max_context_tokens": "Max Context Tokens"
+        },
+        "data_description": {
+          "context_mode": "Choose how to inject entity context",
+          "context_format": "Format for entity data (JSON, Natural Language, or Hybrid)",
+          "direct_entities": "Comma-separated list of entity IDs (e.g., sensor.temperature,light.*)",
+          "max_context_tokens": "Maximum total tokens for context (entities + history + prompt). Increase if you have a model with large context window. Default: 8000."
+        }
+      },
+      "vector_db_settings": {
+        "title": "Vector Database Settings",
+        "description": "Configure ChromaDB connection and embedding settings.",
+        "data": {
+          "vector_db_host": "ChromaDB Host",
+          "vector_db_port": "ChromaDB Port",
+          "vector_db_collection": "Collection Name",
+          "vector_db_embedding_provider": "Embedding Provider",
+          "vector_db_embedding_base_url": "Embedding API Base URL",
+          "vector_db_embedding_model": "Embedding Model",
+          "openai_api_key": "OpenAI API Key",
+          "vector_db_top_k": "Top K Results",
+          "vector_db_similarity_threshold": "Similarity Threshold"
+        },
+        "data_description": {
+          "vector_db_host": "ChromaDB server hostname or IP address",
+          "vector_db_port": "ChromaDB server port",
+          "vector_db_collection": "Name of the collection containing entity embeddings",
+          "vector_db_embedding_provider": "Choose between OpenAI or Ollama for generating embeddings",
+          "vector_db_embedding_base_url": "Base URL for embedding API (e.g., http://localhost:11434 for Ollama)",
+          "vector_db_embedding_model": "Model name (e.g., text-embedding-3-small for OpenAI, mxbai-embed-large for Ollama)",
+          "openai_api_key": "Your OpenAI API key (only required if using OpenAI provider)",
+          "vector_db_top_k": "Number of most relevant entities to retrieve",
+          "vector_db_similarity_threshold": "Maximum L2 distance threshold (lower = stricter matching, typical range: 150-300)"
+        }
+      },
+      "history_settings": {
+        "title": "Conversation History",
+        "description": "Configure conversation history management.",
+        "data": {
+          "history_enabled": "Enable Conversation History",
+          "history_max_messages": "Max Messages",
+          "history_max_tokens": "Max Tokens",
+          "session_persistence_enabled": "Enable Voice Session Persistence",
+          "session_timeout": "Session Timeout (minutes)"
+        },
+        "data_description": {
+          "history_enabled": "Include previous conversation turns in LLM context",
+          "history_max_messages": "Maximum number of conversation turns to retain",
+          "history_max_tokens": "Token-based limit for history",
+          "session_persistence_enabled": "Maintain conversation context across multiple voice interactions from the same device. When disabled, each voice request starts a fresh conversation.",
+          "session_timeout": "Time in minutes before voice sessions expire and start fresh (1-120 minutes)"
+        }
+      },
+      "prompt_settings": {
+        "title": "System Prompt",
+        "description": "Configure the system prompt that guides the LLM's behavior.",
+        "data": {
+          "use_default_prompt": "Use Default System Prompt",
+          "custom_prompt_additions": "Custom Prompt Additions"
+        },
+        "data_description": {
+          "use_default_prompt": "Use Home Agent's built-in system prompt",
+          "custom_prompt_additions": "Additional instructions to append to the system prompt"
+        }
+      },
+      "tool_settings": {
+        "title": "Tool Configuration",
+        "description": "Configure tool execution limits and timeouts.",
+        "data": {
+          "tools_max_calls_per_turn": "Max Tool Calls Per Turn",
+          "tools_timeout": "Tool Timeout (seconds)"
+        },
+        "data_description": {
+          "tools_max_calls_per_turn": "Maximum number of tool executions per conversation turn",
+          "tools_timeout": "Maximum execution time for each tool call"
+        }
+      },
+      "external_llm_settings": {
+        "title": "External LLM Configuration",
+        "description": "Configure optional external LLM tool that the primary LLM can consult.",
+        "data": {
+          "external_llm_enabled": "Enable External LLM Tool",
+          "external_llm_base_url": "External LLM Base URL",
+          "external_llm_api_key": "External LLM API Key",
+          "external_llm_model": "External LLM Model",
+          "external_llm_temperature": "External LLM Temperature",
+          "external_llm_max_tokens": "External LLM Max Tokens",
+          "external_llm_tool_description": "Tool Description",
+          "external_llm_auto_include_context": "Auto-include Context"
+        },
+        "data_description": {
+          "external_llm_enabled": "Expose query_external_llm tool to primary LLM",
+          "external_llm_base_url": "OpenAI-compatible API endpoint for external LLM",
+          "external_llm_api_key": "API key for external LLM authentication",
+          "external_llm_model": "External model name",
+          "external_llm_temperature": "Temperature for external LLM responses",
+          "external_llm_max_tokens": "Maximum tokens for external LLM responses",
+          "external_llm_tool_description": "Description of when to use the external LLM",
+          "external_llm_auto_include_context": "Automatically pass context to external LLM"
+        }
+      },
+      "memory_settings": {
+        "title": "Memory System Configuration",
+        "description": "Configure the long-term memory system for persistent learning across conversations.",
+        "data": {
+          "memory_enabled": "Enable Memory System",
+          "memory_extraction_enabled": "Enable Automatic Memory Extraction",
+          "memory_extraction_llm": "LLM for Memory Extraction",
+          "memory_max_memories": "Maximum Stored Memories",
+          "memory_min_importance": "Minimum Importance (0.0-1.0)",
+          "memory_min_words": "Minimum Words (1-50)",
+          "memory_context_top_k": "Memories to Inject in Context",
+          "memory_collection_name": "ChromaDB Collection Name"
+        },
+        "data_description": {
+          "memory_enabled": "Privacy toggle - enable or disable the entire memory system",
+          "memory_extraction_enabled": "Automatically extract memories after each conversation",
+          "memory_extraction_llm": "Choose which LLM to use for extracting memories (external is more accurate but requires External LLM to be enabled)",
+          "memory_max_memories": "Maximum number of memories to store (oldest/least important are removed when limit is reached)",
+          "memory_min_importance": "Filter memories by LLM-assigned importance score. Lower values (0.2-0.3) keep most memories including casual mentions. Medium values (0.4-0.5) filter out minor details. Higher values (0.6-0.8) only keep significant preferences and facts. Default 0.4 provides balanced filtering.",
+          "memory_min_words": "Minimum number of meaningful words required for a memory (filters out low-quality or too-brief memories)",
+          "memory_context_top_k": "How many relevant memories to include in each conversation",
+          "memory_collection_name": "Name of the ChromaDB collection for memory indexing"
+        }
+      },
+      "debug_settings": {
+        "title": "Debug Settings",
+        "description": "Configure debugging and logging options.",
+        "data": {
+          "debug_logging": "Enable Debug Logging",
+          "streaming_enabled": "Enable Streaming Responses"
+        },
+        "data_description": {
+          "debug_logging": "Enable detailed logging for troubleshooting (may expose sensitive data)",
+          "streaming_enabled": "Enable streaming responses for low-latency TTS integration. Requires Assist Pipeline with Wyoming TTS. When enabled, responses are sent incrementally for faster audio playback. Automatically falls back to standard mode if streaming fails."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the LLM API. Please check the base URL and network connection.",
+      "invalid_auth": "Invalid API key. Please check your credentials.",
+      "invalid_url": "Invalid base URL format. Please enter a valid HTTP or HTTPS URL.",
+      "invalid_model": "Model name cannot be empty.",
+      "invalid_temperature": "Temperature must be between 0.0 and 2.0.",
+      "invalid_top_p": "Top P must be between 0.0 and 1.0.",
+      "invalid_max_tokens": "Max tokens must be a positive number.",
+      "invalid_entities": "Invalid entity ID format or pattern.",
+      "vector_db_connection_failed": "Failed to connect to ChromaDB. Please check host, port, and ensure ChromaDB is running.",
+      "vector_db_collection_not_found": "ChromaDB collection not found. Please create the collection first.",
+      "invalid_port": "Port must be between 1 and 65535.",
+      "invalid_top_k": "Top K must be a positive integer.",
+      "invalid_similarity_threshold": "Similarity threshold must be a positive number (typical range: 150-300).",
+      "invalid_history_max_messages": "Max messages must be a non-negative integer.",
+      "invalid_history_max_tokens": "Max tokens must be a non-negative integer.",
+      "invalid_tool_timeout": "Tool timeout must be a positive number.",
+      "invalid_max_tool_calls": "Max tool calls must be a positive integer.",
+      "external_llm_connection_failed": "Failed to connect to external LLM API. Please check the configuration.",
+      "external_llm_required": "Memory extraction with external LLM requires the external LLM tool to be enabled in External LLM settings.",
+      "invalid_proxy_headers": "Invalid proxy headers format. Must be valid JSON object with string keys and values.",
+      "unknown": "An unexpected error occurred. Please check the logs for details."
+    }
+  },
+  "selector": {
+    "context_mode": {
+      "options": {
+        "direct": "Direct Entity Injection",
+        "vector_db": "Vector Database (ChromaDB)"
+      }
+    },
+    "context_format": {
+      "options": {
+        "json": "JSON (Structured)",
+        "natural_language": "Natural Language"
+      }
+    },
+    "embedding_provider": {
+      "options": {
+        "openai": "OpenAI (Cloud)",
+        "ollama": "Ollama (Local)"
+      }
+    }
+  },
+  "services": {
+    "reindex_entities": {
+      "name": "Reindex entities",
+      "description": "Force a full reindex of all Home Assistant entities into the vector database."
+    },
+    "index_entity": {
+      "name": "Index entity",
+      "description": "Index a specific entity into the vector database.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "The entity ID to index."
+        }
+      }
+    },
+    "clear_conversation": {
+      "name": "Clear conversation",
+      "description": "Clear conversation session and start fresh with no previous context. Allows users to reset voice conversations for a specific user or device, or all conversations at once."
+    }
+  }
+}
