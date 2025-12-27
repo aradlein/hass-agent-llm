@@ -19,10 +19,12 @@ from .const import (
     CONF_CONTEXT_FORMAT,
     CONF_CONTEXT_MODE,
     CONF_DIRECT_ENTITIES,
+    CONF_PROMPT_INCLUDE_LABELS,
     CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
     DEFAULT_CONTEXT_FORMAT,
     DEFAULT_CONTEXT_MODE,
+    DEFAULT_PROMPT_INCLUDE_LABELS,
     EVENT_CONTEXT_INJECTED,
     EVENT_CONTEXT_OPTIMIZED,
     MAX_CONTEXT_TOKENS,
@@ -138,6 +140,9 @@ class ContextManager:
         provider_config = {
             "entities": self.config.get(CONF_DIRECT_ENTITIES, []),
             "format": self.config.get(CONF_CONTEXT_FORMAT, DEFAULT_CONTEXT_FORMAT),
+            "include_labels": self.config.get(
+                CONF_PROMPT_INCLUDE_LABELS, DEFAULT_PROMPT_INCLUDE_LABELS
+            ),
         }
         return DirectContextProvider(self.hass, provider_config)
 

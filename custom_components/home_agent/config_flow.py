@@ -66,6 +66,7 @@ from .const import (
     CONF_MEMORY_MIN_WORDS,
     CONF_OPENAI_API_KEY,
     CONF_PROMPT_CUSTOM_ADDITIONS,
+    CONF_PROMPT_INCLUDE_LABELS,
     CONF_PROMPT_USE_DEFAULT,
     CONF_SESSION_PERSISTENCE_ENABLED,
     CONF_SESSION_TIMEOUT,
@@ -116,6 +117,7 @@ from .const import (
     DEFAULT_MEMORY_MIN_IMPORTANCE,
     DEFAULT_MEMORY_MIN_WORDS,
     DEFAULT_NAME,
+    DEFAULT_PROMPT_INCLUDE_LABELS,
     DEFAULT_PROMPT_USE_DEFAULT,
     DEFAULT_SESSION_PERSISTENCE_ENABLED,
     DEFAULT_SESSION_TIMEOUT,
@@ -562,9 +564,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 # Note: async_update_entry is synchronous despite the name in HA
                 new_data = {**self._config_entry.data, **user_input}
                 _LOGGER.debug("Updating config entry data to: %s", new_data)
-                self.hass.config_entries.async_update_entry(
-                    self._config_entry, data=new_data
-                )
+                self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
                 _LOGGER.debug("Config entry data updated successfully")
 
                 # Return current options to preserve them
@@ -598,9 +598,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     ): str,
                     vol.Optional(
                         CONF_LLM_API_KEY,
-                        description={
-                            "suggested_value": current_data.get(CONF_LLM_API_KEY, "")
-                        },
+                        description={"suggested_value": current_data.get(CONF_LLM_API_KEY, "")},
                     ): str,
                     vol.Required(
                         CONF_LLM_MODEL,
@@ -956,6 +954,15 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         default=current_options.get(
                             CONF_PROMPT_USE_DEFAULT,
                             current_data.get(CONF_PROMPT_USE_DEFAULT, DEFAULT_PROMPT_USE_DEFAULT),
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_PROMPT_INCLUDE_LABELS,
+                        default=current_options.get(
+                            CONF_PROMPT_INCLUDE_LABELS,
+                            current_data.get(
+                                CONF_PROMPT_INCLUDE_LABELS, DEFAULT_PROMPT_INCLUDE_LABELS
+                            ),
                         ),
                     ): bool,
                     vol.Optional(

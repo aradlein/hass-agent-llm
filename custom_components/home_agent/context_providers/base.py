@@ -255,7 +255,7 @@ def _make_json_serializable(value: Any) -> Any:
     Handles datetime objects and other non-serializable types.
     """
     if isinstance(value, datetime):
-        return value.isoformat(timespec='seconds')
+        return value.isoformat(timespec="seconds")
     if isinstance(value, (list, tuple)):
         return [_make_json_serializable(item) for item in value]
     if isinstance(value, dict):
@@ -337,12 +337,14 @@ class ContextProvider(ABC):
         self,
         entity_id: str,
         attribute_filter: list[str] | None = None,
+        include_labels: bool = False,
     ) -> dict[str, Any] | None:
         """Get current state and attributes for an entity.
 
         Args:
             entity_id: The entity ID to query
             attribute_filter: Optional list of specific attributes to include
+            include_labels: Whether to include entity and device labels
 
         Returns:
             Dictionary with entity state and attributes, or None if entity not found
@@ -359,18 +361,24 @@ class ContextProvider(ABC):
             "attributes": {},
         }
 
-        # Get aliases from entity registry
+        # Get aliases and labels from entity registry
         aliases = []
+        labels = []
         try:
             entity_registry = er.async_get(self.hass)
             entity_entry = entity_registry.async_get(entity_id)
-            if entity_entry and entity_entry.aliases:
-                aliases = list(entity_entry.aliases)
+            if entity_entry:
+                if entity_entry.aliases:
+                    aliases = list(entity_entry.aliases)
+                if include_labels and entity_entry.labels:
+                    labels = list(entity_entry.labels)
         except (AttributeError, RuntimeError):
             # Entity registry not available (e.g., in tests or early startup)
             pass
 
         result["aliases"] = aliases
+        if include_labels:
+            result["labels"] = labels
 
         # Include filtered attributes or all attributes, ensuring JSON serializability
         if attribute_filter is not None:
@@ -388,12 +396,12 @@ class ContextProvider(ABC):
             }
 
         # Convert brightness (0-255) to brightness_pct (0-100) for light entities
-        domain = entity_id.split('.')[0]
-        if domain == 'light' and 'brightness' in result["attributes"]:
-            brightness = result["attributes"]['brightness']
+        domain = entity_id.split(".")[0]
+        if domain == "light" and "brightness" in result["attributes"]:
+            brightness = result["attributes"]["brightness"]
             if brightness is not None:
-                result["attributes"]['brightness_pct'] = int(brightness / 255 * 100)
-                del result["attributes"]['brightness']
+                result["attributes"]["brightness_pct"] = int(brightness / 255 * 100)
+                del result["attributes"]["brightness"]
 
         return result
 

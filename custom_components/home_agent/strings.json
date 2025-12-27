@@ -275,10 +275,12 @@
         "description": "Configure the system prompt that guides the LLM's behavior.",
         "data": {
           "use_default_prompt": "Use Default System Prompt",
+          "prompt_include_labels": "Include Entity/Device Labels",
           "custom_prompt_additions": "Custom Prompt Additions"
         },
         "data_description": {
           "use_default_prompt": "Use Home Agent's built-in system prompt",
+          "prompt_include_labels": "Include entity and device labels in the system prompt for better context",
           "custom_prompt_additions": "Additional instructions to append to the system prompt"
         }
       },

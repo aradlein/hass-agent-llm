@@ -120,6 +120,7 @@ from ..const import (
     CONF_HISTORY_PERSIST,
     CONF_LLM_MODEL,
     CONF_PROMPT_CUSTOM_ADDITIONS,
+    CONF_PROMPT_INCLUDE_LABELS,
     CONF_PROMPT_USE_DEFAULT,
     CONF_STREAMING_ENABLED,
     CONF_THINKING_ENABLED,
@@ -129,6 +130,7 @@ from ..const import (
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
+    DEFAULT_PROMPT_INCLUDE_LABELS,
     DEFAULT_STREAMING_ENABLED,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_THINKING_ENABLED,
@@ -584,7 +586,7 @@ class HomeAgent(
         """Get exposed entities as structured dictionaries for template rendering.
 
         Returns:
-            List of entity dictionaries with entity_id, name, state, and aliases
+            List of entity dictionaries with entity_id, name, state, aliases, and optionally labels
         """
         # Get all states that should be exposed to conversation
         states = [
@@ -596,22 +598,32 @@ class HomeAgent(
         entity_registry = er.async_get(self.hass)
         exposed_entities = []
 
+        # Check if labels should be included
+        include_labels = self.config.get(CONF_PROMPT_INCLUDE_LABELS, DEFAULT_PROMPT_INCLUDE_LABELS)
+
         for state in states:
             entity_id = state.entity_id
             entity = entity_registry.async_get(entity_id)
 
             aliases = []
-            if entity and entity.aliases:
-                aliases = list(entity.aliases)
+            labels = []
+            if entity:
+                if entity.aliases:
+                    aliases = list(entity.aliases)
+                if include_labels and entity.labels:
+                    labels = list(entity.labels)
 
-            exposed_entities.append(
-                {
-                    "entity_id": entity_id,
-                    "name": state.name,
-                    "state": state.state,
-                    "aliases": aliases,
-                }
-            )
+            entity_dict = {
+                "entity_id": entity_id,
+                "name": state.name,
+                "state": state.state,
+                "aliases": aliases,
+            }
+
+            if include_labels:
+                entity_dict["labels"] = labels
+
+            exposed_entities.append(entity_dict)
 
         return exposed_entities
 
@@ -804,7 +816,9 @@ class HomeAgent(
         try:
             # Preprocess user message (e.g., append /no_think if thinking mode disabled)
             preprocessed_text = self._preprocess_user_message(text)
-            response = await self._process_conversation(preprocessed_text, conversation_id, device_id, metrics)
+            response = await self._process_conversation(
+                preprocessed_text, conversation_id, device_id, metrics
+            )
 
             # Calculate total duration
             duration_ms = int((time.time() - start_time) * 1000)
@@ -977,7 +991,12 @@ class HomeAgent(
         # Initialize metrics that will be passed to the adapter
         metrics: dict[str, Any] = {
             "tokens": {"prompt": 0, "completion": 0, "total": 0},
-            "performance": {"llm_latency_ms": 0, "tool_latency_ms": 0, "context_latency_ms": 0, "ttft_ms": 0},
+            "performance": {
+                "llm_latency_ms": 0,
+                "tool_latency_ms": 0,
+                "context_latency_ms": 0,
+                "ttft_ms": 0,
+            },
             "context": {},
             "tool_calls": 0,
         }
@@ -1076,21 +1095,46 @@ class HomeAgent(
                     metrics["performance"]["ttft_ms"] = ttft_ms
                 new_content.append(content)
 
-            _LOGGER.debug("Iteration %d: Received %d content items from stream", iteration + 1, len(new_content))
+            _LOGGER.debug(
+                "Iteration %d: Received %d content items from stream",
+                iteration + 1,
+                len(new_content),
+            )
             for idx, content_item in enumerate(new_content):
-                _LOGGER.debug("Iteration %d: Content item %d type: %s", iteration + 1, idx, type(content_item).__name__)
+                _LOGGER.debug(
+                    "Iteration %d: Content item %d type: %s",
+                    iteration + 1,
+                    idx,
+                    type(content_item).__name__,
+                )
                 if isinstance(content_item, conversation.AssistantContent):
                     has_tool_calls = bool(content_item.tool_calls)
                     num_tool_calls = len(content_item.tool_calls) if content_item.tool_calls else 0
-                    _LOGGER.debug("Iteration %d: AssistantContent[%d] has_tool_calls=%s, num_tool_calls=%d",
-                                  iteration + 1, idx, has_tool_calls, num_tool_calls)
+                    _LOGGER.debug(
+                        "Iteration %d: AssistantContent[%d] has_tool_calls=%s, num_tool_calls=%d",
+                        iteration + 1,
+                        idx,
+                        has_tool_calls,
+                        num_tool_calls,
+                    )
                     if content_item.tool_calls:
                         for tc_idx, tc in enumerate(content_item.tool_calls):
-                            _LOGGER.debug("Iteration %d: AssistantContent[%d] tool_call[%d]: id=%s, tool_name=%s",
-                                          iteration + 1, idx, tc_idx, tc.id, tc.tool_name)
+                            _LOGGER.debug(
+                                "Iteration %d: AssistantContent[%d] tool_call[%d]: id=%s, tool_name=%s",
+                                iteration + 1,
+                                idx,
+                                tc_idx,
+                                tc.id,
+                                tc.tool_name,
+                            )
                 elif isinstance(content_item, conversation.ToolResultContent):
-                    _LOGGER.debug("Iteration %d: ToolResultContent[%d] tool_call_id=%s, tool_name=%s",
-                                  iteration + 1, idx, content_item.tool_call_id, content_item.tool_name)
+                    _LOGGER.debug(
+                        "Iteration %d: ToolResultContent[%d] tool_call_id=%s, tool_name=%s",
+                        iteration + 1,
+                        idx,
+                        content_item.tool_call_id,
+                        content_item.tool_name,
+                    )
 
             # Track LLM latency
             llm_latency = int((time.time() - llm_start) * 1000)
@@ -1154,17 +1198,38 @@ class HomeAgent(
                     break
 
             _LOGGER.debug("Iteration %d: Checking loop continuation conditions", iteration + 1)
-            _LOGGER.debug("Iteration %d: last_assistant_content is None: %s", iteration + 1, last_assistant_content is None)
+            _LOGGER.debug(
+                "Iteration %d: last_assistant_content is None: %s",
+                iteration + 1,
+                last_assistant_content is None,
+            )
             if last_assistant_content is not None:
                 has_tool_calls = bool(last_assistant_content.tool_calls)
-                num_tool_calls = len(last_assistant_content.tool_calls) if last_assistant_content.tool_calls else 0
-                _LOGGER.debug("Iteration %d: last_assistant_content.tool_calls: %s (count: %d)",
-                              iteration + 1, has_tool_calls, num_tool_calls)
+                num_tool_calls = (
+                    len(last_assistant_content.tool_calls)
+                    if last_assistant_content.tool_calls
+                    else 0
+                )
+                _LOGGER.debug(
+                    "Iteration %d: last_assistant_content.tool_calls: %s (count: %d)",
+                    iteration + 1,
+                    has_tool_calls,
+                    num_tool_calls,
+                )
                 if last_assistant_content.tool_calls:
                     for tc_idx, tc in enumerate(last_assistant_content.tool_calls):
-                        _LOGGER.debug("Iteration %d: last_assistant_content tool_call[%d]: id=%s, tool_name=%s",
-                                      iteration + 1, tc_idx, tc.id, tc.tool_name)
-            _LOGGER.debug("Iteration %d: chat_log.unresponded_tool_results: %s", iteration + 1, chat_log.unresponded_tool_results)
+                        _LOGGER.debug(
+                            "Iteration %d: last_assistant_content tool_call[%d]: id=%s, tool_name=%s",
+                            iteration + 1,
+                            tc_idx,
+                            tc.id,
+                            tc.tool_name,
+                        )
+            _LOGGER.debug(
+                "Iteration %d: chat_log.unresponded_tool_results: %s",
+                iteration + 1,
+                chat_log.unresponded_tool_results,
+            )
 
             # Break if: no content, OR last AssistantContent has no tool_calls,
             # OR HA signals no unresponded tool results
@@ -1173,16 +1238,21 @@ class HomeAgent(
                 or not last_assistant_content.tool_calls
                 or not chat_log.unresponded_tool_results
             ):
-                _LOGGER.debug("Iteration %d: BREAKING loop - Reason: last_assistant_content is None=%s, "
-                              "last_assistant_content.tool_calls empty=%s, unresponded_tool_results empty=%s",
-                              iteration + 1,
-                              last_assistant_content is None,
-                              not last_assistant_content.tool_calls if last_assistant_content else "N/A",
-                              not chat_log.unresponded_tool_results)
+                _LOGGER.debug(
+                    "Iteration %d: BREAKING loop - Reason: last_assistant_content is None=%s, "
+                    "last_assistant_content.tool_calls empty=%s, unresponded_tool_results empty=%s",
+                    iteration + 1,
+                    last_assistant_content is None,
+                    not last_assistant_content.tool_calls if last_assistant_content else "N/A",
+                    not chat_log.unresponded_tool_results,
+                )
                 break
             else:
-                _LOGGER.debug("Iteration %d: CONTINUING loop - last_assistant_content has tool_calls AND "
-                              "chat_log has unresponded_tool_results", iteration + 1)
+                _LOGGER.debug(
+                    "Iteration %d: CONTINUING loop - last_assistant_content has tool_calls AND "
+                    "chat_log has unresponded_tool_results",
+                    iteration + 1,
+                )
 
         # Save to conversation history if enabled
         if self.config.get(CONF_HISTORY_ENABLED, True):
