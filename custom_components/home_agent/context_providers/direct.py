@@ -49,6 +49,7 @@ class DirectContextProvider(ContextProvider):
         super().__init__(hass, config)
         self.entities_config = config.get("entities", [])
         self.format_type: Literal["json", "natural_language"] = config.get("format", "json")
+        self.include_labels = config.get("include_labels", False)
 
     async def get_context(self, user_input: str) -> str:
         """Get formatted context for configured entities.
@@ -122,7 +123,9 @@ class DirectContextProvider(ContextProvider):
             matching_entities = self._get_entities_matching_pattern(entity_id)
 
             for matched_entity_id in matching_entities:
-                state_data = self._get_entity_state(matched_entity_id, attributes_filter)
+                state_data = self._get_entity_state(
+                    matched_entity_id, attributes_filter, include_labels=self.include_labels
+                )
 
                 if state_data:
                     # Add available services for consistency with vector DB mode
@@ -147,7 +150,9 @@ class DirectContextProvider(ContextProvider):
         # Get all entities that should be exposed to conversation
         for state in self.hass.states.async_all():
             if async_should_expose(self.hass, ha_conversation.DOMAIN, state.entity_id):
-                state_data = self._get_entity_state(state.entity_id)
+                state_data = self._get_entity_state(
+                    state.entity_id, include_labels=self.include_labels
+                )
                 if state_data:
                     # Add available services for consistency with vector DB mode
                     state_data["available_services"] = self._get_entity_services(state.entity_id)

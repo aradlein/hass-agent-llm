@@ -70,6 +70,7 @@ CONF_ENTITY_PRIORITY_WEIGHTS: Final = "entity_priority_weights"
 CONF_PROMPT_USE_DEFAULT: Final = "prompt_use_default"
 CONF_PROMPT_CUSTOM: Final = "prompt_custom"
 CONF_PROMPT_CUSTOM_ADDITIONS: Final = "prompt_custom_additions"
+CONF_PROMPT_INCLUDE_LABELS: Final = "prompt_include_labels"
 
 # Configuration keys - Tool Configuration
 CONF_TOOLS_ENABLE_NATIVE: Final = "tools_enable_native"
@@ -191,6 +192,7 @@ DEFAULT_SUMMARIZATION_ENABLED: Final = False
 
 # Default values - System Prompt
 DEFAULT_PROMPT_USE_DEFAULT: Final = True
+DEFAULT_PROMPT_INCLUDE_LABELS: Final = False
 
 # Default values - Tool Configuration
 DEFAULT_TOOLS_ENABLE_NATIVE: Final = True
@@ -799,7 +801,7 @@ Current Time: {{now()}}
 
 Available Devices (CHECK THIS FIRST BEFORE ANY TOOL CALLS):
 ```csv
-entity_id,name,state,aliases,area,type,current_value,available_services
+entity_id,name,state,aliases,area,type,current_value,available_services{%- if exposed_entities and exposed_entities[0].labels is defined %},labels{%- endif %}
 {%- for entity in exposed_entities %}
 {%- set domain = entity.entity_id.split('.')[0] %}
 {%- set current_val = '' %}
@@ -875,7 +877,7 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {%- endif %}
 {{ entity.entity_id }},{{ entity.name }},{{ entity.state }},
 {{- entity.aliases | join('/') }},{{ area_name(entity.entity_id) | default('unknown') }},
-{{- domain }},{{ current_val }},{{ services }}
+{{- domain }},{{ current_val }},{{ services }}{%- if entity.labels is defined %},{{ entity.labels | join('/') }}{%- endif %}
 {%- endfor %}
 ```
 Now respond to the user's request:"""
