@@ -6,10 +6,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from custom_components.home_agent.const import (
+    CONF_CONTEXT_FORMAT,
+    CONF_CONTEXT_MODE,
+    CONF_DIRECT_ENTITIES,
+    CONF_PROMPT_INCLUDE_LABELS,
     CONTEXT_FORMAT_JSON,
     CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
+    DEFAULT_CONTEXT_FORMAT,
     DEFAULT_CONTEXT_MODE,
+    DEFAULT_PROMPT_INCLUDE_LABELS,
     EVENT_CONTEXT_INJECTED,
     MAX_CONTEXT_TOKENS,
     TOKEN_WARNING_THRESHOLD,
@@ -143,6 +149,104 @@ class TestContextManagerInitialization:
         ):
             with pytest.raises(ContextInjectionError, match="Failed to initialize"):
                 ContextManager(mock_hass, config)
+
+
+class TestIncludeLabelsConfiguration:
+    """Test include_labels configuration handling."""
+
+    def test_include_labels_defaults_to_false(self, mock_hass):
+        """Test that include_labels defaults to False when not in config."""
+        config = {
+            CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
+        }
+        manager = ContextManager(mock_hass, config)
+
+        # Verify the provider was created with include_labels=False
+        assert isinstance(manager._provider, DirectContextProvider)
+        assert manager._provider.include_labels is False
+        assert manager._provider.include_labels == DEFAULT_PROMPT_INCLUDE_LABELS
+
+    def test_include_labels_set_to_true(self, mock_hass):
+        """Test that include_labels=True is correctly passed to DirectContextProvider."""
+        config = {
+            CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
+            CONF_PROMPT_INCLUDE_LABELS: True,
+        }
+        manager = ContextManager(mock_hass, config)
+
+        # Verify the provider was created with include_labels=True
+        assert isinstance(manager._provider, DirectContextProvider)
+        assert manager._provider.include_labels is True
+
+    def test_include_labels_set_to_false_explicitly(self, mock_hass):
+        """Test that include_labels=False is correctly passed to DirectContextProvider."""
+        config = {
+            CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
+            CONF_PROMPT_INCLUDE_LABELS: False,
+        }
+        manager = ContextManager(mock_hass, config)
+
+        # Verify the provider was created with include_labels=False
+        assert isinstance(manager._provider, DirectContextProvider)
+        assert manager._provider.include_labels is False
+
+    def test_include_labels_with_entities_and_format(self, mock_hass):
+        """Test include_labels is passed along with other provider config."""
+        config = {
+            CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
+            CONF_DIRECT_ENTITIES: [{"entity_id": "light.test", "attributes": ["brightness"]}],
+            CONF_CONTEXT_FORMAT: CONTEXT_FORMAT_JSON,
+            CONF_PROMPT_INCLUDE_LABELS: True,
+        }
+        manager = ContextManager(mock_hass, config)
+
+        # Verify the provider was created with all config options
+        assert isinstance(manager._provider, DirectContextProvider)
+        assert manager._provider.include_labels is True
+        assert manager._provider.format_type == CONTEXT_FORMAT_JSON
+        assert len(manager._provider.entities_config) == 1
+        assert manager._provider.entities_config[0]["entity_id"] == "light.test"
+
+    def test_create_direct_provider_passes_include_labels(self, mock_hass):
+        """Test that _create_direct_provider correctly reads and passes include_labels."""
+        # Test with include_labels=True
+        config_with_labels = {
+            CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
+            CONF_PROMPT_INCLUDE_LABELS: True,
+        }
+        manager_with_labels = ContextManager(mock_hass, config_with_labels)
+        provider_with_labels = manager_with_labels._create_direct_provider()
+        assert provider_with_labels.include_labels is True
+
+        # Test with include_labels=False
+        config_without_labels = {
+            CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
+            CONF_PROMPT_INCLUDE_LABELS: False,
+        }
+        manager_without_labels = ContextManager(mock_hass, config_without_labels)
+        provider_without_labels = manager_without_labels._create_direct_provider()
+        assert provider_without_labels.include_labels is False
+
+    def test_include_labels_not_affected_by_other_config_keys(self, mock_hass):
+        """Test that include_labels is independent of other config keys."""
+        config = {
+            CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
+            CONF_PROMPT_INCLUDE_LABELS: True,
+            "cache_enabled": True,
+            "cache_ttl": 120,
+            "emit_events": False,
+            "max_context_tokens": 16000,
+        }
+        manager = ContextManager(mock_hass, config)
+
+        # Verify include_labels is correctly set regardless of other config
+        assert isinstance(manager._provider, DirectContextProvider)
+        assert manager._provider.include_labels is True
+        # Verify other config options didn't interfere
+        assert manager._cache_enabled is True
+        assert manager._cache_ttl == 120
+        assert manager._emit_events is False
+        assert manager._max_context_tokens == 16000
 
 
 class TestSetProvider:

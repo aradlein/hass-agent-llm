@@ -50,6 +50,27 @@ class TestDirectContextProviderInit:
 
         assert provider.entities_config == []
 
+    def test_direct_context_provider_include_labels_default_false(self, mock_hass):
+        """Test that include_labels defaults to False when not in config."""
+        config = {"entities": [], "format": "json"}
+        provider = DirectContextProvider(mock_hass, config)
+
+        assert provider.include_labels is False
+
+    def test_direct_context_provider_include_labels_true(self, mock_hass):
+        """Test initialization with include_labels=True in config."""
+        config = {"entities": [], "format": "json", "include_labels": True}
+        provider = DirectContextProvider(mock_hass, config)
+
+        assert provider.include_labels is True
+
+    def test_direct_context_provider_include_labels_false_explicit(self, mock_hass):
+        """Test initialization with include_labels=False explicitly set."""
+        config = {"entities": [], "format": "json", "include_labels": False}
+        provider = DirectContextProvider(mock_hass, config)
+
+        assert provider.include_labels is False
+
 
 class TestGetContext:
     """Tests for get_context method."""
@@ -258,6 +279,86 @@ class TestGetContext:
 
         parsed = json.loads(result)
         assert parsed["count"] == 0  # Should skip invalid config
+
+    @pytest.mark.asyncio
+    async def test_get_context_with_include_labels_true(self, mock_hass):
+        """Test that output includes labels field when include_labels=True."""
+        config = {
+            "entities": [{"entity_id": "light.living_room"}],
+            "format": "json",
+            "include_labels": True,
+        }
+        provider = DirectContextProvider(mock_hass, config)
+
+        # Mock entity state
+        state = Mock(spec=State)
+        state.entity_id = "light.living_room"
+        state.state = "on"
+        state.attributes = {"brightness": 128, "friendly_name": "Living Room Light"}
+        mock_hass.states.get.return_value = state
+
+        result = await provider.get_context("turn on the lights")
+
+        # Parse JSON result
+        parsed = json.loads(result)
+        assert "entities" in parsed
+        assert parsed["count"] == 1
+        entity = parsed["entities"][0]
+        # When include_labels is True, labels field should be present
+        assert "labels" in entity
+        assert isinstance(entity["labels"], list)
+
+    @pytest.mark.asyncio
+    async def test_get_context_with_include_labels_false(self, mock_hass):
+        """Test that output excludes labels field when include_labels=False."""
+        config = {
+            "entities": [{"entity_id": "light.living_room"}],
+            "format": "json",
+            "include_labels": False,
+        }
+        provider = DirectContextProvider(mock_hass, config)
+
+        # Mock entity state
+        state = Mock(spec=State)
+        state.entity_id = "light.living_room"
+        state.state = "on"
+        state.attributes = {"brightness": 128, "friendly_name": "Living Room Light"}
+        mock_hass.states.get.return_value = state
+
+        result = await provider.get_context("turn on the lights")
+
+        # Parse JSON result
+        parsed = json.loads(result)
+        assert "entities" in parsed
+        assert parsed["count"] == 1
+        entity = parsed["entities"][0]
+        # When include_labels is False, labels field should NOT be present
+        assert "labels" not in entity
+
+    @pytest.mark.asyncio
+    async def test_get_context_include_labels_default_excludes_labels(self, mock_hass):
+        """Test that output excludes labels field when include_labels is not set (default)."""
+        config = {
+            "entities": [{"entity_id": "light.living_room"}],
+            "format": "json",
+            # include_labels not set, defaults to False
+        }
+        provider = DirectContextProvider(mock_hass, config)
+
+        # Mock entity state
+        state = Mock(spec=State)
+        state.entity_id = "light.living_room"
+        state.state = "on"
+        state.attributes = {"brightness": 128, "friendly_name": "Living Room Light"}
+        mock_hass.states.get.return_value = state
+
+        result = await provider.get_context("turn on the lights")
+
+        # Parse JSON result
+        parsed = json.loads(result)
+        entity = parsed["entities"][0]
+        # Default (no include_labels) should NOT include labels field
+        assert "labels" not in entity
 
 
 class TestFormatAsJson:

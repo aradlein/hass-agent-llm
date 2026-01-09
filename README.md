@@ -1,6 +1,6 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.8.7-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.8.8-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11.0+-blue.svg)](https://www.home-assistant.io/)
@@ -8,9 +8,9 @@
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.8.7
+## What's New in v0.8.8
 
-📅 **Service Response Support** - Custom service tools now support `return_response: true` for services that return data (like `calendar.get_events`, `weather.get_forecasts`)
+🏷️ **Entity Labels Support** - New option to include entity and device labels in the system prompt, giving the LLM better context about your smart home organization (contributed by @zopanix)
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
@@ -303,7 +303,11 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.8.7 (Latest)
+### v0.8.8 (Latest)
+- **Feature**: Include entity/device labels in system prompt for better LLM context (contributed by @zopanix)
+- **Testing**: Comprehensive test coverage for labels feature
+
+### v0.8.7
 - **Feature**: Custom service tools now support `return_response: true` for services that return data (like `calendar.get_events`)
 
 ### v0.8.6

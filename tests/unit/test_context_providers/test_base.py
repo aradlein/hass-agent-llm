@@ -530,3 +530,305 @@ class TestMakeJsonSerializable:
         json_str = json.dumps(result)
         assert "media_player.speaker" in json_str
         assert "2025-11-24T13:18:07" in json_str
+
+
+class TestGetEntityStateWithLabels:
+    """Tests for _get_entity_state with include_labels parameter."""
+
+    def test_get_entity_state_labels_false_by_default(self, mock_hass):
+        """Test that include_labels=False (default) does NOT include labels field."""
+        from unittest.mock import patch
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        state = Mock(spec=State)
+        state.entity_id = "light.living_room"
+        state.state = "on"
+        state.attributes = {"friendly_name": "Living Room Light"}
+        mock_hass.states.get.return_value = state
+
+        # Mock entity registry to return an entry with labels
+        mock_entity_entry = Mock()
+        mock_entity_entry.aliases = []
+        mock_entity_entry.labels = {"bedroom", "upstairs"}
+
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = mock_entity_entry
+
+        with patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            return_value=mock_registry,
+        ):
+            result = provider._get_entity_state("light.living_room")
+
+        assert result is not None
+        assert "labels" not in result  # Labels should NOT be included by default
+
+    def test_get_entity_state_include_labels_true(self, mock_hass):
+        """Test that include_labels=True DOES include labels field."""
+        from unittest.mock import patch
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        state = Mock(spec=State)
+        state.entity_id = "light.living_room"
+        state.state = "on"
+        state.attributes = {"friendly_name": "Living Room Light"}
+        mock_hass.states.get.return_value = state
+
+        # Mock entity registry to return an entry with labels
+        mock_entity_entry = Mock()
+        mock_entity_entry.aliases = []
+        mock_entity_entry.labels = {"bedroom", "upstairs"}
+
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = mock_entity_entry
+
+        with patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            return_value=mock_registry,
+        ):
+            result = provider._get_entity_state("light.living_room", include_labels=True)
+
+        assert result is not None
+        assert "labels" in result
+        assert set(result["labels"]) == {"bedroom", "upstairs"}
+
+    def test_get_entity_state_labels_returned_as_list(self, mock_hass):
+        """Test that labels are correctly returned as a list."""
+        from unittest.mock import patch
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        state = Mock(spec=State)
+        state.entity_id = "sensor.temperature"
+        state.state = "72"
+        state.attributes = {}
+        mock_hass.states.get.return_value = state
+
+        # Mock entity registry with labels as a set (how HA stores them)
+        mock_entity_entry = Mock()
+        mock_entity_entry.aliases = []
+        mock_entity_entry.labels = {"kitchen", "ground_floor", "sensor"}
+
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = mock_entity_entry
+
+        with patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            return_value=mock_registry,
+        ):
+            result = provider._get_entity_state("sensor.temperature", include_labels=True)
+
+        assert result is not None
+        assert "labels" in result
+        assert isinstance(result["labels"], list)
+        assert len(result["labels"]) == 3
+        assert set(result["labels"]) == {"kitchen", "ground_floor", "sensor"}
+
+    def test_get_entity_state_no_labels_returns_empty_list(self, mock_hass):
+        """Test that entity with no labels returns empty labels list."""
+        from unittest.mock import patch
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        state = Mock(spec=State)
+        state.entity_id = "switch.outlet"
+        state.state = "off"
+        state.attributes = {}
+        mock_hass.states.get.return_value = state
+
+        # Mock entity registry with no labels
+        mock_entity_entry = Mock()
+        mock_entity_entry.aliases = []
+        mock_entity_entry.labels = set()  # Empty set
+
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = mock_entity_entry
+
+        with patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            return_value=mock_registry,
+        ):
+            result = provider._get_entity_state("switch.outlet", include_labels=True)
+
+        assert result is not None
+        assert "labels" in result
+        assert result["labels"] == []
+
+    def test_get_entity_state_labels_none_returns_empty_list(self, mock_hass):
+        """Test that entity with labels=None returns empty labels list."""
+        from unittest.mock import patch
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        state = Mock(spec=State)
+        state.entity_id = "binary_sensor.door"
+        state.state = "on"
+        state.attributes = {}
+        mock_hass.states.get.return_value = state
+
+        # Mock entity registry with labels=None
+        mock_entity_entry = Mock()
+        mock_entity_entry.aliases = []
+        mock_entity_entry.labels = None
+
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = mock_entity_entry
+
+        with patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            return_value=mock_registry,
+        ):
+            result = provider._get_entity_state("binary_sensor.door", include_labels=True)
+
+        assert result is not None
+        assert "labels" in result
+        assert result["labels"] == []
+
+    def test_get_entity_state_entity_not_in_registry(self, mock_hass):
+        """Test that entity not in registry returns empty labels list."""
+        from unittest.mock import patch
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        state = Mock(spec=State)
+        state.entity_id = "light.unknown"
+        state.state = "off"
+        state.attributes = {}
+        mock_hass.states.get.return_value = state
+
+        # Mock entity registry returning None (entity not registered)
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = None
+
+        with patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            return_value=mock_registry,
+        ):
+            result = provider._get_entity_state("light.unknown", include_labels=True)
+
+        assert result is not None
+        assert "labels" in result
+        assert result["labels"] == []
+
+    def test_get_entity_state_registry_lookup_error_attribute_error(self, mock_hass):
+        """Test that AttributeError during registry lookup returns empty labels."""
+        from unittest.mock import patch
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        state = Mock(spec=State)
+        state.entity_id = "light.test"
+        state.state = "on"
+        state.attributes = {}
+        mock_hass.states.get.return_value = state
+
+        # Mock entity registry to raise AttributeError
+        with patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            side_effect=AttributeError("Registry not available"),
+        ):
+            result = provider._get_entity_state("light.test", include_labels=True)
+
+        # Should not crash, should return entity state with empty labels
+        assert result is not None
+        assert result["entity_id"] == "light.test"
+        assert result["state"] == "on"
+        assert "labels" in result
+        assert result["labels"] == []
+
+    def test_get_entity_state_registry_lookup_error_runtime_error(self, mock_hass):
+        """Test that RuntimeError during registry lookup returns empty labels."""
+        from unittest.mock import patch
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        state = Mock(spec=State)
+        state.entity_id = "sensor.test"
+        state.state = "42"
+        state.attributes = {}
+        mock_hass.states.get.return_value = state
+
+        # Mock entity registry to raise RuntimeError
+        with patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            side_effect=RuntimeError("Event loop not running"),
+        ):
+            result = provider._get_entity_state("sensor.test", include_labels=True)
+
+        # Should not crash, should return entity state with empty labels
+        assert result is not None
+        assert result["entity_id"] == "sensor.test"
+        assert result["state"] == "42"
+        assert "labels" in result
+        assert result["labels"] == []
+
+    def test_get_entity_state_labels_with_attribute_filter(self, mock_hass):
+        """Test that labels work correctly with attribute filter."""
+        from unittest.mock import patch
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        state = Mock(spec=State)
+        state.entity_id = "light.bedroom"
+        state.state = "on"
+        state.attributes = {"brightness": 200, "friendly_name": "Bedroom Light"}
+        mock_hass.states.get.return_value = state
+
+        # Mock entity registry with labels
+        mock_entity_entry = Mock()
+        mock_entity_entry.aliases = ["bed light"]
+        mock_entity_entry.labels = {"bedroom", "second_floor"}
+
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = mock_entity_entry
+
+        with patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            return_value=mock_registry,
+        ):
+            result = provider._get_entity_state(
+                "light.bedroom",
+                attribute_filter=["brightness"],
+                include_labels=True,
+            )
+
+        assert result is not None
+        # Labels should be present
+        assert "labels" in result
+        assert set(result["labels"]) == {"bedroom", "second_floor"}
+        # Aliases should also be present
+        assert result["aliases"] == ["bed light"]
+        # Only filtered attributes
+        assert "brightness_pct" in result["attributes"]  # Converted from brightness
+        assert "friendly_name" not in result["attributes"]
+
+    def test_get_entity_state_labels_false_explicit(self, mock_hass):
+        """Test that include_labels=False explicitly does not include labels."""
+        from unittest.mock import patch
+
+        provider = ConcreteContextProvider(mock_hass, {})
+
+        state = Mock(spec=State)
+        state.entity_id = "cover.garage"
+        state.state = "closed"
+        state.attributes = {}
+        mock_hass.states.get.return_value = state
+
+        # Mock entity registry with labels
+        mock_entity_entry = Mock()
+        mock_entity_entry.aliases = []
+        mock_entity_entry.labels = {"garage", "exterior"}
+
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = mock_entity_entry
+
+        with patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            return_value=mock_registry,
+        ):
+            result = provider._get_entity_state("cover.garage", include_labels=False)
+
+        assert result is not None
+        assert "labels" not in result  # Labels should NOT be included

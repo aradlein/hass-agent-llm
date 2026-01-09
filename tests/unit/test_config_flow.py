@@ -26,6 +26,7 @@ from custom_components.home_agent.const import (
     CONF_MEMORY_EXTRACTION_ENABLED,
     CONF_MEMORY_EXTRACTION_LLM,
     CONF_PROMPT_CUSTOM_ADDITIONS,
+    CONF_PROMPT_INCLUDE_LABELS,
     CONF_PROMPT_USE_DEFAULT,
     CONF_SESSION_PERSISTENCE_ENABLED,
     CONF_SESSION_TIMEOUT,
@@ -36,6 +37,7 @@ from custom_components.home_agent.const import (
     CONF_VECTOR_DB_PORT,
     CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
+    DEFAULT_PROMPT_INCLUDE_LABELS,
     DEFAULT_SESSION_PERSISTENCE_ENABLED,
     DEFAULT_SESSION_TIMEOUT,
     DEFAULT_STREAMING_ENABLED,
@@ -662,6 +664,150 @@ class TestHomeAgentOptionsFlow:
 
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "prompt_settings"
+
+    async def test_prompt_settings_includes_include_labels_option(
+        self, mock_config_entry, mock_hass
+    ):
+        """Test that prompt settings form includes the include_labels option."""
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Get the prompt settings form
+        result = await options_flow.async_step_prompt_settings()
+
+        # Verify the form is shown
+        assert result["type"] == FlowResultType.FORM
+        assert result["step_id"] == "prompt_settings"
+
+        # Verify include_labels option is in the schema
+        schema_keys = list(result["data_schema"].schema.keys())
+        include_labels_key = None
+
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == CONF_PROMPT_INCLUDE_LABELS:
+                include_labels_key = key
+                break
+
+        assert include_labels_key is not None, "Include labels option not found in schema"
+
+    async def test_prompt_include_labels_defaults_to_false(self, mock_config_entry, mock_hass):
+        """Test that prompt_include_labels defaults to False."""
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Get the prompt settings form
+        result = await options_flow.async_step_prompt_settings()
+
+        # Find the include_labels key and check its default
+        schema_keys = list(result["data_schema"].schema.keys())
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == CONF_PROMPT_INCLUDE_LABELS:
+                # The default should be False
+                assert key.default() == DEFAULT_PROMPT_INCLUDE_LABELS
+                assert DEFAULT_PROMPT_INCLUDE_LABELS is False
+
+    async def test_prompt_include_labels_can_be_enabled(self, mock_config_entry, mock_hass):
+        """Test that user can enable prompt_include_labels."""
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Submit form with include_labels enabled
+        user_input = {
+            CONF_PROMPT_USE_DEFAULT: True,
+            CONF_PROMPT_INCLUDE_LABELS: True,
+        }
+
+        result = await options_flow.async_step_prompt_settings(user_input)
+
+        # Verify the entry is created successfully
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["data"][CONF_PROMPT_INCLUDE_LABELS] is True
+
+    async def test_prompt_include_labels_can_be_disabled(self, mock_config_entry, mock_hass):
+        """Test that user can disable prompt_include_labels."""
+        # Set initial state with include_labels enabled
+        mock_config_entry.options = {CONF_PROMPT_INCLUDE_LABELS: True}
+
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Submit form with include_labels disabled
+        user_input = {
+            CONF_PROMPT_USE_DEFAULT: True,
+            CONF_PROMPT_INCLUDE_LABELS: False,
+        }
+
+        result = await options_flow.async_step_prompt_settings(user_input)
+
+        # Verify the entry is updated with include_labels disabled
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["data"][CONF_PROMPT_INCLUDE_LABELS] is False
+
+    async def test_prompt_include_labels_persists(self, mock_config_entry, mock_hass):
+        """Test that prompt_include_labels option persists across reloads."""
+        # Enable include_labels
+        mock_config_entry.options = {CONF_PROMPT_INCLUDE_LABELS: True}
+
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Get the prompt settings form
+        result = await options_flow.async_step_prompt_settings()
+
+        # Find the include_labels key and check its current value
+        schema_keys = list(result["data_schema"].schema.keys())
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == CONF_PROMPT_INCLUDE_LABELS:
+                # The default should now be True (from persisted options)
+                assert key.default() is True
+
+    async def test_prompt_include_labels_backward_compatible_missing_option(
+        self, mock_config_entry, mock_hass
+    ):
+        """Test that missing prompt_include_labels option defaults correctly for backward compatibility."""
+        # Config entry without include_labels option (simulating existing installation)
+        mock_config_entry.options = {CONF_PROMPT_USE_DEFAULT: True}
+
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Get the prompt settings form
+        result = await options_flow.async_step_prompt_settings()
+
+        # Verify include_labels defaults to False when not present
+        schema_keys = list(result["data_schema"].schema.keys())
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == CONF_PROMPT_INCLUDE_LABELS:
+                assert key.default() == DEFAULT_PROMPT_INCLUDE_LABELS
+                assert key.default() is False
+
+    async def test_prompt_settings_preserves_other_options(self, mock_config_entry, mock_hass):
+        """Test that updating prompt settings preserves other config options."""
+        # Set up existing options
+        mock_config_entry.options = {
+            CONF_PROMPT_USE_DEFAULT: True,
+            CONF_PROMPT_INCLUDE_LABELS: False,
+            "history_enabled": True,
+            "memory_enabled": False,
+        }
+
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        # Update only include_labels setting
+        user_input = {
+            CONF_PROMPT_USE_DEFAULT: True,
+            CONF_PROMPT_INCLUDE_LABELS: True,
+        }
+
+        result = await options_flow.async_step_prompt_settings(user_input)
+
+        # Verify all options are preserved and merged
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["data"][CONF_PROMPT_INCLUDE_LABELS] is True
+        assert result["data"][CONF_PROMPT_USE_DEFAULT] is True
+        assert result["data"]["history_enabled"] is True
+        assert result["data"]["memory_enabled"] is False
 
     async def test_tool_settings_success(self, mock_config_entry, mock_hass):
         """Test successful tool settings update."""
