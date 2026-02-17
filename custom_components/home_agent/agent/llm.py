@@ -130,6 +130,7 @@ from typing import TYPE_CHECKING, Any
 import aiohttp
 
 from ..const import (
+    CONF_AZURE_API_VERSION,
     CONF_DEBUG_LOGGING,
     CONF_LLM_API_KEY,
     CONF_LLM_BASE_URL,
@@ -148,7 +149,7 @@ from ..const import (
     HTTP_TIMEOUT,
 )
 from ..exceptions import AuthenticationError, HomeAgentError
-from ..helpers import is_ollama_backend, redact_sensitive_data, retry_async
+from ..helpers import build_api_url, build_auth_headers, is_ollama_backend, redact_sensitive_data, render_template_value, retry_async
 
 if TYPE_CHECKING:
     pass
@@ -165,6 +166,7 @@ class LLMMixin:
     """
 
     config: dict[str, Any]
+    hass: Any
     _session: aiohttp.ClientSession | None
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
@@ -202,15 +204,20 @@ class LLMMixin:
         """
         session = await self._ensure_session()
 
-        url = f"{self.config[CONF_LLM_BASE_URL]}/chat/completions"
+        base_url = self.config[CONF_LLM_BASE_URL]
+        url = build_api_url(
+            base_url,
+            self.config[CONF_LLM_MODEL],
+            self.config.get(CONF_AZURE_API_VERSION),
+        )
         headers: dict[str, str] = {
             "Content-Type": "application/json",
         }
 
-        # Only include Authorization header if API key is provided
-        api_key = self.config.get(CONF_LLM_API_KEY, "")
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        # Add authentication headers (Azure uses api-key, others use Bearer token)
+        # Render template if value contains {{ }} (e.g., from input_text helper)
+        api_key = render_template_value(self.hass, self.config.get(CONF_LLM_API_KEY, ""))
+        headers.update(build_auth_headers(base_url, api_key))
 
         # Add custom proxy headers if configured
         proxy_headers = self.config.get(CONF_LLM_PROXY_HEADERS, {})
@@ -251,12 +258,27 @@ class LLMMixin:
         async def make_llm_request() -> dict[str, Any]:
             """Make the LLM API request."""
             try:
-                async with session.post(url, headers=headers, json=payload) as response:
+                async with session.post(url, headers=headers, json=payload, allow_redirects=False) as response:
                     if response.status == 401:
-                        raise AuthenticationError("LLM API authentication failed. Check your API key.")
+                        raise AuthenticationError(
+                            "LLM API authentication failed. Check your API key "
+                            "configuration. If using a Jinja2 template for the API key, "
+                            "verify it renders correctly. If using a proxy or gateway, "
+                            "check that the Authorization header is being forwarded."
+                        )
 
                     if response.status != 200:
                         error_text = await response.text()
+                        error_lower = error_text.lower()
+                        if "authorization" in error_lower or "authentication" in error_lower or "auth" in error_lower:
+                            raise HomeAgentError(
+                                f"LLM API returned status {response.status}: {error_text}. "
+                                "This may indicate an API key configuration issue. "
+                                "Check that your API key is set correctly. If using a "
+                                "Jinja2 template, verify it renders to a valid key. "
+                                "If using a proxy or gateway (e.g., Cloudflare AI Gateway), "
+                                "ensure the Authorization header is being forwarded."
+                            )
                         raise HomeAgentError(f"LLM API returned status {response.status}: {error_text}")
 
                     result: dict[str, Any] = await response.json()

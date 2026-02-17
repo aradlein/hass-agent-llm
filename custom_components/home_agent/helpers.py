@@ -16,7 +16,7 @@ from typing import Any, TypeVar
 import aiohttp
 
 from homeassistant.const import ATTR_FRIENDLY_NAME, STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import State
+from homeassistant.core import HomeAssistant, State
 
 from .exceptions import ValidationError
 
@@ -27,6 +27,30 @@ T = TypeVar("T")
 # Pre-compiled regex pattern for stripping thinking blocks from reasoning models
 # Matches <think>...</think> blocks including newlines (DOTALL flag)
 _THINKING_BLOCK_PATTERN = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+def render_template_value(hass: HomeAssistant, value: str) -> str:
+    """Render a configuration value that may contain a Jinja template.
+
+    If the value contains template markers ({{ }}), it is rendered using
+    Home Assistant's template engine. Plain strings are returned as-is,
+    ensuring full backwards compatibility.
+
+    Args:
+        hass: Home Assistant instance for template rendering
+        value: Configuration value that may be a Jinja template
+
+    Returns:
+        Rendered string value
+    """
+    if not value or not isinstance(value, str) or "{{" not in value:
+        return value
+
+    from homeassistant.helpers.template import Template
+
+    template = Template(value, hass)
+    rendered = template.async_render()
+    return str(rendered)
 
 
 def strip_thinking_blocks(text: str | None) -> str | None:
@@ -593,6 +617,80 @@ def is_ollama_backend(base_url: str) -> bool:
         return True
 
     return False
+
+
+def is_azure_openai_backend(base_url: str) -> bool:
+    """Check if the LLM base URL points to an Azure OpenAI endpoint.
+
+    Azure OpenAI uses a different URL structure and authentication than
+    standard OpenAI-compatible APIs. This is used to conditionally construct
+    the correct URL path and authentication headers.
+
+    Args:
+        base_url: The LLM API base URL to check
+
+    Returns:
+        True if the URL appears to be an Azure OpenAI endpoint, False otherwise
+
+    Example:
+        >>> is_azure_openai_backend("https://myresource.openai.azure.com")
+        True
+        >>> is_azure_openai_backend("https://api.openai.com/v1")
+        False
+    """
+    if not base_url:
+        return False
+
+    return "openai.azure.com" in base_url.lower()
+
+
+def build_api_url(base_url: str, model: str, azure_api_version: str | None = None) -> str:
+    """Build the chat completions API URL for the given backend.
+
+    For Azure OpenAI, constructs the deployment-based URL:
+        {base_url}/openai/deployments/{model}/chat/completions?api-version={version}
+    For all other backends, uses the standard OpenAI-compatible path:
+        {base_url}/chat/completions
+
+    Args:
+        base_url: The LLM API base URL
+        model: The model or deployment name
+        azure_api_version: Optional Azure API version override
+
+    Returns:
+        The full chat completions endpoint URL
+    """
+    from .const import DEFAULT_AZURE_API_VERSION
+
+    if is_azure_openai_backend(base_url):
+        api_version = azure_api_version or DEFAULT_AZURE_API_VERSION
+        return (
+            f"{base_url.rstrip('/')}/openai/deployments/{model}"
+            f"/chat/completions?api-version={api_version}"
+        )
+    return f"{base_url}/chat/completions"
+
+
+def build_auth_headers(base_url: str, api_key: str) -> dict[str, str]:
+    """Build authentication headers for the given backend.
+
+    For Azure OpenAI, uses the ``api-key`` header.
+    For all other backends, uses the standard ``Authorization: Bearer`` header.
+    Returns an empty dict if no API key is provided.
+
+    Args:
+        base_url: The LLM API base URL (used to detect Azure)
+        api_key: The API key value
+
+    Returns:
+        Dictionary of authentication headers
+    """
+    if not api_key:
+        return {}
+
+    if is_azure_openai_backend(base_url):
+        return {"api-key": api_key}
+    return {"Authorization": f"Bearer {api_key}"}
 
 
 async def check_ollama_health(base_url: str, timeout: int = 5) -> tuple[bool, str]:

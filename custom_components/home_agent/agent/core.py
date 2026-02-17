@@ -103,6 +103,7 @@ import aiohttp
 from homeassistant.components import conversation as ha_conversation
 from homeassistant.components.conversation.models import AbstractConversationAgent
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import TemplateError
 from homeassistant.helpers import entity_registry as er
@@ -228,25 +229,18 @@ class HomeAgent(
         _LOGGER.info("Home Agent initialized with model %s", config.get(CONF_LLM_MODEL))
 
     @property
-    def supported_languages(self) -> list[str]:
-        """Return list of supported languages.
+    def supported_languages(self) -> str:
+        """Return supported languages.
 
-        Returns the top 10 most popular languages used with Home Assistant:
-        - en (English)
-        - de (German)
-        - es (Spanish)
-        - fr (French)
-        - nl (Dutch)
-        - it (Italian)
-        - pl (Polish)
-        - pt (Portuguese)
-        - ru (Russian)
-        - zh (Chinese)
+        Returns MATCH_ALL ("*") to indicate that all languages are supported.
+        Since this agent delegates to an LLM for natural language understanding,
+        it can handle any language the underlying model supports without
+        restriction.
 
         The agent preserves the language throughout the conversation pipeline,
         using it in ConversationInput and IntentResponse objects.
         """
-        return ["en", "de", "es", "fr", "nl", "it", "pl", "pt", "ru", "zh"]
+        return MATCH_ALL
 
     @property
     def memory_manager(self) -> Any:

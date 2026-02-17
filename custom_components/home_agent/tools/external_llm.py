@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 import aiohttp
 from homeassistant.core import HomeAssistant
 
+from ..helpers import render_template_value
 from ..const import (
     CONF_EXTERNAL_LLM_API_KEY,
     CONF_EXTERNAL_LLM_BASE_URL,
@@ -33,7 +34,7 @@ from ..const import (
     TOOL_QUERY_EXTERNAL_LLM,
 )
 from ..exceptions import ToolExecutionError, ValidationError
-from ..helpers import is_ollama_backend
+from ..helpers import build_api_url, build_auth_headers, is_ollama_backend
 from .registry import BaseTool
 
 if TYPE_CHECKING:
@@ -289,7 +290,9 @@ class ExternalLLMTool(BaseTool):
 
         # Get configuration with defaults
         base_url = self._config.get(CONF_EXTERNAL_LLM_BASE_URL)
-        api_key = self._config.get(CONF_EXTERNAL_LLM_API_KEY)
+        api_key = render_template_value(
+            self.hass, self._config.get(CONF_EXTERNAL_LLM_API_KEY, "")
+        )
         model = self._config.get(CONF_EXTERNAL_LLM_MODEL, DEFAULT_EXTERNAL_LLM_MODEL)
         temperature = self._config.get(
             CONF_EXTERNAL_LLM_TEMPERATURE, DEFAULT_EXTERNAL_LLM_TEMPERATURE
@@ -309,12 +312,12 @@ class ExternalLLMTool(BaseTool):
                 "Please configure it in the integration settings."
             )
 
-        # Build request
-        url = f"{base_url.rstrip('/')}/chat/completions"
+        # Build request (Azure OpenAI uses different URL structure and auth)
+        url = build_api_url(base_url, model)
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
         }
+        headers.update(build_auth_headers(base_url, api_key))
 
         payload: dict[str, Any] = {
             "model": model,

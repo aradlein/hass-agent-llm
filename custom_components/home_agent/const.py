@@ -5,7 +5,7 @@ from typing import Final
 # Domain and component info
 DOMAIN: Final = "home_agent"
 DEFAULT_NAME: Final = "Home Agent"
-VERSION: Final = "0.8.8"
+VERSION: Final = "0.9.0"
 
 # Configuration keys - LLM Configuration
 CONF_LLM_BASE_URL: Final = "llm_base_url"
@@ -18,6 +18,7 @@ CONF_LLM_KEEP_ALIVE: Final = "llm_keep_alive"
 CONF_LLM_BACKEND: Final = "llm_backend"
 CONF_LLM_PROXY_HEADERS: Final = "llm_proxy_headers"
 CONF_THINKING_ENABLED: Final = "thinking_enabled"
+CONF_AZURE_API_VERSION: Final = "azure_api_version"
 
 # Configuration keys - LLM Retry Settings
 CONF_RETRY_MAX_ATTEMPTS: Final = "retry_max_attempts"
@@ -151,6 +152,11 @@ DEFAULT_TOP_P: Final = 1.0
 DEFAULT_LLM_KEEP_ALIVE: Final = "5m"
 DEFAULT_LLM_BACKEND: Final = LLM_BACKEND_DEFAULT
 DEFAULT_THINKING_ENABLED: Final = True  # Default: enabled (no /no_think appended)
+
+# Default values - Azure OpenAI
+# Azure API version used for chat completions endpoint.
+# See: https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
+DEFAULT_AZURE_API_VERSION: Final = "2024-12-01-preview"
 
 # Default values - LLM Retry Settings
 DEFAULT_RETRY_MAX_ATTEMPTS: Final = 1

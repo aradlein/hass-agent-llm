@@ -136,6 +136,7 @@ class TestProxyHeadersInRequests:
         class MockAgent(LLMMixin):
             def __init__(self, config):
                 self.config = config
+                self.hass = MagicMock()
                 self._session = None
 
         return MockAgent
@@ -267,6 +268,7 @@ class TestProxyHeadersInStreaming:
         class MockAgent(StreamingMixin):
             def __init__(self, config):
                 self.config = config
+                self.hass = MagicMock()
                 self._session = None
                 self.tool_handler = MagicMock()
                 self.tool_handler.get_tool_definitions.return_value = []
@@ -337,6 +339,7 @@ class TestEmptyApiKey:
         class MockAgent(LLMMixin):
             def __init__(self, config):
                 self.config = config
+                self.hass = MagicMock()
                 self._session = None
 
         return MockAgent
@@ -348,6 +351,7 @@ class TestEmptyApiKey:
         class MockStreamingAgent(StreamingMixin):
             def __init__(self, config):
                 self.config = config
+                self.hass = MagicMock()
                 self._session = None
                 # Mock tool_handler required by StreamingMixin
                 self.tool_handler = MagicMock()

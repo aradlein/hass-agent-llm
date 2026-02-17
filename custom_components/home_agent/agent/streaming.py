@@ -139,6 +139,7 @@ from typing import TYPE_CHECKING, Any, AsyncGenerator
 import aiohttp
 
 from ..const import (
+    CONF_AZURE_API_VERSION,
     CONF_DEBUG_LOGGING,
     CONF_LLM_API_KEY,
     CONF_LLM_BASE_URL,
@@ -153,7 +154,7 @@ from ..const import (
     DEFAULT_STREAMING_ENABLED,
 )
 from ..exceptions import AuthenticationError, HomeAgentError
-from ..helpers import is_ollama_backend, redact_sensitive_data
+from ..helpers import build_api_url, build_auth_headers, is_ollama_backend, redact_sensitive_data, render_template_value
 
 if TYPE_CHECKING:
     from ..tool_handler import ToolHandler
@@ -171,6 +172,7 @@ class StreamingMixin:
     """
 
     config: dict[str, Any]
+    hass: Any
     _session: aiohttp.ClientSession | None
     tool_handler: "ToolHandler"
 
@@ -211,15 +213,19 @@ class StreamingMixin:
         """
         session = await self._ensure_session()
 
-        url = f"{self.config[CONF_LLM_BASE_URL]}/chat/completions"
+        base_url = self.config[CONF_LLM_BASE_URL]
+        url = build_api_url(
+            base_url,
+            self.config[CONF_LLM_MODEL],
+            self.config.get(CONF_AZURE_API_VERSION),
+        )
         headers: dict[str, str] = {
             "Content-Type": "application/json",
         }
 
-        # Only include Authorization header if API key is provided
-        api_key = self.config.get(CONF_LLM_API_KEY, "")
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        # Add authentication headers (Azure uses api-key, others use Bearer token)
+        api_key = render_template_value(self.hass, self.config.get(CONF_LLM_API_KEY, ""))
+        headers.update(build_auth_headers(base_url, api_key))
 
         # Add custom proxy headers if configured
         proxy_headers = self.config.get(CONF_LLM_PROXY_HEADERS, {})
@@ -258,7 +264,7 @@ class StreamingMixin:
             )
 
         try:
-            async with session.post(url, headers=headers, json=payload) as response:
+            async with session.post(url, headers=headers, json=payload, allow_redirects=False) as response:
                 if response.status == 401:
                     raise AuthenticationError("LLM API authentication failed. Check your API key.")
 

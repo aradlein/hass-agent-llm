@@ -15,7 +15,7 @@ import homeassistant.helpers.httpx_client
 import httpx
 from homeassistant.core import HomeAssistant
 
-from ..helpers import retry_async
+from ..helpers import render_template_value, retry_async
 
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI
@@ -102,7 +102,9 @@ class VectorDBContextProvider(ContextProvider):
         self.embedding_base_url = config.get(
             CONF_VECTOR_DB_EMBEDDING_BASE_URL, DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL
         )
-        self.openai_api_key = config.get(CONF_OPENAI_API_KEY, "")
+        self.openai_api_key = render_template_value(
+            hass, config.get(CONF_OPENAI_API_KEY, "")
+        )
         self.top_k = config.get(CONF_VECTOR_DB_TOP_K, DEFAULT_VECTOR_DB_TOP_K)
         self.similarity_threshold = config.get(
             CONF_VECTOR_DB_SIMILARITY_THRESHOLD, DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD

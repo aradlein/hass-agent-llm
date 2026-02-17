@@ -1,6 +1,6 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.8.8-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11.0+-blue.svg)](https://www.home-assistant.io/)
@@ -8,9 +8,12 @@
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.8.8
+## What's New in v0.9.0
 
-🏷️ **Entity Labels Support** - New option to include entity and device labels in the system prompt, giving the LLM better context about your smart home organization (contributed by @zopanix)
+- **Azure OpenAI Support** - Native support for Azure OpenAI deployments, including Azure-specific API versioning and endpoint handling
+- **Universal Language Support** - Home Agent now works with any Home Assistant language setting, not just a hardcoded list
+- **Jinja Template API Keys** - API key fields now support Jinja templates, enabling dynamic secrets from Home Assistant (e.g., `{{ states('input_text.my_api_key') }}`)
+- **Proxy Gateway Compatibility** - Improved compatibility with proxy gateways like Cloudflare AI Gateway
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
@@ -30,7 +33,7 @@ Home Agent extends Home Assistant's native conversation platform to enable natur
 
 ### Core Features
 
-- **LLM Integration** - Works with OpenAI, Ollama, LocalAI, LM Studio, or any OpenAI-compatible endpoint
+- **LLM Integration** - Works with OpenAI, Azure OpenAI, Ollama, LocalAI, LM Studio, or any OpenAI-compatible endpoint
 - **Entity Context** - Automatically provides relevant entity states to the LLM
 - **Conversation History** - Maintains context across multiple interactions with persistent storage
 - **Native Tools** - Built-in `ha_control` and `ha_query` tools for home automation
@@ -49,7 +52,7 @@ Home Agent extends Home Assistant's native conversation platform to enable natur
 ## Requirements
 
 ### Required
-- **Home Assistant** - Version 2024.1.0 or later
+- **Home Assistant** - Version 2025.11.0 or later
 - **Python Dependencies** - `aiohttp >= 3.9.0` (included with Home Assistant)
 
 ### Optional (Enable Advanced Features)
@@ -95,6 +98,7 @@ Navigate to Settings > Devices & Services > Add Integration, search for "Home Ag
 - **Name**: Friendly name (e.g., "Home Agent")
 - **LLM Base URL**: Your OpenAI-compatible endpoint
   - OpenAI: `https://api.openai.com/v1`
+  - Azure OpenAI: `https://<resource>.openai.azure.com/openai/deployments/<deployment>`
   - Ollama (local): `http://localhost:11434/v1`
   - LocalAI: Your LocalAI URL
 - **API Key**: Your API key (if required)
@@ -303,7 +307,13 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.8.8 (Latest)
+### v0.9.0 (Latest)
+- **Feature**: Azure OpenAI support - native integration with Azure OpenAI deployments including API versioning and endpoint handling (#9)
+- **Feature**: Universal language support - works with any Home Assistant language setting via MATCH_ALL (#15)
+- **Feature**: Jinja template support for API key fields - use Home Assistant templates for dynamic secrets (#14)
+- **Fix**: Improved compatibility with proxy gateways like Cloudflare AI Gateway (#17)
+
+### v0.8.8
 - **Feature**: Include entity/device labels in system prompt for better LLM context (contributed by @zopanix)
 - **Testing**: Comprehensive test coverage for labels feature
 

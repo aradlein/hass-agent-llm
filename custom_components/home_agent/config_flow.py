@@ -305,7 +305,7 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                     vol.Optional(
                         CONF_LLM_API_KEY,
                         description={"suggested_value": ""},
-                    ): str,
+                    ): selector.TemplateSelector(),
                     vol.Required(
                         CONF_LLM_MODEL,
                         default=DEFAULT_LLM_MODEL,
@@ -599,7 +599,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_LLM_API_KEY,
                         description={"suggested_value": current_data.get(CONF_LLM_API_KEY, "")},
-                    ): str,
+                    ): selector.TemplateSelector(),
                     vol.Required(
                         CONF_LLM_MODEL,
                         default=current_data.get(CONF_LLM_MODEL, DEFAULT_LLM_MODEL),
@@ -1109,7 +1109,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     default=current_options.get(
                         CONF_EXTERNAL_LLM_API_KEY, current_data.get(CONF_EXTERNAL_LLM_API_KEY, "")
                     ),
-                ): str,
+                ): selector.TemplateSelector(),
                 vol.Optional(
                     CONF_EXTERNAL_LLM_MODEL,
                     default=current_options.get(

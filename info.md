@@ -4,7 +4,7 @@ A highly customizable Home Assistant custom component that extends the native co
 
 ## Key Features
 
-- **Multi-LLM Support** - Works with OpenAI, Ollama, LocalAI, LM Studio, or any OpenAI-compatible endpoint. Use fast local models for control and powerful cloud models for analysis simultaneously.
+- **Multi-LLM Support** - Works with OpenAI, Azure OpenAI, Ollama, LocalAI, LM Studio, or any OpenAI-compatible endpoint. Use fast local models for control and powerful cloud models for analysis simultaneously.
 
 - **Long-Term Memory System** - Automatic extraction and recall of facts, preferences, and context. The integration learns from interactions and personalizes responses based on your home and preferences.
 

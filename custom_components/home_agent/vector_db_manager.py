@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from chromadb.api import ClientAPI
     from chromadb.api.models.Collection import Collection
 
+from .helpers import render_template_value
 from .const import (
     CONF_EMBEDDING_KEEP_ALIVE,
     CONF_OPENAI_API_KEY,
@@ -111,7 +112,9 @@ class VectorDBManager:
         self.embedding_base_url = config.get(
             CONF_VECTOR_DB_EMBEDDING_BASE_URL, DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL
         )
-        self.openai_api_key = config.get(CONF_OPENAI_API_KEY, "")
+        self.openai_api_key = render_template_value(
+            hass, config.get(CONF_OPENAI_API_KEY, "")
+        )
 
         # State
         self._client: ClientAPI | None = None
