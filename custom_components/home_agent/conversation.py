@@ -176,6 +176,9 @@ class ConversationHistoryManager:
                     valid_messages.append(msg)
 
                 if valid_messages:
+                    # Trim to max_messages to handle previously oversized histories
+                    if self._max_messages is not None and len(valid_messages) > self._max_messages:
+                        valid_messages = valid_messages[-self._max_messages:]
                     self._histories[conv_id] = valid_messages
                     loaded_count += 1
                     total_messages += len(valid_messages)
@@ -398,6 +401,19 @@ class ConversationHistoryManager:
         }
 
         self._histories[conversation_id].append(message)
+
+        # Trim to max_messages to prevent unbounded growth
+        if (
+            self._max_messages is not None
+            and len(self._histories[conversation_id]) > self._max_messages
+        ):
+            excess = len(self._histories[conversation_id]) - self._max_messages
+            del self._histories[conversation_id][:excess]
+            _LOGGER.debug(
+                "Trimmed conversation %s by %d messages to stay within limit",
+                conversation_id,
+                excess,
+            )
 
         _LOGGER.debug(
             "Added %s message to conversation %s (now %d messages)",
@@ -653,7 +669,11 @@ class ConversationHistoryManager:
         if max_messages is not None:
             old_max = self._max_messages
             self._max_messages = max_messages
-            _LOGGER.info("Updated max_messages from %d to %d", old_max, max_messages)
+            _LOGGER.info("Updated max_messages from %s to %d", old_max, max_messages)
+            # Trim existing conversations to new limit
+            for conv_id in self._histories:
+                if len(self._histories[conv_id]) > max_messages:
+                    del self._histories[conv_id][:-max_messages]
 
         if max_tokens is not None:
             old_max_tokens = self._max_tokens

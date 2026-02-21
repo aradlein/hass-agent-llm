@@ -1,6 +1,6 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.9.1-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11.0+-blue.svg)](https://www.home-assistant.io/)
@@ -8,12 +8,12 @@
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.9.0
+## What's New in v0.9.1
 
-- **Azure OpenAI Support** - Native support for Azure OpenAI deployments, including Azure-specific API versioning and endpoint handling
-- **Universal Language Support** - Home Agent now works with any Home Assistant language setting, not just a hardcoded list
-- **Jinja Template API Keys** - API key fields now support Jinja templates, enabling dynamic secrets from Home Assistant (e.g., `{{ states('input_text.my_api_key') }}`)
-- **Proxy Gateway Compatibility** - Improved compatibility with proxy gateways like Cloudflare AI Gateway
+- **Memory Leak Fixes** - Resolved multiple memory leaks that could cause ~6GB memory growth over time, including unbounded embedding caches, per-request HTTP sessions, and uncapped conversation history storage
+- **LRU Cache Eviction** - Embedding caches now use LRU eviction (max 1000 entries) instead of unbounded growth
+- **Debounced Reindexing** - State change reindexing is now batched with a 2-second debounce instead of firing per-change tasks
+- **Proper Resource Cleanup** - HTTP sessions and OpenAI clients are reused and properly cleaned up on shutdown
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
@@ -307,7 +307,10 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.9.0 (Latest)
+### v0.9.1 (Latest)
+- **Fix**: Resolve multiple memory leaks causing ~6GB growth over time — LRU eviction for embedding caches, debounced batch reindexing, HTTP session reuse, conversation history enforcement, and proper resource cleanup on shutdown
+
+### v0.9.0
 - **Feature**: Azure OpenAI support - native integration with Azure OpenAI deployments including API versioning and endpoint handling (#9)
 - **Feature**: Universal language support - works with any Home Assistant language setting via MATCH_ALL (#15)
 - **Feature**: Jinja template support for API key fields - use Home Assistant templates for dynamic secrets (#14)

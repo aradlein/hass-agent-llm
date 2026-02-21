@@ -122,6 +122,7 @@ class MemoryManager:
         self._pending_save = False
         self._cleanup_task: asyncio.Task[None] | None = None
         self._last_quality_validation: float = 0.0  # Track last quality validation time
+        self._memory_validator: MemoryValidator | None = None
 
         _LOGGER.info(
             "Memory Manager initialized (max=%d, collection=%s)",
@@ -766,8 +767,9 @@ class MemoryManager:
         """
         # Use the centralized MemoryValidator for pattern detection
         # This ensures consistency between extraction and storage validation
-        validator = MemoryValidator()
-        return validator.is_transient_state(content)
+        if self._memory_validator is None:
+            self._memory_validator = MemoryValidator()
+        return self._memory_validator.is_transient_state(content)
 
     async def _find_duplicate(self, content: str) -> str | None:
         """Find duplicate memory using semantic similarity.
@@ -1007,7 +1009,9 @@ class MemoryManager:
         if not self._memories:
             return 0
 
-        validator = MemoryValidator()
+        if self._memory_validator is None:
+            self._memory_validator = MemoryValidator()
+        validator = self._memory_validator
         transient_ids = []
 
         # Find memories that match transient patterns

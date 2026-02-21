@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+from collections import OrderedDict
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Callable, Sequence, cast
 
@@ -78,6 +79,15 @@ MAINTENANCE_INTERVAL = timedelta(hours=1)
 # Maximum batch size for indexing
 MAX_BATCH_SIZE = 50
 
+# Maximum number of embedding vectors to cache (each ~3-12KB)
+EMBEDDING_CACHE_MAX_SIZE = 1000
+
+# Debounce delay for state change reindexing (seconds)
+REINDEX_DEBOUNCE_DELAY = 2.0
+
+# Maximum concurrent reindex operations
+MAX_CONCURRENT_REINDEX = 3
+
 
 class VectorDBManager:
     """Manages entity embeddings in ChromaDB."""
@@ -119,10 +129,19 @@ class VectorDBManager:
         # State
         self._client: ClientAPI | None = None
         self._collection: Collection | None = None
-        self._embedding_cache: dict[str, list[float]] = {}
+        self._embedding_cache: OrderedDict[str, list[float]] = OrderedDict()
         self._indexing_lock = asyncio.Lock()
         self._state_listener: Callable[[], None] | None = None
         self._maintenance_listener: Callable[[], None] | None = None
+
+        # Shared HTTP clients (created lazily, reused across requests)
+        self._aiohttp_session: aiohttp.ClientSession | None = None
+        self._openai_client: Any | None = None
+
+        # Background task management for state change reindexing
+        self._pending_reindex: dict[str, float] = {}
+        self._reindex_task: asyncio.Task[None] | None = None
+        self._reindex_semaphore = asyncio.Semaphore(MAX_CONCURRENT_REINDEX)
 
         _LOGGER.info(
             "Vector DB Manager initialized (host=%s:%s, collection=%s)",
@@ -163,7 +182,7 @@ class VectorDBManager:
     async def async_shutdown(self) -> None:
         """Shut down the vector DB manager.
 
-        Cleans up listeners and connections.
+        Cleans up listeners, connections, and background tasks.
         """
         if self._state_listener:
             self._state_listener()
@@ -173,7 +192,32 @@ class VectorDBManager:
             self._maintenance_listener()
             self._maintenance_listener = None
 
+        # Cancel and await pending reindex task
+        if self._reindex_task and not self._reindex_task.done():
+            self._reindex_task.cancel()
+            try:
+                await self._reindex_task
+            except asyncio.CancelledError:
+                pass
+        self._pending_reindex.clear()
+
         self._embedding_cache.clear()
+
+        # Close shared HTTP clients
+        if self._aiohttp_session is not None:
+            try:
+                if not self._aiohttp_session.closed:
+                    await self._aiohttp_session.close()
+            except Exception:
+                pass
+            self._aiohttp_session = None
+
+        if self._openai_client is not None:
+            try:
+                await self._openai_client.close()
+            except Exception:
+                pass
+            self._openai_client = None
 
         _LOGGER.info("Vector DB Manager shut down")
 
@@ -345,6 +389,9 @@ class VectorDBManager:
     def _async_handle_state_change(self, event: Event[Any]) -> None:
         """Handle entity state changes for incremental indexing.
 
+        Records the entity for debounced batch reindexing instead of
+        spawning an unbounded task per state change.
+
         Args:
             event: State change event
         """
@@ -353,23 +400,43 @@ class VectorDBManager:
         if not entity_id or self._should_skip_entity(entity_id):
             return
 
-        # Schedule reindexing in background
-        asyncio.create_task(self._async_reindex_entity_from_event(entity_id))
+        # Record pending reindex (deduplicates rapid changes for same entity)
+        self._pending_reindex[entity_id] = asyncio.get_event_loop().time()
 
-    async def _async_reindex_entity_from_event(self, entity_id: str) -> None:
-        """Reindex an entity after state change.
-
-        Args:
-            entity_id: Entity ID that changed
-        """
-        try:
-            await self.async_index_entity(entity_id)
-        except Exception as err:
-            _LOGGER.debug(
-                "Failed to reindex entity %s after state change: %s",
-                entity_id,
-                err,
+        # Schedule debounced batch reindex if not already scheduled
+        if self._reindex_task is None or self._reindex_task.done():
+            self._reindex_task = asyncio.create_task(
+                self._async_debounced_reindex()
             )
+
+    async def _async_debounced_reindex(self) -> None:
+        """Process pending reindex requests after debounce delay."""
+        await asyncio.sleep(REINDEX_DEBOUNCE_DELAY)
+
+        # Swap out pending set atomically
+        pending = self._pending_reindex
+        self._pending_reindex = {}
+
+        if not pending:
+            return
+
+        _LOGGER.debug("Processing %d debounced entity reindex requests", len(pending))
+
+        async def _reindex_one(entity_id: str) -> None:
+            async with self._reindex_semaphore:
+                try:
+                    await self.async_index_entity(entity_id)
+                except Exception as err:
+                    _LOGGER.debug(
+                        "Failed to reindex entity %s after state change: %s",
+                        entity_id,
+                        err,
+                    )
+
+        await asyncio.gather(
+            *[_reindex_one(eid) for eid in pending],
+            return_exceptions=True,
+        )
 
     async def _async_run_maintenance(self, _: Any) -> None:
         """Run periodic maintenance tasks.
@@ -546,6 +613,7 @@ class VectorDBManager:
         """
         cache_key = hashlib.md5(text.encode()).hexdigest()
         if cache_key in self._embedding_cache:
+            self._embedding_cache.move_to_end(cache_key)
             return self._embedding_cache[cache_key]
 
         try:
@@ -560,6 +628,9 @@ class VectorDBManager:
                 )
 
             self._embedding_cache[cache_key] = embedding
+            # Evict oldest entries if over limit
+            while len(self._embedding_cache) > EMBEDDING_CACHE_MAX_SIZE:
+                self._embedding_cache.popitem(last=False)
             return embedding
 
         except Exception as err:
@@ -584,12 +655,15 @@ class VectorDBManager:
                 "OpenAI API key not configured. " "Please configure it in Vector DB settings."
             )
 
-        # Create OpenAI client with API key
-        client = openai.AsyncOpenAI(
-            api_key=self.openai_api_key,
-            base_url=self.embedding_base_url,
-            http_client=homeassistant.helpers.httpx_client.get_async_client(hass=self.hass),
-        )
+        # Reuse OpenAI client across requests
+        if self._openai_client is None:
+            self._openai_client = openai.AsyncOpenAI(
+                api_key=self.openai_api_key,
+                base_url=self.embedding_base_url,
+                http_client=homeassistant.helpers.httpx_client.get_async_client(hass=self.hass),
+            )
+
+        client = self._openai_client
 
         # Use the new API for embeddings
         async def _request() -> openai.types.CreateEmbeddingResponse:
@@ -607,6 +681,14 @@ class VectorDBManager:
         )
         embedding: list[float] = response.data[0].embedding
         return embedding
+
+    async def _ensure_aiohttp_session(self) -> aiohttp.ClientSession:
+        """Ensure aiohttp session exists for Ollama requests."""
+        if self._aiohttp_session is None or self._aiohttp_session.closed:
+            self._aiohttp_session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=30)
+            )
+        return self._aiohttp_session
 
     async def _embed_with_ollama(self, text: str) -> list[float]:
         """Generate embedding using Ollama API.
@@ -627,18 +709,16 @@ class VectorDBManager:
         async def make_embedding_request() -> list[float]:
             """Make the embedding request to Ollama."""
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        url, json=payload, timeout=aiohttp.ClientTimeout(total=30)
-                    ) as response:
-                        if response.status != 200:
-                            error_text = await response.text()
-                            raise ContextInjectionError(
-                                f"Ollama API error {response.status}: {error_text}"
-                            )
-                        result = await response.json()
-                        embedding: list[float] = result["embedding"]
-                        return embedding
+                session = await self._ensure_aiohttp_session()
+                async with session.post(url, json=payload) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise ContextInjectionError(
+                            f"Ollama API error {response.status}: {error_text}"
+                        )
+                    result = await response.json()
+                    embedding: list[float] = result["embedding"]
+                    return embedding
             except aiohttp.ClientError as err:
                 raise ContextInjectionError(
                     f"Failed to connect to Ollama at {self.embedding_base_url}: {err}"

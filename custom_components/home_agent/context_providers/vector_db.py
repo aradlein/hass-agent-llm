@@ -6,9 +6,11 @@ vector database and embedding models.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
+from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Sequence, cast
 
 import homeassistant.helpers.httpx_client
@@ -55,7 +57,12 @@ from ..const import (
     EMBEDDING_PROVIDER_OPENAI,
     EVENT_VECTOR_DB_QUERIED,
 )
+import aiohttp
+
 from ..exceptions import ContextInjectionError, EmbeddingTimeoutError
+
+# Maximum number of embedding vectors to cache (each ~3-12KB)
+EMBEDDING_CACHE_MAX_SIZE = 1000
 from .base import ContextProvider
 from .direct import DirectContextProvider
 
@@ -121,9 +128,13 @@ class VectorDBContextProvider(ContextProvider):
 
         self._client: ClientAPI | None = None
         self._collection: Collection | None = None
-        self._embedding_cache: dict[str, list[float]] = {}
+        self._embedding_cache: OrderedDict[str, list[float]] = OrderedDict()
         self._fallback_provider: DirectContextProvider | None = None
         self._emit_events = config.get(CONF_EMIT_EVENTS, True)
+
+        # Shared HTTP clients (created lazily, reused across requests)
+        self._aiohttp_session: aiohttp.ClientSession | None = None
+        self._openai_client: Any | None = None
 
         _LOGGER.info(
             "Vector DB provider initialized (host=%s:%s, collection=%s)",
@@ -131,6 +142,23 @@ class VectorDBContextProvider(ContextProvider):
             self.port,
             self.collection_name,
         )
+
+    async def async_shutdown(self) -> None:
+        """Clean up resources."""
+        self._embedding_cache.clear()
+        if self._aiohttp_session is not None:
+            try:
+                if not self._aiohttp_session.closed:
+                    await self._aiohttp_session.close()
+            except Exception:
+                pass
+            self._aiohttp_session = None
+        if self._openai_client is not None:
+            try:
+                await self._openai_client.close()
+            except Exception:
+                pass
+            self._openai_client = None
 
     async def get_context(self, user_input: str) -> str:
         """Get relevant context via semantic search.
@@ -271,6 +299,7 @@ class VectorDBContextProvider(ContextProvider):
         """Embed text using configured embedding model."""
         cache_key = hashlib.md5(text.encode()).hexdigest()
         if cache_key in self._embedding_cache:
+            self._embedding_cache.move_to_end(cache_key)
             return self._embedding_cache[cache_key]
 
         try:
@@ -285,6 +314,9 @@ class VectorDBContextProvider(ContextProvider):
                 )
 
             self._embedding_cache[cache_key] = embedding
+            # Evict oldest entries if over limit
+            while len(self._embedding_cache) > EMBEDDING_CACHE_MAX_SIZE:
+                self._embedding_cache.popitem(last=False)
             return embedding
 
         except Exception as err:
@@ -302,12 +334,15 @@ class VectorDBContextProvider(ContextProvider):
                 "OpenAI API key not configured. " "Please configure it in Vector DB settings."
             )
 
-        # Create OpenAI client with API key
-        client = openai.AsyncOpenAI(
-            api_key=self.openai_api_key,
-            base_url=self.embedding_base_url,
-            http_client=homeassistant.helpers.httpx_client.get_async_client(hass=self.hass),
-        )
+        # Reuse OpenAI client across requests
+        if self._openai_client is None:
+            self._openai_client = openai.AsyncOpenAI(
+                api_key=self.openai_api_key,
+                base_url=self.embedding_base_url,
+                http_client=homeassistant.helpers.httpx_client.get_async_client(hass=self.hass),
+            )
+
+        client = self._openai_client
 
         # Use the new API for embeddings
         async def _request() -> openai.types.CreateEmbeddingResponse:
@@ -326,28 +361,30 @@ class VectorDBContextProvider(ContextProvider):
         embedding: list[float] = response.data[0].embedding
         return embedding
 
+    async def _ensure_aiohttp_session(self) -> aiohttp.ClientSession:
+        """Ensure aiohttp session exists for Ollama requests."""
+        if self._aiohttp_session is None or self._aiohttp_session.closed:
+            self._aiohttp_session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=30)
+            )
+        return self._aiohttp_session
+
     async def _embed_with_ollama(self, text: str) -> list[float]:
         """Generate embedding using Ollama API."""
-        import asyncio
-
-        import aiohttp
-
         url = f"{self.embedding_base_url.rstrip('/')}/api/embeddings"
         payload = {"model": self.embedding_model, "prompt": text}
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url, json=payload, timeout=aiohttp.ClientTimeout(total=30)
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        raise ContextInjectionError(
-                            f"Ollama API error {response.status}: {error_text}"
-                        )
-                    result = await response.json()
-                    embedding: list[float] = result["embedding"]
-                    return embedding
+            session = await self._ensure_aiohttp_session()
+            async with session.post(url, json=payload) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise ContextInjectionError(
+                        f"Ollama API error {response.status}: {error_text}"
+                    )
+                result = await response.json()
+                embedding: list[float] = result["embedding"]
+                return embedding
         except asyncio.TimeoutError as err:
             raise EmbeddingTimeoutError(
                 f"Ollama embedding timed out after 30s for model {self.embedding_model}"

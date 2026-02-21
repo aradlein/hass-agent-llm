@@ -564,17 +564,19 @@ async def test_embed_with_ollama_success(mock_hass, mock_chromadb, vector_db_con
 
         mock_session = MagicMock()
         mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session.closed = False
 
         # Mock retry_async to await and call the function
         async def mock_retry(func, **kwargs):
             return await func()
 
+        # Set the shared session directly instead of patching ClientSession
+        manager._aiohttp_session = mock_session
+
         with patch(
             "custom_components.home_agent.vector_db_manager.retry_async",
             side_effect=mock_retry,
-        ), patch("aiohttp.ClientSession", return_value=mock_session):
+        ):
             result = await manager._embed_with_ollama(test_text)
 
             assert result == expected_embedding
@@ -600,17 +602,19 @@ async def test_embed_with_ollama_timeout(mock_hass, mock_chromadb, vector_db_con
 
         mock_session = MagicMock()
         mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session.closed = False
 
         # Mock retry_async to await and call the function
         async def mock_retry(func, **kwargs):
             return await func()
 
+        # Set the shared session directly
+        manager._aiohttp_session = mock_session
+
         with patch(
             "custom_components.home_agent.vector_db_manager.retry_async",
             side_effect=mock_retry,
-        ), patch("aiohttp.ClientSession", return_value=mock_session):
+        ):
             with pytest.raises(ContextInjectionError, match="Failed to connect to Ollama"):
                 await manager._embed_with_ollama(test_text)
 
@@ -635,17 +639,19 @@ async def test_embed_with_ollama_api_error(mock_hass, mock_chromadb, vector_db_c
 
         mock_session = MagicMock()
         mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session.closed = False
 
         # Mock retry_async to await and call the function
         async def mock_retry(func, **kwargs):
             return await func()
 
+        # Set the shared session directly
+        manager._aiohttp_session = mock_session
+
         with patch(
             "custom_components.home_agent.vector_db_manager.retry_async",
             side_effect=mock_retry,
-        ), patch("aiohttp.ClientSession", return_value=mock_session):
+        ):
             with pytest.raises(ContextInjectionError, match="Ollama API error 500"):
                 await manager._embed_with_ollama(test_text)
 
@@ -762,15 +768,14 @@ async def test_async_collection_exists_no_client(mock_hass, mock_chromadb, vecto
 async def test_async_handle_state_change_triggers_reindex(
     mock_hass, mock_chromadb, vector_db_config, mock_async_should_expose
 ):
-    """Test that state changes trigger entity reindexing."""
+    """Test that state changes trigger debounced entity reindexing."""
     with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
         manager = VectorDBManager(mock_hass, vector_db_config)
         manager._embed_text = AsyncMock(return_value=[0.1] * 384)
 
         await manager._ensure_initialized()
 
-        # Mock the reindex method
-        with patch.object(manager, "_async_reindex_entity_from_event", AsyncMock()) as mock_reindex:
+        with patch.object(manager, "async_index_entity", AsyncMock()) as mock_index:
             # Create state change event
             event_data = {"entity_id": "light.living_room"}
             event = Event(EVENT_STATE_CHANGED, event_data)
@@ -778,16 +783,20 @@ async def test_async_handle_state_change_triggers_reindex(
             with patch(
                 "custom_components.home_agent.vector_db_manager.async_should_expose",
                 mock_async_should_expose,
+            ), patch(
+                "custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05
             ):
                 # Handle the event
                 manager._async_handle_state_change(event)
 
-                # Wait a bit for the async task to be created
-                await asyncio.sleep(0.1)
+                # Entity should be in pending reindex
+                assert "light.living_room" in manager._pending_reindex
 
-                # Verify reindexing was scheduled
-                # Note: The actual call happens in a background task
-                # We can't easily assert it was called without waiting for task completion
+                # Wait for debounce to fire
+                await asyncio.sleep(0.2)
+
+                # Verify reindexing was called
+                mock_index.assert_called_once_with("light.living_room")
 
 
 @pytest.mark.asyncio
@@ -819,30 +828,39 @@ async def test_async_handle_state_change_skips_non_exposed(
 
 
 @pytest.mark.asyncio
-async def test_async_reindex_entity_from_event_success(
+async def test_debounced_reindex_batches_multiple_entities(
     mock_hass, mock_chromadb, vector_db_config, mock_async_should_expose
 ):
-    """Test successful entity reindexing from event."""
+    """Test that debounced reindex batches multiple entity changes."""
     with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
         manager = VectorDBManager(mock_hass, vector_db_config)
         manager._embed_text = AsyncMock(return_value=[0.1] * 384)
 
         await manager._ensure_initialized()
 
-        with patch(
+        with patch.object(manager, "async_index_entity", AsyncMock()) as mock_index, patch(
             "custom_components.home_agent.vector_db_manager.async_should_expose",
             mock_async_should_expose,
-        ), patch.object(manager, "async_index_entity", AsyncMock()) as mock_index:
-            await manager._async_reindex_entity_from_event("light.living_room")
+        ), patch(
+            "custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05
+        ):
+            # Fire multiple state changes rapidly (use exposed entities)
+            for entity_id in ["light.living_room", "sensor.temperature", "switch.fan"]:
+                event = Event(EVENT_STATE_CHANGED, {"entity_id": entity_id})
+                manager._async_handle_state_change(event)
 
-            mock_index.assert_called_once_with("light.living_room")
+            # Wait for debounce
+            await asyncio.sleep(0.2)
+
+            # All three entities should have been reindexed
+            assert mock_index.call_count == 3
 
 
 @pytest.mark.asyncio
-async def test_async_reindex_entity_from_event_handles_error(
-    mock_hass, mock_chromadb, vector_db_config
+async def test_debounced_reindex_handles_error_gracefully(
+    mock_hass, mock_chromadb, vector_db_config, mock_async_should_expose
 ):
-    """Test that reindexing from event handles errors gracefully."""
+    """Test that debounced reindexing handles errors gracefully."""
     with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
         manager = VectorDBManager(mock_hass, vector_db_config)
 
@@ -851,9 +869,17 @@ async def test_async_reindex_entity_from_event_handles_error(
         # Make async_index_entity raise an error
         with patch.object(
             manager, "async_index_entity", AsyncMock(side_effect=Exception("Index failed"))
+        ), patch(
+            "custom_components.home_agent.vector_db_manager.async_should_expose",
+            mock_async_should_expose,
+        ), patch(
+            "custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05
         ):
+            event = Event(EVENT_STATE_CHANGED, {"entity_id": "light.living_room"})
+            manager._async_handle_state_change(event)
+
             # Should not raise, just log
-            await manager._async_reindex_entity_from_event("light.living_room")
+            await asyncio.sleep(0.2)
 
 
 @pytest.mark.asyncio

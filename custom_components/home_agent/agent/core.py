@@ -625,6 +625,8 @@ class HomeAgent(
         """Clean up resources."""
         if self._session and not self._session.closed:
             await self._session.close()
+        if hasattr(self, "context_manager"):
+            await self.context_manager.async_close()
 
     def _preprocess_user_message(self, text: str) -> str:
         """Preprocess user message before sending to LLM.

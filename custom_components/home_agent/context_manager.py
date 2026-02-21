@@ -82,6 +82,7 @@ class ContextManager:
         self._cache_ttl = config.get("cache_ttl", 60)
         self._emit_events = config.get("emit_events", True)
         self._max_context_tokens = config.get("max_context_tokens", MAX_CONTEXT_TOKENS)
+        self._max_cache_size = config.get("max_cache_size", 128)
 
         # Initialize default provider
         self._initialize_provider()
@@ -438,22 +439,15 @@ class ContextManager:
         Returns:
             Cached context string or None if not cached or expired
         """
+        # Proactively evict all expired entries
+        self._evict_expired_cache_entries()
+
         cache_key = self._generate_cache_key(user_input)
 
         if cache_key not in self._cache:
             return None
 
-        # Check if cache has expired
-        timestamp = self._cache_timestamps.get(cache_key, 0)
-        age = time.time() - timestamp
-
-        if age > self._cache_ttl:
-            _LOGGER.debug("Cache expired for key (age: %.1fs)", age)
-            del self._cache[cache_key]
-            del self._cache_timestamps[cache_key]
-            return None
-
-        _LOGGER.debug("Cache hit (age: %.1fs)", age)
+        _LOGGER.debug("Cache hit (age: %.1fs)", time.time() - self._cache_timestamps.get(cache_key, 0))
         cached = self._cache[cache_key]
         return str(cached) if cached is not None else None
 
@@ -467,7 +461,45 @@ class ContextManager:
         cache_key = self._generate_cache_key(user_input)
         self._cache[cache_key] = context
         self._cache_timestamps[cache_key] = time.time()
-        _LOGGER.debug("Cached context for key")
+
+        # Evict expired and enforce size limit
+        self._evict_expired_cache_entries()
+        self._enforce_cache_size_limit()
+
+        _LOGGER.debug("Cached context for key (cache size: %d)", len(self._cache))
+
+    def _evict_expired_cache_entries(self) -> int:
+        """Remove all expired cache entries.
+
+        Returns:
+            Number of entries evicted
+        """
+        now = time.time()
+        expired_keys = [
+            key for key, ts in self._cache_timestamps.items()
+            if now - ts > self._cache_ttl
+        ]
+        for key in expired_keys:
+            del self._cache[key]
+            del self._cache_timestamps[key]
+        if expired_keys:
+            _LOGGER.debug("Evicted %d expired cache entries", len(expired_keys))
+        return len(expired_keys)
+
+    def _enforce_cache_size_limit(self) -> None:
+        """Evict oldest entries if cache exceeds max size."""
+        if len(self._cache) <= self._max_cache_size:
+            return
+
+        sorted_keys = sorted(
+            self._cache_timestamps.keys(),
+            key=lambda k: self._cache_timestamps[k],
+        )
+        to_evict = len(self._cache) - self._max_cache_size
+        for key in sorted_keys[:to_evict]:
+            del self._cache[key]
+            del self._cache_timestamps[key]
+        _LOGGER.debug("Evicted %d entries to enforce cache size limit", to_evict)
 
     def _generate_cache_key(self, user_input: str) -> str:
         """Generate a cache key from user input.
@@ -640,3 +672,11 @@ class ContextManager:
             )
 
         return info
+
+    async def async_close(self) -> None:
+        """Clean up provider resources."""
+        if self._provider is not None and hasattr(self._provider, "async_shutdown"):
+            await self._provider.async_shutdown()
+        if self._memory_provider is not None and hasattr(self._memory_provider, "async_shutdown"):
+            await self._memory_provider.async_shutdown()
+        self._clear_cache()
