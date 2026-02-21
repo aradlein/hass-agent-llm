@@ -142,6 +142,7 @@ class VectorDBManager:
         self._pending_reindex: dict[str, float] = {}
         self._reindex_task: asyncio.Task[None] | None = None
         self._reindex_semaphore = asyncio.Semaphore(MAX_CONCURRENT_REINDEX)
+        self._initial_index_task: asyncio.Task[dict[str, Any]] | None = None
 
         _LOGGER.info(
             "Vector DB Manager initialized (host=%s:%s, collection=%s)",
@@ -158,9 +159,13 @@ class VectorDBManager:
         try:
             await self._ensure_initialized()
 
-            # Perform initial indexing
-            _LOGGER.info("Starting initial entity indexing...")
-            await self.async_reindex_all_entities()
+            # Schedule initial indexing as a background task so it doesn't
+            # block config entry setup (HA cancels setup after 60s timeout)
+            _LOGGER.info("Scheduling initial entity indexing in background...")
+            self._initial_index_task = self.hass.async_create_background_task(
+                self.async_reindex_all_entities(),
+                "home_agent_initial_entity_indexing",
+            )
 
             # Set up state change listener for incremental updates
             # Listen directly to state_changed events
@@ -191,6 +196,14 @@ class VectorDBManager:
         if self._maintenance_listener:
             self._maintenance_listener()
             self._maintenance_listener = None
+
+        # Cancel initial index task if still running
+        if self._initial_index_task and not self._initial_index_task.done():
+            self._initial_index_task.cancel()
+            try:
+                await self._initial_index_task
+            except asyncio.CancelledError:
+                pass
 
         # Cancel and await pending reindex task
         if self._reindex_task and not self._reindex_task.done():

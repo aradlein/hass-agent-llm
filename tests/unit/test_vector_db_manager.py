@@ -46,6 +46,9 @@ def mock_hass():
     )
     mock.bus = MagicMock()
     mock.bus.async_listen = MagicMock(return_value=lambda: None)
+    mock.async_create_background_task = MagicMock(
+        side_effect=lambda coro, name: asyncio.ensure_future(coro)
+    )
 
     # Create mock states for testing
     # Some exposed, some not exposed
@@ -284,8 +287,9 @@ async def test_async_setup_performs_initial_indexing(
             with patch.object(manager, "async_reindex_all_entities", AsyncMock()) as mock_reindex:
                 await manager.async_setup()
 
-                # Verify initial indexing was called
+                # Verify initial indexing was scheduled as a background task
                 mock_reindex.assert_called_once()
+                mock_hass.async_create_background_task.assert_called_once()
 
 
 @pytest.mark.asyncio
