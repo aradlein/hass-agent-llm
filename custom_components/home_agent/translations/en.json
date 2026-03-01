@@ -197,7 +197,8 @@
           "llm_max_tokens": "Max Tokens",
           "llm_keep_alive": "Keep Alive",
           "llm_proxy_headers": "Proxy Headers",
-          "thinking_enabled": "Enable Thinking Mode"
+          "thinking_enabled": "Enable Thinking Mode",
+          "continue_on_question": "Enable Continue On Question Mode"
         },
         "data_description": {
           "llm_base_url": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1 or http://localhost:11434/v1 for Ollama)",
@@ -207,7 +208,8 @@
           "llm_max_tokens": "Maximum tokens per response",
           "llm_keep_alive": "How long Ollama keeps model in memory (e.g., 5m, 24h). Use -1 for indefinite.",
           "llm_proxy_headers": "Optional custom HTTP headers as JSON, e.g. X-Ollama-Backend: llama-cpp",
-          "thinking_enabled": "Allow reasoning models to use extended thinking. Disable to automatically append /no_think to prompts for faster responses."
+          "thinking_enabled": "Allow reasoning models to use extended thinking. Disable to automatically append /no_think to prompts for faster responses.",
+          "continue_on_question": "Microphone will stay open if llm sends a question, continue_conversation will be set to True in ConversationResult."
         }
       },
       "context_settings": {
