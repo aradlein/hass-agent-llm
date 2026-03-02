@@ -99,7 +99,9 @@ class VectorDBContextProvider(ContextProvider):
 
         self.host = config.get(CONF_VECTOR_DB_HOST, DEFAULT_VECTOR_DB_HOST)
         self.port = config.get(CONF_VECTOR_DB_PORT, DEFAULT_VECTOR_DB_PORT)
-        self.collection_name = config.get(CONF_VECTOR_DB_COLLECTION, DEFAULT_VECTOR_DB_COLLECTION)
+        self.collection_name = config.get(
+            CONF_VECTOR_DB_COLLECTION, DEFAULT_VECTOR_DB_COLLECTION
+        )
         self.embedding_model = config.get(
             CONF_VECTOR_DB_EMBEDDING_MODEL, DEFAULT_VECTOR_DB_EMBEDDING_MODEL
         )
@@ -121,9 +123,12 @@ class VectorDBContextProvider(ContextProvider):
         self.additional_collections = config.get(
             CONF_ADDITIONAL_COLLECTIONS, DEFAULT_ADDITIONAL_COLLECTIONS
         )
-        self.additional_top_k = config.get(CONF_ADDITIONAL_TOP_K, DEFAULT_ADDITIONAL_TOP_K)
+        self.additional_top_k = config.get(
+            CONF_ADDITIONAL_TOP_K, DEFAULT_ADDITIONAL_TOP_K
+        )
         self.additional_threshold = config.get(
-            CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD, DEFAULT_ADDITIONAL_L2_DISTANCE_THRESHOLD
+            CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD,
+            DEFAULT_ADDITIONAL_L2_DISTANCE_THRESHOLD,
         )
 
         self._client: ClientAPI | None = None
@@ -181,7 +186,7 @@ class VectorDBContextProvider(ContextProvider):
                 for r in entity_results
                 if r.get("distance", float("inf")) <= self.similarity_threshold
             ]
-
+            _LOGGER.debug(filtered_entity_results)
             # Build entity context
             entity_context = ""
             if filtered_entity_results:
@@ -193,12 +198,14 @@ class VectorDBContextProvider(ContextProvider):
                         entity_state = self._get_entity_state(entity_id)
                         if entity_state:
                             # Add available services for this entity
-                            entity_state["available_services"] = self._get_entity_services(
-                                entity_id
+                            entity_state["available_services"] = (
+                                self._get_entity_services(entity_id)
                             )
                             entities.append(entity_state)
                     except Exception as err:
-                        _LOGGER.warning("Failed to get state for %s: %s", entity_id, err)
+                        _LOGGER.warning(
+                            "Failed to get state for %s: %s", entity_id, err
+                        )
 
                 if entities:
                     entity_context = json.dumps(
@@ -207,8 +214,12 @@ class VectorDBContextProvider(ContextProvider):
 
             # Tier 2: Query additional collections (supplementary)
             additional_context = ""
-            if self.additional_collections and isinstance(self.additional_collections, list):
-                additional_results = await self._query_additional_collections(query_embedding)
+            if self.additional_collections and isinstance(
+                self.additional_collections, list
+            ):
+                additional_results = await self._query_additional_collections(
+                    query_embedding
+                )
 
                 if additional_results:
                     # Format additional results as JSON with metadata
@@ -277,7 +288,9 @@ class VectorDBContextProvider(ContextProvider):
                 self._client = await self.hass.async_add_executor_job(create_client)
                 _LOGGER.debug("ChromaDB client connected")
             except Exception as err:
-                raise ContextInjectionError(f"Failed to connect to ChromaDB: {err}") from err
+                raise ContextInjectionError(
+                    f"Failed to connect to ChromaDB: {err}"
+                ) from err
 
         if self._collection is None:
             try:
@@ -290,10 +303,14 @@ class VectorDBContextProvider(ContextProvider):
                     name=self.collection_name,
                     metadata={"description": "Home Assistant entity embeddings"},
                 )
-                self._collection = await self.hass.async_add_executor_job(get_collection)
+                self._collection = await self.hass.async_add_executor_job(
+                    get_collection
+                )
                 _LOGGER.debug("ChromaDB collection ready")
             except Exception as err:
-                raise ContextInjectionError(f"Failed to access collection: {err}") from err
+                raise ContextInjectionError(
+                    f"Failed to access collection: {err}"
+                ) from err
 
     async def _embed_query(self, text: str) -> list[float]:
         """Embed text using configured embedding model."""
@@ -331,7 +348,8 @@ class VectorDBContextProvider(ContextProvider):
 
         if not self.openai_api_key:
             raise ContextInjectionError(
-                "OpenAI API key not configured. " "Please configure it in Vector DB settings."
+                "OpenAI API key not configured. "
+                "Please configure it in Vector DB settings."
             )
 
         # Reuse OpenAI client across requests
@@ -339,14 +357,18 @@ class VectorDBContextProvider(ContextProvider):
             self._openai_client = openai.AsyncOpenAI(
                 api_key=self.openai_api_key,
                 base_url=self.embedding_base_url,
-                http_client=homeassistant.helpers.httpx_client.get_async_client(hass=self.hass),
+                http_client=homeassistant.helpers.httpx_client.get_async_client(
+                    hass=self.hass
+                ),
             )
 
         client = self._openai_client
 
         # Use the new API for embeddings
         async def _request() -> openai.types.CreateEmbeddingResponse:
-            return await client.embeddings.create(model=self.embedding_model, input=text)
+            return await client.embeddings.create(
+                model=self.embedding_model, input=text
+            )
 
         response = await retry_async(
             _request,
@@ -394,7 +416,9 @@ class VectorDBContextProvider(ContextProvider):
                 f"Failed to connect to Ollama at {self.embedding_base_url}: {err}"
             ) from err
 
-    async def _query_vector_db(self, embedding: list[float], top_k: int) -> list[dict[str, Any]]:
+    async def _query_vector_db(
+        self, embedding: list[float], top_k: int
+    ) -> list[dict[str, Any]]:
         """Query ChromaDB with embedding vector."""
         if self._collection is None:
             raise ContextInjectionError("Collection not initialized")
@@ -421,7 +445,9 @@ class VectorDBContextProvider(ContextProvider):
                     ids = ids_list[0]
                     distances_list: Any = results.get("distances", [[]])
                     distances = (
-                        distances_list[0] if distances_list and len(distances_list) > 0 else []
+                        distances_list[0]
+                        if distances_list and len(distances_list) > 0
+                        else []
                     )
 
                     for i, entity_id in enumerate(ids):
@@ -467,7 +493,9 @@ class VectorDBContextProvider(ContextProvider):
             return []
 
         if self._client is None:
-            _LOGGER.warning("ChromaDB client not initialized, cannot query additional collections")
+            _LOGGER.warning(
+                "ChromaDB client not initialized, cannot query additional collections"
+            )
             return []
 
         all_results = []
@@ -485,7 +513,8 @@ class VectorDBContextProvider(ContextProvider):
                 results = await self.hass.async_add_executor_job(
                     lambda col=collection: col.query(
                         query_embeddings=[query_embedding],
-                        n_results=self.additional_top_k * len(self.additional_collections),
+                        n_results=self.additional_top_k
+                        * len(self.additional_collections),
                         include=["documents", "metadatas", "distances"],
                     )
                 )
@@ -500,7 +529,9 @@ class VectorDBContextProvider(ContextProvider):
                     for i in range(len(ids)):
                         result = {
                             "id": ids[i],
-                            "distance": distances[i] if i < len(distances) else float("inf"),
+                            "distance": distances[i]
+                            if i < len(distances)
+                            else float("inf"),
                             "document": documents[i] if i < len(documents) else "",
                             "metadata": metadatas[i] if i < len(metadatas) else {},
                             "collection": collection_name,
@@ -524,7 +555,9 @@ class VectorDBContextProvider(ContextProvider):
 
         # Filter by threshold
         filtered_results = [
-            r for r in all_results if r.get("distance", float("inf")) <= self.additional_threshold
+            r
+            for r in all_results
+            if r.get("distance", float("inf")) <= self.additional_threshold
         ]
 
         # Take top K from merged pool

@@ -5,13 +5,17 @@ Context providers are responsible for gathering and formatting relevant
 entity and state information to be injected into LLM prompts.
 """
 
-import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
+import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant, State
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import (
+    area_registry as ar,
+    device_registry as dr,
+    entity_registry as er,
+)
 
 from ..const import DOMAIN_SERVICE_MAPPINGS
 
@@ -122,7 +126,10 @@ def _add_parameter_hints_to_services(
     services_with_hints = []
     for service in services:
         # Check hardcoded critical parameters first
-        if domain in CRITICAL_SERVICE_PARAMS and service in CRITICAL_SERVICE_PARAMS[domain]:
+        if (
+            domain in CRITICAL_SERVICE_PARAMS
+            and service in CRITICAL_SERVICE_PARAMS[domain]
+        ):
             params = CRITICAL_SERVICE_PARAMS[domain][service]
             params_str = ",".join(params[:3])  # Limit to 3 params
             services_with_hints.append(f"{service}[{params_str}]")
@@ -244,7 +251,9 @@ def get_entity_available_services(
 
     # Add parameter hints if requested
     if include_parameter_hints:
-        unique_services = _add_parameter_hints_to_services(hass, domain, unique_services)
+        unique_services = _add_parameter_hints_to_services(
+            hass, domain, unique_services
+        )
 
     return unique_services
 
@@ -380,6 +389,21 @@ class ContextProvider(ABC):
         if include_labels:
             result["labels"] = labels
 
+        # Get area_name from area registry
+
+        entity_registry = er.async_get(self.hass)
+        area_registry = ar.async_get(self.hass)
+        device_registry = dr.async_get(self.hass)
+
+        if (
+            entity_entry := entity_registry.async_get(entity_id)
+        ) and entity_entry.device_id:
+            if (
+                device_entry := device_registry.async_get(entity_entry.device_id)
+            ) and device_entry.area_id:
+                if area := area_registry.async_get_area(device_entry.area_id):
+                    result["Location"] = area.name
+
         # Include filtered attributes or all attributes, ensuring JSON serializability
         if attribute_filter is not None:
             result["attributes"] = {
@@ -425,7 +449,9 @@ class ContextProvider(ABC):
 
         all_entity_ids = self.hass.states.async_entity_ids()
         matching = [
-            entity_id for entity_id in all_entity_ids if fnmatch.fnmatch(entity_id, pattern)
+            entity_id
+            for entity_id in all_entity_ids
+            if fnmatch.fnmatch(entity_id, pattern)
         ]
 
         self._logger.debug("Pattern '%s' matched %d entities", pattern, len(matching))
