@@ -63,8 +63,8 @@ from ..exceptions import ContextInjectionError, EmbeddingTimeoutError
 
 # Maximum number of embedding vectors to cache (each ~3-12KB)
 EMBEDDING_CACHE_MAX_SIZE = 1000
-from .base import ContextProvider
-from .direct import DirectContextProvider
+from .base import ContextProvider  # noqa: E402
+from .direct import DirectContextProvider  # noqa: E402
 
 # Conditional imports for ChromaDB
 try:

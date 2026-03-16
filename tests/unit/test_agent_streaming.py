@@ -1194,7 +1194,8 @@ class TestStreamingToolLoopTermination:
     async def test_loop_terminates_when_stream_empty_despite_unresponded_tool_results(
         self, agent, mock_hass
     ):
-        """Test that loop terminates when stream yields nothing even if unresponded_tool_results exists.
+        """Test loop terminates when stream yields nothing even if
+        unresponded_tool_results exists.
 
         This is a regression test for a potential bug where:
         1. chat_log.unresponded_tool_results has items (stale state)
@@ -1278,7 +1279,8 @@ class TestStreamingToolLoopTermination:
 
     @pytest.mark.asyncio
     async def test_infinite_loop_when_new_content_empty_but_messages_grow(self, agent, mock_hass):
-        """Test that exposes infinite loop bug when break logic uses OR instead of checking all conditions.
+        """Test infinite loop bug when break logic uses OR instead of
+        checking all conditions.
 
         This is the ACTUAL bug: The stream might return AssistantContent WITHOUT tool_calls,
         but chat_log.unresponded_tool_results is populated (stale or from a previous iteration).
@@ -1315,7 +1317,6 @@ class TestStreamingToolLoopTermination:
         responds with a final message (keeps returning content with no new tool_calls)?
         """
         from homeassistant.components.conversation import AssistantContent
-        from homeassistant.helpers.llm import ToolInput
 
         from custom_components.home_agent.const import CONF_TOOLS_MAX_CALLS_PER_TURN
 
@@ -1399,7 +1400,8 @@ class TestStreamingMessageAccumulation:
 
     @pytest.mark.asyncio
     async def test_messages_include_tool_results_correctly(self, agent, mock_hass):
-        """Test that tool results are added to messages list to prevent LLM from repeating tool calls.
+        """Test that tool results are added to messages list to prevent
+        LLM from repeating tool calls.
 
         CRITICAL BUG SCENARIO:
         If tool results are NOT added to the messages list, the LLM will see:
@@ -1489,9 +1491,7 @@ class TestStreamingMessageAccumulation:
             patch(
                 "homeassistant.components.conversation.chat_log.current_chat_log"
             ) as mock_chat_log,
-            patch.object(
-                agent, "_call_llm_streaming", side_effect=capture_llm_messages
-            ) as mock_stream,
+            patch.object(agent, "_call_llm_streaming", side_effect=capture_llm_messages),
             patch(
                 "homeassistant.components.conversation.async_get_result_from_chat_log",
                 return_value=mock_result,
@@ -1511,7 +1511,8 @@ class TestStreamingMessageAccumulation:
             user_messages_count = sum(1 for m in first_iter_messages if m["role"] == "user")
             assert user_messages_count >= 1, "First iteration should have user message"
 
-            # Second iteration messages should contain: system + user + assistant + tool + (possibly more)
+            # Second iteration messages should contain: system + user + assistant + tool +
+            # (possibly more)
             second_iter_messages = llm_call_messages[1]
 
             # Find assistant message with tool_calls
@@ -1523,7 +1524,7 @@ class TestStreamingMessageAccumulation:
 
             assert (
                 assistant_with_tools is not None
-            ), "Second iteration MUST include assistant message with tool_calls from first iteration"
+            ), "Second iteration MUST include assistant message with tool_calls from iteration"
 
             # Find corresponding tool result message
             tool_result_messages = [m for m in second_iter_messages if m["role"] == "tool"]
@@ -1543,7 +1544,8 @@ class TestStreamingMessageAccumulation:
 
     @pytest.mark.asyncio
     async def test_duplicate_assistant_messages_not_added(self, agent, mock_hass):
-        """Test that multiple AssistantContent items in one iteration don't cause duplicate messages.
+        """Test that multiple AssistantContent items in one iteration
+        don't cause duplicate messages.
 
         POTENTIAL BUG:
         If HA yields multiple AssistantContent items in one iteration:
@@ -1560,7 +1562,6 @@ class TestStreamingMessageAccumulation:
         On the next iteration, the LLM sees TWO assistant messages, which could confuse it.
         This test documents this behavior and checks if it could cause issues.
         """
-        import json
 
         from homeassistant.components.conversation import AssistantContent, ToolResultContent
         from homeassistant.helpers.llm import ToolInput
@@ -1664,9 +1665,6 @@ class TestStreamingMessageAccumulation:
         This helps understand why the infinite loop happens.
         """
         import json
-
-        from homeassistant.components.conversation import AssistantContent, ToolResultContent
-        from homeassistant.helpers.llm import ToolInput
 
         # Scenario: User asks to turn on lights, LLM calls tool
 

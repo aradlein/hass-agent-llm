@@ -1,6 +1,6 @@
 """Unit tests for Home Agent config flow."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from homeassistant import config_entries
@@ -35,7 +35,6 @@ from custom_components.home_agent.const import (
     CONF_TOOLS_TIMEOUT,
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
-    CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
     DEFAULT_PROMPT_INCLUDE_LABELS,
     DEFAULT_SESSION_PERSISTENCE_ENABLED,
@@ -479,7 +478,7 @@ class TestHomeAgentOptionsFlow:
     async def test_history_settings_includes_session_persistence_options(
         self, mock_config_entry, mock_hass
     ):
-        """Test that history_settings step includes both session_persistence_enabled and session_timeout fields."""
+        """Test that history_settings step includes both session_persistence_enabled fields."""
         options_flow = HomeAgentOptionsFlow(mock_config_entry)
         options_flow.hass = mock_hass
 
@@ -507,7 +506,7 @@ class TestHomeAgentOptionsFlow:
         assert session_timeout_key is not None, "Session timeout option not found in schema"
 
     async def test_session_persistence_defaults(self, mock_config_entry, mock_hass):
-        """Test that session_persistence_enabled defaults to True and session_timeout defaults to 60 (minutes)."""
+        """Test that session_persistence_enabled defaults to True and (minutes)."""
         options_flow = HomeAgentOptionsFlow(mock_config_entry)
         options_flow.hass = mock_hass
 
@@ -527,7 +526,7 @@ class TestHomeAgentOptionsFlow:
                 assert DEFAULT_SESSION_TIMEOUT // 60 == 60
 
     async def test_session_timeout_converts_to_seconds(self, mock_config_entry, mock_hass):
-        """Test that when user enters timeout in minutes (e.g., 30), it gets converted to seconds (1800) for storage."""
+        """Test that when user enters timeout in minutes (e.g., 30), it gets converted storage."""
         options_flow = HomeAgentOptionsFlow(mock_config_entry)
         options_flow.hass = mock_hass
 
@@ -764,7 +763,7 @@ class TestHomeAgentOptionsFlow:
     async def test_prompt_include_labels_backward_compatible_missing_option(
         self, mock_config_entry, mock_hass
     ):
-        """Test that missing prompt_include_labels option defaults correctly for backward compatibility."""
+        """Test that missing prompt_include_labels option defaults correctly for compatibility."""
         # Config entry without include_labels option (simulating existing installation)
         mock_config_entry.options = {CONF_PROMPT_USE_DEFAULT: True}
 

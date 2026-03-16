@@ -1,5 +1,7 @@
 """Unit tests for OpenAIStreamingHandler class."""
 
+import json
+
 import pytest
 
 from custom_components.home_agent.streaming import OpenAIStreamingHandler
@@ -2028,19 +2030,54 @@ class TestStreamingErrorHandling:
         handler = OpenAIStreamingHandler()
 
         # Break JSON into many small chunks
+        # Helper to build SSE data line
+        def sse(obj):
+            return "data: " + json.dumps(obj)
+
+        def delta_line(delta, **extra):
+            choice = {"delta": delta}
+            choice.update(extra)
+            return sse({"id": "test", "choices": [choice]})
+
+        def arg_delta(arg_str):
+            return delta_line(
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "function": {"arguments": arg_str},
+                        }
+                    ]
+                }
+            )
+
         sse_lines = [
-            'data: {"id":"test","choices":[{"delta":{"role":"assistant"}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"test","arguments":""}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"a"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\":"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"1"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":","}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"b"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\":"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"2"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{},"finish_reason":"tool_calls"}]}',
+            delta_line({"role": "assistant"}),
+            delta_line(
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "test",
+                                "arguments": "",
+                            },
+                        }
+                    ]
+                }
+            ),
+            arg_delta("{"),
+            arg_delta('"a'),
+            arg_delta('":'),
+            arg_delta("1"),
+            arg_delta(","),
+            arg_delta('"b'),
+            arg_delta('":'),
+            arg_delta("2"),
+            arg_delta("}"),
+            delta_line({}, finish_reason="tool_calls"),
             "data: [DONE]",
         ]
 
@@ -2182,9 +2219,35 @@ class TestStreamingErrorHandling:
         handler = OpenAIStreamingHandler()
 
         async def interrupted_tool_stream():
-            yield 'data: {"id":"test","choices":[{"delta":{"role":"assistant"}}]}'
-            yield 'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"test","arguments":""}}]}}]}'
-            yield 'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"par"}}]}}]}'
+            def sse(delta):
+                return "data: " + json.dumps({"id": "test", "choices": [{"delta": delta}]})
+
+            yield sse({"role": "assistant"})
+            yield sse(
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "test",
+                                "arguments": "",
+                            },
+                        }
+                    ]
+                }
+            )
+            yield sse(
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "function": {"arguments": '{"par'},
+                        }
+                    ]
+                }
+            )
             # Error before tool call completes
             raise IOError("Stream interrupted")
 
@@ -2297,7 +2360,7 @@ class TestStreamingErrorHandling:
             results.append(delta)
 
         content_parts = [r.get("content", "") for r in results if "content" in r]
-        full_content = "".join(content_parts)
+        _ = "".join(content_parts)
 
         # In this edge case, the buffer sees "</th" and waits for more content
         # to determine if it's a closing tag. When "ink>visible content" arrives,

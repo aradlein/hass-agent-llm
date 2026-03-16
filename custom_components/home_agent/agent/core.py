@@ -112,7 +112,6 @@ from homeassistant.helpers import intent, template
 from ..const import (
     CONF_CONTEXT_ENTITIES,
     CONF_CONTEXT_MODE,
-    CONF_DEBUG_LOGGING,
     CONF_EMIT_EVENTS,
     CONF_EXTERNAL_LLM_ENABLED,
     CONF_HISTORY_ENABLED,
@@ -124,7 +123,6 @@ from ..const import (
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_INCLUDE_LABELS,
     CONF_PROMPT_USE_DEFAULT,
-    CONF_STREAMING_ENABLED,
     CONF_THINKING_ENABLED,
     CONF_TOOLS_CUSTOM,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
@@ -133,7 +131,6 @@ from ..const import (
     DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
     DEFAULT_PROMPT_INCLUDE_LABELS,
-    DEFAULT_STREAMING_ENABLED,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_THINKING_ENABLED,
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
@@ -150,7 +147,6 @@ from ..exceptions import (
     AuthenticationError,
     ContextInjectionError,
     EntityNotFoundError,
-    HomeAgentError,
     PermissionDenied,
     RateLimitExceeded,
     ServiceUnavailableError,
@@ -1115,7 +1111,8 @@ class HomeAgent(
                     if content_item.tool_calls:
                         for tc_idx, tc in enumerate(content_item.tool_calls):
                             _LOGGER.debug(
-                                "Iteration %d: AssistantContent[%d] tool_call[%d]: id=%s, tool_name=%s",
+                                "Iteration %d: AssistantContent[%d] "
+                                "tool_call[%d]: id=%s, tool_name=%s",
                                 iteration + 1,
                                 idx,
                                 tc_idx,
@@ -1214,7 +1211,8 @@ class HomeAgent(
                 if last_assistant_content.tool_calls:
                     for tc_idx, tc in enumerate(last_assistant_content.tool_calls):
                         _LOGGER.debug(
-                            "Iteration %d: last_assistant_content tool_call[%d]: id=%s, tool_name=%s",
+                            "Iteration %d: last_assistant_content "
+                            "tool_call[%d]: id=%s, tool_name=%s",
                             iteration + 1,
                             tc_idx,
                             tc.id,

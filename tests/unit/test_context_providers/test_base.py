@@ -61,8 +61,6 @@ class TestContextProviderAbstractMethod:
         class IncompleteProvider(ContextProvider):
             """Provider missing get_context implementation."""
 
-            pass
-
         with pytest.raises(TypeError):
             IncompleteProvider(mock_hass, {})
 

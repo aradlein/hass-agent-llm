@@ -21,7 +21,6 @@ from custom_components.home_agent.const import (
     CONF_LLM_MODEL,
     CONF_LLM_TEMPERATURE,
     CONTEXT_MODE_DIRECT,
-    DEFAULT_LLM_KEEP_ALIVE,
 )
 
 

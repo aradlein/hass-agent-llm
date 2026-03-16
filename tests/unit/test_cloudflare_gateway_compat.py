@@ -24,7 +24,6 @@ Bug 3: Poor error messaging for auth-related failures.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import aiohttp
 import pytest
 from aiohttp import ClientSession
 
@@ -34,7 +33,6 @@ from custom_components.home_agent.const import (
     CONF_LLM_API_KEY,
     CONF_LLM_BASE_URL,
     CONF_LLM_MODEL,
-    CONF_LLM_PROXY_HEADERS,
 )
 from custom_components.home_agent.exceptions import HomeAgentError
 
@@ -388,7 +386,7 @@ class TestAuthErrorMessaging:
 
         agent = _MockLLMAgent(config)
 
-        error_body = '{"error": {"message": "Missing Authorization header", "type": "invalid_request_error"}}'
+        error_body = '{"error": {"message": "Missing Authorization header",'
         mock_response = _make_error_response(400, error_body)
         agent._session = _make_mock_session(mock_response)
 

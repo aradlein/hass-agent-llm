@@ -760,7 +760,8 @@ class TestHomeAssistantQueryTool:
         result = await tool.execute(entity_id="light.living_room")
 
         entity = result["entities"][0]
-        # All attributes from sample_light_state should be present (brightness converted to brightness_pct)
+        # All attributes from sample_light_state should be present (brightness converted to
+        # brightness_pct)
         assert "brightness_pct" in entity["attributes"]
         assert "color_temp" in entity["attributes"]
         assert "rgb_color" in entity["attributes"]

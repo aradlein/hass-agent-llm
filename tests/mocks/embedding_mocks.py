@@ -12,7 +12,7 @@ from __future__ import annotations
 import functools
 import hashlib
 from contextlib import contextmanager
-from typing import Any, Callable
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -310,7 +310,6 @@ def create_similar_embeddings(
     Returns:
         Dict mapping text to embedding
     """
-    import math
 
     base_embedding = generate_deterministic_embedding(base_text, dimensions)
 

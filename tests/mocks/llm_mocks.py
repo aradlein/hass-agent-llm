@@ -296,6 +296,15 @@ class MockLLMServer:
             pass
     """
 
+    @staticmethod
+    def _make_matcher(match_str: str):
+        """Create a case-insensitive substring matcher."""
+
+        def _matcher(text, m=match_str):
+            return m.lower() in text.lower()
+
+        return _matcher
+
     def __init__(self, default_response: str = "I'm a mock assistant."):
         """Initialize the mock server.
 
@@ -323,7 +332,7 @@ class MockLLMServer:
             Self for chaining
         """
         if isinstance(match, str):
-            matcher = lambda text, m=match: m.lower() in text.lower()
+            matcher = self._make_matcher(match)
         else:
             matcher = match
 
@@ -354,7 +363,7 @@ class MockLLMServer:
             Self for chaining
         """
         if isinstance(match, str):
-            matcher = lambda text, m=match: m.lower() in text.lower()
+            matcher = self._make_matcher(match)
         else:
             matcher = match
 
@@ -379,7 +388,7 @@ class MockLLMServer:
             Self for chaining
         """
         if isinstance(match, str):
-            matcher = lambda text, m=match: m.lower() in text.lower()
+            matcher = self._make_matcher(match)
         else:
             matcher = match
 

@@ -596,7 +596,6 @@ class VectorDBManager:
         if self._collection is None:
             try:
                 # Collection operations should also be in executor as they may do I/O
-                from functools import partial
 
                 assert self._client is not None  # Type narrowing for mypy
                 get_collection = partial(

@@ -138,9 +138,6 @@ from .const import (
     EMBEDDING_PROVIDER_OLLAMA,
     EMBEDDING_PROVIDER_OPENAI,
     LLM_BACKEND_DEFAULT,
-    LLM_BACKEND_LLAMA_CPP,
-    LLM_BACKEND_OLLAMA_GPU,
-    LLM_BACKEND_VLLM,
 )
 from .exceptions import AuthenticationError, ValidationError
 

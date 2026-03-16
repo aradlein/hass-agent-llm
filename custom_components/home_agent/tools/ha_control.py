@@ -140,8 +140,10 @@ class HomeAssistantControlTool(BaseTool):
                         "Media Players: volume_level (0.0-1.0), source; "
                         "Humidifiers: humidity (0-100); "
                         "Fans: percentage (0-100), preset_mode. "
-                        "Note: Both attribute names (e.g., 'current_position') and service "
-                        "parameter names (e.g., 'position') are accepted and automatically normalized."
+                        "Note: Both attribute names "
+                        "(e.g., 'current_position') and service "
+                        "parameter names (e.g., 'position') are "
+                        "accepted and automatically normalized."
                     ),
                 },
             },

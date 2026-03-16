@@ -11,7 +11,8 @@ Running the tests:
     pytest tests/integration/test_context_optimization.py -v
 
     # Run a specific test
-    pytest tests/integration/test_context_optimization.py::test_context_truncation_when_exceeding_limit -v
+    pytest tests/integration/test_context_optimization.py \
+        ::test_context_truncation_when_exceeding_limit -v
 
     # Run with detailed output
     pytest tests/integration/test_context_optimization.py -vv -s
@@ -40,10 +41,8 @@ from custom_components.home_agent.const import (
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
     CONF_LLM_TEMPERATURE,
-    CONF_PRESERVE_RECENT_MESSAGES,
     CONTEXT_FORMAT_JSON,
     CONTEXT_MODE_DIRECT,
-    MAX_CONTEXT_TOKENS,
 )
 from custom_components.home_agent.context_manager import ContextManager
 from custom_components.home_agent.context_optimizer import ContextOptimizer
@@ -371,22 +370,6 @@ async def test_context_optimization_with_long_attributes(
     2. Essential information is preserved
     3. Context stays within token limits
     """
-    config = {
-        CONF_LLM_BASE_URL: "http://localhost:11434",
-        CONF_LLM_API_KEY: "",
-        CONF_LLM_MODEL: "test-model",
-        CONF_LLM_TEMPERATURE: 0.7,
-        CONF_LLM_MAX_TOKENS: 500,
-        CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
-        CONF_DIRECT_ENTITIES: [entity.entity_id for entity in entity_states_with_long_attributes],
-        CONF_CONTEXT_FORMAT: CONTEXT_FORMAT_JSON,
-        CONF_HISTORY_ENABLED: False,
-        CONF_EMIT_EVENTS: False,
-        CONF_DEBUG_LOGGING: False,
-        "max_context_tokens": 1000,
-        CONF_COMPRESSION_LEVEL: "medium",
-    }
-
     with patch(
         "custom_components.home_agent.agent.core.async_should_expose",
         return_value=False,

@@ -13,7 +13,7 @@ Issue 73: Timestamp precision reduced from nanoseconds to seconds
   - Memory extraction event timestamps in memory_extraction.py
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest

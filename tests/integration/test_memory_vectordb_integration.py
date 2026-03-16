@@ -14,7 +14,6 @@ verify the complete end-to-end integration between both systems.
 
 import asyncio
 import time
-from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -709,19 +708,19 @@ async def test_memory_vectordb_cross_query_relevance(
             await memory_manager.async_initialize()
 
             # Add memories about different topics
-            sleep_id = await memory_manager.add_memory(
+            await memory_manager.add_memory(
                 content="User goes to bed at 10 PM every night",
                 memory_type=MEMORY_TYPE_FACT,
                 importance=0.7,
             )
 
-            pet_id = await memory_manager.add_memory(
+            await memory_manager.add_memory(
                 content="User has a cat named Whiskers",
                 memory_type=MEMORY_TYPE_FACT,
                 importance=0.6,
             )
 
-            workout_id = await memory_manager.add_memory(
+            await memory_manager.add_memory(
                 content="User exercises at the gym three times per week",
                 memory_type=MEMORY_TYPE_FACT,
                 importance=0.65,

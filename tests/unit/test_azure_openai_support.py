@@ -22,10 +22,7 @@ These tests validate:
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aiohttp import ClientSession
 
-from custom_components.home_agent.agent.llm import LLMMixin
-from custom_components.home_agent.agent.streaming import StreamingMixin
 from custom_components.home_agent.const import (
     CONF_AZURE_API_VERSION,
     CONF_CONTEXT_MODE,
@@ -649,7 +646,8 @@ class TestAzureOpenAIExternalLLM:
 
 
 class TestNonAzureBackendsUnchanged:
-    """Parametrized tests confirming standard OpenAI/Ollama/Anthropic URLs still work exactly as before.
+    """Parametrized tests confirming standard OpenAI/Ollama/Anthropic
+    URLs still work exactly as before.
 
     These tests serve as regression tests to ensure Azure OpenAI support does not
     break existing functionality for non-Azure backends.
@@ -795,7 +793,7 @@ class TestNonAzureBackendsUnchanged:
             ), f"Non-Azure should use 'Authorization' header for {base_url}, got: {headers}"
             assert (
                 headers["Authorization"] == "Bearer test-key"
-            ), f"Non-Azure should use 'Bearer test-key' for {base_url}, got: {headers['Authorization']}"
+            ), f"Non-Azure should use 'Bearer test-key' for {headers['Authorization']}"
 
             # Non-Azure should NOT use api-key header
             assert (

@@ -5,7 +5,7 @@ not all entities in the system.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
@@ -13,7 +13,6 @@ from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Event, State
 
 from custom_components.home_agent.const import (
-    CONF_EMBEDDING_KEEP_ALIVE,
     CONF_OPENAI_API_KEY,
     CONF_VECTOR_DB_COLLECTION,
     CONF_VECTOR_DB_EMBEDDING_BASE_URL,
@@ -21,9 +20,7 @@ from custom_components.home_agent.const import (
     CONF_VECTOR_DB_EMBEDDING_PROVIDER,
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
-    DEFAULT_EMBEDDING_KEEP_ALIVE,
     DEFAULT_VECTOR_DB_COLLECTION,
-    DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL,
     DEFAULT_VECTOR_DB_HOST,
     DEFAULT_VECTOR_DB_PORT,
     EMBEDDING_PROVIDER_OLLAMA,

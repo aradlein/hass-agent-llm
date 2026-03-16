@@ -600,7 +600,8 @@ async def test_llm_with_complex_tools(
 
             # With mocks, verify specific content; with real LLM, just verify response exists
             if is_using_mock_llm:
-                # Response should mention temperature or heating action (the query asked about temperature)
+                # Response should mention temperature or heating action (the query asked about
+                # temperature)
                 response_lower = response.lower()
                 assert any(
                     word in response_lower
@@ -757,13 +758,13 @@ async def test_tool_execution_with_correct_entity(
                 if len(service_calls) > 0:
                     assert (
                         len(living_room_calls) == 0
-                    ), f"Should not call living_room when user asked for bedroom. Calls: {service_calls}"
+                    ), f"Should not call living_room when user asked for bedroom. {service_calls}"
 
                     if len(bedroom_calls) > 0:
                         assert bedroom_calls[0]["service"] in [
                             "turn_on",
                             "toggle",
-                        ], f"Should turn on/toggle bedroom light, got: {bedroom_calls[0]['service']}"
+                        ], f"Should turn on/toggle bedroom light, {bedroom_calls[0]['service']}"
 
             # Clear service calls for next test
             service_calls.clear()

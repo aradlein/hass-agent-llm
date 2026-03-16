@@ -10,7 +10,7 @@ import asyncio
 import logging
 import random
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from typing import Any, TypeVar
 
 import aiohttp

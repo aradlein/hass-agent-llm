@@ -13,7 +13,6 @@ from custom_components.home_agent.const import (
     CONTEXT_FORMAT_JSON,
     CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
-    DEFAULT_CONTEXT_FORMAT,
     DEFAULT_CONTEXT_MODE,
     DEFAULT_PROMPT_INCLUDE_LABELS,
     EVENT_CONTEXT_INJECTED,
@@ -124,7 +123,7 @@ class TestContextManagerInitialization:
         assert isinstance(manager._provider, DirectContextProvider)
 
     def test_init_vector_db_mode_fallback(self, mock_hass):
-        """Test initialization with vector DB mode falls back to direct when chromadb unavailable."""
+        """Test initialization with vector DB mode falls back to direct when unavailable."""
         config = {"mode": CONTEXT_MODE_VECTOR_DB}
         manager = ContextManager(mock_hass, config)
 

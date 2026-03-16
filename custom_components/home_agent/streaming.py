@@ -10,8 +10,6 @@ from typing import Any, AsyncGenerator
 from homeassistant.components import conversation
 from homeassistant.helpers import llm
 
-from .helpers import strip_thinking_blocks
-
 _LOGGER = logging.getLogger(__name__)
 
 # Pattern for detecting incomplete thinking blocks in streaming content

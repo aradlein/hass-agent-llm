@@ -477,7 +477,10 @@ async def test_conditional_control_based_on_query(
             # The LLM should query the temperature sensor and report the result
             # This tests query-only behavior (no control action needed)
             response = await agent.process_message(
-                text="If the temperature is below 70 degrees, just let me know, don't change anything",
+                text=(
+                    "If the temperature is below 70 degrees,"
+                    " just let me know, don't change anything"
+                ),
                 conversation_id="test_conditional",
             )
 
@@ -498,7 +501,8 @@ async def test_conditional_control_based_on_query(
             # Real LLMs may interpret instructions differently
             if len(control_services) > 0:
                 _LOGGER.warning(
-                    "Conditional query triggered %d control services (non-deterministic LLM behavior): %s",
+                    "Conditional query triggered %d control "
+                    "services (non-deterministic LLM behavior): %s",
                     len(control_services),
                     control_services,
                 )
@@ -568,7 +572,8 @@ async def test_tool_sequence_with_errors(
                     ),
                     # Final response acknowledging the partial success/error
                     create_chat_completion_response(
-                        "I was able to turn on the bedroom light, but encountered an error with the fan."
+                        "I was able to turn on the bedroom light,"
+                        " but encountered an error with the fan."
                     ),
                 ]
             )
@@ -670,7 +675,8 @@ async def test_max_tool_calls_enforcement(
                     create_tool_call_response(
                         "ha_control", {"action": "turn_on", "entity_id": "light.kitchen"}
                     ),
-                    # Third light (should be blocked by max_calls limit, but we include it in sequence)
+                    # Third light (should be blocked by max_calls
+                    # limit, but we include it in sequence)
                     create_tool_call_response(
                         "ha_control", {"action": "turn_on", "entity_id": "light.living_room"}
                     ),

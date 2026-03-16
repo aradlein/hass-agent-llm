@@ -116,7 +116,7 @@ class TestAgentCoreThinkingBlockStripping:
             ) as mock_strip:
                 mock_strip.return_value = "User-facing response"
 
-                result = await agent.async_process(user_input)
+                await agent.async_process(user_input)
 
                 # Verify strip_thinking_blocks was called
                 mock_strip.assert_called()
@@ -313,7 +313,11 @@ class TestAgentCoreThinkingBlockEdgeCases:
                 {
                     "message": {
                         "role": "assistant",
-                        "content": "<THINK>Uppercase preserved</THINK><think>lowercase removed</think>Result",
+                        "content": (
+                            "<THINK>Uppercase preserved</THINK>"
+                            "<think>lowercase removed</think>"
+                            "Result"
+                        ),
                     },
                     "finish_reason": "stop",
                 }

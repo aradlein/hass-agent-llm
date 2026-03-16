@@ -63,7 +63,6 @@ from custom_components.home_agent.const import (
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
     CONF_VECTOR_DB_TOP_K,
-    CONTEXT_FORMAT_HYBRID,
     CONTEXT_FORMAT_JSON,
     CONTEXT_FORMAT_NATURAL_LANGUAGE,
     CONTEXT_MODE_DIRECT,
@@ -76,10 +75,6 @@ from custom_components.home_agent.const import (
     DEFAULT_TEMPERATURE,
     DEFAULT_TOOLS_MAX_CALLS_PER_TURN,
     DEFAULT_TOOLS_TIMEOUT,
-    DEFAULT_VECTOR_DB_COLLECTION,
-    DEFAULT_VECTOR_DB_HOST,
-    DEFAULT_VECTOR_DB_PORT,
-    DEFAULT_VECTOR_DB_TOP_K,
     DOMAIN,
     EMBEDDING_PROVIDER_OLLAMA,
 )
@@ -460,7 +455,7 @@ class TestIntegrationReload:
                 assert mock_config_entry.entry_id in test_hass.data[DOMAIN]
 
                 # Store reference to verify cleanup
-                initial_data_keys = set(test_hass.data[DOMAIN].keys())
+                set(test_hass.data[DOMAIN].keys())
 
                 # Trigger reload
                 await async_reload_entry(test_hass, mock_config_entry)

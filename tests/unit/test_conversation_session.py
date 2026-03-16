@@ -319,7 +319,7 @@ async def test_update_activity_nonexistent_session(session_manager):
 
 @pytest.mark.asyncio
 async def test_session_persistence_disabled_returns_none(mock_hass):
-    """Test that when session_timeout=0, get_conversation_id always returns None even if there's a session stored."""
+    """Test that when session_timeout=0, get_conversation_id always returns None even stored."""
     with patch("custom_components.home_agent.conversation_session.Store") as mock_store:
         store_instance = MagicMock()
         store_instance.async_load = AsyncMock(return_value=None)

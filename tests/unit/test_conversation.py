@@ -553,7 +553,6 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_load_from_storage_without_persistence(self):
         """Test that load_from_storage returns early when persistence disabled."""
-        from unittest.mock import AsyncMock
 
         # Create manager without persistence
         manager = ConversationHistoryManager(max_messages=10, persist=False)
@@ -615,7 +614,6 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_save_to_storage_without_persistence(self):
         """Test that save_to_storage returns early when persistence disabled."""
-        from unittest.mock import AsyncMock
 
         manager = ConversationHistoryManager(max_messages=10, persist=False)
         manager.add_message("conv_123", "user", "Hello")
@@ -967,7 +965,7 @@ class TestConversationPersistence:
     async def test_add_message_triggers_debounced_save(self):
         """Test that adding a message triggers debounced save when persistence enabled."""
         import asyncio
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
         manager = ConversationHistoryManager(

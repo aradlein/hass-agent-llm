@@ -1,9 +1,8 @@
 """Test that available_services does not include duplicate homeassistant.* services."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
-from homeassistant.core import HomeAssistant
 
 from custom_components.home_agent.context_providers.base import (
     get_entity_available_services,

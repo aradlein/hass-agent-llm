@@ -109,7 +109,8 @@ def _add_parameter_hints_to_services(
         services: List of service names
 
     Returns:
-        List of service names with parameter hints (e.g., "play_media[media_content_id,media_content_type]")
+        List of service names with parameter hints
+        (e.g., "play_media[media_content_id,media_content_type]")
     """
     # Get all service schemas for the domain
     try:

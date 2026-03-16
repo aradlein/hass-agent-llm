@@ -9,15 +9,12 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from .embedding_mocks import MockEmbeddingServer, generate_deterministic_embedding
 from .llm_mocks import (
     MockLLMServer,
-    create_chat_completion_response,
-    create_tool_call_response,
 )
 
 

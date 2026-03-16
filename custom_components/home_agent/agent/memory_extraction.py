@@ -366,10 +366,12 @@ Extract memories as a JSON array. Each memory should have:
 - If nothing worth remembering, return empty array: []
 
 **NEVER extract (these will be automatically rejected):**
-- ❌ Current device states: "light is on", "temperature is 72°F", "door is closed", "lights are currently on"
+- ❌ Current device states: "light is on", "temperature is 72°F",
+  "door is closed", "lights are currently on"
 - ❌ Transient states: "is currently", "are now", "was on", "were off", "right now", "at the moment"
 - ❌ Current time/clock: "the current time is 10:30 PM", "it is currently 8 AM", "the time is"
-- ❌ Current weather: "weather is sunny", "it's raining", "forecast shows rain", "temperature outside is 65°F"
+- ❌ Current weather: "weather is sunny", "it's raining",
+  "forecast shows rain", "temperature outside is 65°F"
 - ❌ Current date/day: "today is Monday", "this week", "this month", "it's Tuesday"
 - ❌ Current location/presence: "user is home", "user is away", "just arrived", "nobody is home"
 - ❌ Conversation meta-data: "conversation occurred at 3pm", "we discussed X", "user asked about Y"
@@ -400,7 +402,8 @@ Extract memories as a JSON array. Each memory should have:
 **Examples of GOOD memories:**
 - "User prefers kitchen lights at 50% brightness during daytime hours" → GOOD: preference with value
 - "User's birthday is March 15th" → GOOD: permanent fact
-- "User works night shifts from Monday to Friday and sleeps during daytime" → GOOD: important routine
+- "User works night shifts Mon-Fri and sleeps during daytime"
+  → GOOD: important routine
 - "User's anniversary is on June 20th" → GOOD: permanent date fact
 
 Return ONLY valid JSON, no other text:

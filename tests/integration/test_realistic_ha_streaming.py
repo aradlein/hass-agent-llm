@@ -7,7 +7,8 @@ our mocks currently work.
 Key insights about real HA behavior:
 1. async_add_delta_content_stream is an async GENERATOR that yields content items
 2. It processes the delta stream DURING tool execution (not after)
-3. It may yield multiple items: AssistantContent with tool_calls, then ToolResultContent after execution
+3. It may yield multiple items: AssistantContent with tool_calls,
+    then ToolResultContent after execution
 4. The unresponded_tool_results list is managed BY Home Assistant's ChatLog
 5. Tool execution happens INSIDE async_add_delta_content_stream
 """
@@ -21,7 +22,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.components import conversation
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import llm
 
 from custom_components.home_agent.agent import HomeAgent
 from custom_components.home_agent.const import (
@@ -161,7 +161,10 @@ class RealisticChatLogMock:
                 tool_calls.extend(delta["tool_calls"])
 
         print(
-            f"[RealisticChatLogMock] Stream consumed. role={role}, content_len={len(content_text)}, tool_calls={len(tool_calls)}"
+            f"[RealisticChatLogMock] Stream consumed."
+            f" role={role},"
+            f" content_len={len(content_text)},"
+            f" tool_calls={len(tool_calls)}"
         )
 
         # Step 2: Build AssistantContent
@@ -204,7 +207,7 @@ class RealisticChatLogMock:
             # For subsequent calls, we clear it to end the loop
             if self._call_count == 1:
                 print(
-                    "[RealisticChatLogMock] Setting unresponded_tool_results to trigger next iteration"
+                    "[RealisticChatLogMock] Setting unresponded_tool_results to trigger iteration"
                 )
                 self.unresponded_tool_results = [f"result_{tc.id}" for tc in tool_calls]
             else:
@@ -229,12 +232,44 @@ async def create_mock_sse_stream(messages: list[str]) -> AsyncGenerator[bytes, N
 
 def create_tool_call_stream(tool_name: str, tool_args: dict[str, Any]) -> list[str]:
     """Create SSE stream with a tool call."""
-    args_json = json.dumps(tool_args).replace('"', '\\"')
+    args_json = json.dumps(tool_args)
+
+    def sse(obj):
+        return "data: " + json.dumps(obj) + "\n"
+
+    def delta_line(delta, **extra):
+        choice = {"delta": delta}
+        choice.update(extra)
+        return sse({"choices": [choice]})
+
     return [
-        'data: {"choices":[{"delta":{"role":"assistant"}}]}\n',
-        f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":0,"id":"call_1","type":"function","function":{{"name":"{tool_name}","arguments":""}}}}]}}}}]}}\n',
-        f'data: {{"choices":[{{"delta":{{"tool_calls":[{{"index":0,"function":{{"arguments":"{args_json}"}}}}]}}}}]}}\n',
-        'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n',
+        delta_line({"role": "assistant"}),
+        delta_line(
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": tool_name,
+                            "arguments": "",
+                        },
+                    }
+                ]
+            }
+        ),
+        delta_line(
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "function": {"arguments": args_json},
+                    }
+                ]
+            }
+        ),
+        delta_line({}, finish_reason="tool_calls"),
         "data: [DONE]\n",
     ]
 
@@ -338,7 +373,9 @@ async def test_realistic_streaming_with_tool_call(
                     # CRITICAL: Verify loop terminated after exactly 2 iterations
                     print(f"\nLLM was called {call_count[0]} times")
                     print(
-                        f"ChatLog.async_add_delta_content_stream was called {mock_chat_log._call_count} times"
+                        "ChatLog.async_add_delta_content_stream"
+                        f" was called {mock_chat_log._call_count}"
+                        " times"
                     )
 
                     assert call_count[0] == 2, f"Expected 2 LLM calls, got {call_count[0]}"

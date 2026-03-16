@@ -162,18 +162,20 @@ async def test_conversation_started_event(
         assert "context_mode" in event_data, "Event must contain context_mode"
 
         # Verify field values are correct
-        assert (
-            event_data["conversation_id"] == conversation_id
-        ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+        assert event_data["conversation_id"] == conversation_id, (
+            f"conversation_id mismatch: expected {conversation_id}, got"
+            f"{event_data['conversation_id']}"
+        )
         assert (
             event_data["user_id"] == user_id
         ), f"user_id mismatch: expected {user_id}, got {event_data['user_id']}"
         assert (
             event_data["device_id"] == device_id
         ), f"device_id mismatch: expected {device_id}, got {event_data['device_id']}"
-        assert (
-            event_data["context_mode"] == CONTEXT_MODE_DIRECT
-        ), f"context_mode mismatch: expected {CONTEXT_MODE_DIRECT}, got {event_data['context_mode']}"
+        assert event_data["context_mode"] == CONTEXT_MODE_DIRECT, (
+            f"context_mode mismatch: expected {CONTEXT_MODE_DIRECT}, got"
+            f"{event_data['context_mode']}"
+        )
 
         # Verify timestamp is reasonable (within test execution window)
         timestamp = event_data["timestamp"]
@@ -278,9 +280,10 @@ async def test_conversation_finished_event(
             assert field in event_data, f"Event must contain {field}"
 
         # Verify conversation_id and user_id match
-        assert (
-            event_data["conversation_id"] == conversation_id
-        ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+        assert event_data["conversation_id"] == conversation_id, (
+            f"conversation_id mismatch: expected {conversation_id}, got"
+            f"{event_data['conversation_id']}"
+        )
         assert (
             event_data["user_id"] == user_id
         ), f"user_id mismatch: expected {user_id}, got {event_data['user_id']}"
@@ -368,9 +371,10 @@ async def test_conversation_finished_event(
                 performance["ttft_ms"] > 0
             ), f"ttft_ms should be > 0 when llm_latency_ms > 0, got {performance['ttft_ms']}"
             # For non-streaming, TTFT should be <= total LLM latency
-            assert (
-                performance["ttft_ms"] <= performance["llm_latency_ms"]
-            ), f"ttft_ms ({performance['ttft_ms']}) should be <= llm_latency_ms ({performance['llm_latency_ms']}) for non-streaming"
+            assert performance["ttft_ms"] <= performance["llm_latency_ms"], (
+                f"ttft_ms ({performance['ttft_ms']}) should be <= llm_latency_ms"
+                f"({performance['llm_latency_ms']}) for non-streaming"
+            )
 
         # Verify context is a dict
         context = event_data["context"]
@@ -461,9 +465,10 @@ async def test_error_event_on_exception(
         assert "context" in event_data, "Event must contain context"
 
         # Verify conversation_id matches
-        assert (
-            event_data["conversation_id"] == conversation_id
-        ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+        assert event_data["conversation_id"] == conversation_id, (
+            f"conversation_id mismatch: expected {conversation_id}, got"
+            f"{event_data['conversation_id']}"
+        )
 
         # Verify error_type is a string (class name)
         error_type = event_data["error_type"]
@@ -686,9 +691,10 @@ async def test_context_injected_event(
 
         # Verify event contains conversation_id
         assert "conversation_id" in event_data, "Event must contain conversation_id"
-        assert (
-            event_data["conversation_id"] == conversation_id
-        ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+        assert event_data["conversation_id"] == conversation_id, (
+            f"conversation_id mismatch: expected {conversation_id}, got"
+            f"{event_data['conversation_id']}"
+        )
 
         # Verify event contains mode (not context_mode - that's the field name in the event)
         assert "mode" in event_data, "Event must contain mode"
@@ -931,15 +937,17 @@ async def test_multiple_events_in_single_conversation(
         assert finished_idx is not None, "EVENT_CONVERSATION_FINISHED should fire"
 
         # Verify ordering: started comes before finished
-        assert (
-            started_idx < finished_idx
-        ), f"EVENT_CONVERSATION_STARTED (idx={started_idx}) should fire before EVENT_CONVERSATION_FINISHED (idx={finished_idx})"
+        assert started_idx < finished_idx, (
+            f"EVENT_CONVERSATION_STARTED (idx={started_idx}) should fire before"
+            f"EVENT_CONVERSATION_FINISHED (idx={finished_idx})"
+        )
 
         # If context event fired, it should be between started and finished
         if context_idx is not None:
-            assert (
-                started_idx < context_idx < finished_idx
-            ), f"EVENT_CONTEXT_INJECTED (idx={context_idx}) should fire between started (idx={started_idx}) and finished (idx={finished_idx})"
+            assert started_idx < context_idx < finished_idx, (
+                f"EVENT_CONTEXT_INJECTED (idx={context_idx}) should fire between started"
+                f"(idx={started_idx}) and finished (idx={finished_idx})"
+            )
 
         # Verify all events have the same conversation_id
         started_events = event_capture.get_events(EVENT_CONVERSATION_STARTED)
@@ -1063,12 +1071,14 @@ async def test_conversation_finished_metrics_accuracy(
 
         # Verify duration_ms is close to actual measured duration
         reported_duration_ms = event_data["duration_ms"]
-        # Allow 10% margin for event processing overhead, but at least 5ms to account for OS scheduling jitter
+        # Allow 10% margin for event processing overhead, but at least 5ms to account for OS
+        # scheduling jitter
         duration_diff = abs(reported_duration_ms - actual_duration_ms)
         duration_margin = max(actual_duration_ms * 0.1, 5)
-        assert (
-            duration_diff <= duration_margin
-        ), f"Reported duration {reported_duration_ms}ms differs too much from actual {actual_duration_ms}ms (diff: {duration_diff}ms, margin: {duration_margin}ms)"
+        assert duration_diff <= duration_margin, (
+            f"Reported duration {reported_duration_ms}ms differs too much from actual"
+            f"{actual_duration_ms}ms (diff: {duration_diff}ms, margin: {duration_margin}ms)"
+        )
 
         # Verify performance metrics sum to reasonable portion of total duration
         performance = event_data["performance"]
@@ -1079,9 +1089,10 @@ async def test_conversation_finished_metrics_accuracy(
         )
 
         # Total latency should not exceed reported duration
-        assert (
-            total_latency <= reported_duration_ms
-        ), f"Sum of latencies ({total_latency}ms) should not exceed total duration ({reported_duration_ms}ms)"
+        assert total_latency <= reported_duration_ms, (
+            f"Sum of latencies ({total_latency}ms) should not exceed total duration"
+            f"({reported_duration_ms}ms)"
+        )
 
         # LLM latency should be >= 0 (can be 0 for mocked LLM call)
         assert performance["llm_latency_ms"] >= 0, "LLM latency should be >= 0"
@@ -1187,15 +1198,18 @@ async def test_conversation_finished_token_counts_accurate(
             tokens = event_data["tokens"]
 
             # Verify exact match with mock LLM response
-            assert (
-                tokens["prompt"] == token_counts["prompt_tokens"]
-            ), f"Test case {idx}: prompt tokens mismatch - expected {token_counts['prompt_tokens']}, got {tokens['prompt']}"
-            assert (
-                tokens["completion"] == token_counts["completion_tokens"]
-            ), f"Test case {idx}: completion tokens mismatch - expected {token_counts['completion_tokens']}, got {tokens['completion']}"
-            assert (
-                tokens["total"] == token_counts["total_tokens"]
-            ), f"Test case {idx}: total tokens mismatch - expected {token_counts['total_tokens']}, got {tokens['total']}"
+            assert tokens["prompt"] == token_counts["prompt_tokens"], (
+                f"Test case {idx}: prompt tokens mismatch - expected"
+                f"{token_counts['prompt_tokens']}, got {tokens['prompt']}"
+            )
+            assert tokens["completion"] == token_counts["completion_tokens"], (
+                f"Test case {idx}: completion tokens mismatch - expected"
+                f"{token_counts['completion_tokens']}, got {tokens['completion']}"
+            )
+            assert tokens["total"] == token_counts["total_tokens"], (
+                f"Test case {idx}: total tokens mismatch - expected"
+                f"{token_counts['total_tokens']}, got {tokens['total']}"
+            )
 
             # Verify arithmetic consistency
             assert (
@@ -1294,15 +1308,17 @@ async def test_event_ordering(
 
         # If context event fired, verify it's between started and finished
         if context_idx is not None:
-            assert (
-                started_idx < context_idx < finished_idx
-            ), f"CONTEXT_INJECTED (idx={context_idx}) must fire between STARTED (idx={started_idx}) and FINISHED (idx={finished_idx})"
+            assert started_idx < context_idx < finished_idx, (
+                f"CONTEXT_INJECTED (idx={context_idx}) must fire between STARTED"
+                f"(idx={started_idx}) and FINISHED (idx={finished_idx})"
+            )
 
         # If history event fired, verify it fires after or with finished
         if history_idx is not None:
-            assert (
-                history_idx >= finished_idx
-            ), f"HISTORY_SAVED (idx={history_idx}) should fire after or with FINISHED (idx={finished_idx})"
+            assert history_idx >= finished_idx, (
+                f"HISTORY_SAVED (idx={history_idx}) should fire after or with FINISHED"
+                f"(idx={finished_idx})"
+            )
 
         # Verify timestamps are monotonically increasing for started -> finished
         started_event = event_capture.get_events(EVENT_CONVERSATION_STARTED)[0]
@@ -1408,9 +1424,10 @@ async def test_streaming_error_event_fired(
             assert "conversation_id" in event_data, "Event must contain conversation_id"
 
             # Verify conversation_id matches
-            assert (
-                event_data["conversation_id"] == conversation_id
-            ), f"conversation_id mismatch: expected {conversation_id}, got {event_data['conversation_id']}"
+            assert event_data["conversation_id"] == conversation_id, (
+                f"conversation_id mismatch: expected {conversation_id}, got"
+                f"{event_data['conversation_id']}"
+            )
 
             # Verify error details
             assert isinstance(event_data["error_type"], str), "error_type should be string"
@@ -1428,7 +1445,8 @@ async def test_ttft_metric_in_conversation_finished_event(
     event_capture: EventCapture,
     session_manager,
 ):
-    """Test that TTFT (Time To First Token) metric is present and valid in EVENT_CONVERSATION_FINISHED.
+    """Test that TTFT (Time To First Token) metric is present and valid in
+    EVENT_CONVERSATION_FINISHED.
 
     Verifies:
     1. ttft_ms is present in the performance dict

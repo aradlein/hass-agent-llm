@@ -389,6 +389,6 @@ async def test_context_with_no_entities(test_hass, llm_config, session_manager, 
             assert isinstance(response, str), f"Response should be a string, got {type(response)}"
             assert (
                 len(response) > 10
-            ), f"Response should be meaningful (>10 chars), got {len(response)} chars: {response[:100]}"
+            ), f"Response should be meaningful (>10 chars), got {len(response)} {response[:100]}"
 
             await agent.close()

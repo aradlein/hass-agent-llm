@@ -649,11 +649,17 @@ async def test_invalid_tool_call_json_in_stream(
 
         # Create stream with tool call containing invalid JSON
         async def invalid_tool_json_stream():
-            yield b'data: {"choices":[{"delta":{"role":"assistant"}}]}\n'
+            pfx = b'data: {"choices":[{"delta":'
+            tc = b'{"tool_calls":[{"index":0,'
+            yield pfx + b'{"role":"assistant"}}]}\n'
             # Start tool call
-            yield b'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"ha_query","arguments":""}}]}}]}\n'
+            yield (
+                pfx + tc + b'"id":"call_1","type":"function",'
+                b'"function":{"name":"ha_query",'
+                b'"arguments":""}}]}}]}\n'
+            )
             # Invalid JSON arguments
-            yield b'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"invalid json here"}}]}}]}\n'
+            yield (pfx + tc + b'"function":{"arguments":' b'"invalid json here"}}]}}]}\n')
             # Finish
             yield b'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n'
             yield b"data: [DONE]\n"

@@ -7,11 +7,10 @@ and preserves language settings during error conditions.
 Implementation complete - all tests passing.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from homeassistant.components import conversation as ha_conversation
-from homeassistant.helpers import intent
 
 from custom_components.home_agent.agent import HomeAgent
 from custom_components.home_agent.const import (
@@ -349,7 +348,7 @@ async def test_language_preserved_in_errors(
                 assert result_de.response is not None, "Error response should not be None"
                 assert (
                     result_de.response.language == "de"
-                ), f"Error response should preserve language 'de', got '{result_de.response.language}'"
+                ), f"Error response should preserve language '{result_de.response.language}'"
 
             # Test service error with French language
             async def mock_llm_service_error(*args, **kwargs):
@@ -374,6 +373,6 @@ async def test_language_preserved_in_errors(
                 assert result_fr.response is not None, "Error response should not be None"
                 assert (
                     result_fr.response.language == "fr"
-                ), f"Error response should preserve language 'fr', got '{result_fr.response.language}'"
+                ), f"Error response should preserve language '{result_fr.response.language}'"
 
             await agent.close()

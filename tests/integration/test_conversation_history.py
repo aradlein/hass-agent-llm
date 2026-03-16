@@ -68,7 +68,7 @@ async def test_history_persistence(
         assert isinstance(response1, str), f"Response should be a string, got {type(response1)}"
         assert (
             len(response1) > 10
-        ), f"Response should be meaningful (>10 chars), got {len(response1)} chars: {response1[:100]}"
+        ), f"Response should be meaningful (>10 chars), got {len(response1)} {response1[:100]}"
         # Response should be conversational
         response1_lower = response1.lower()
         # Just verify we got some kind of conversational response
@@ -276,7 +276,7 @@ async def test_history_message_limits(
             # History should never exceed max_messages
             assert (
                 len(history) <= max_messages
-            ), f"History length {len(history)} exceeds max_messages {max_messages} after message {i+1}"
+            ), f"History length {len(history)} exceeds max_messages {max_messages} after {i+1}"
 
         # Final check
         final_history = agent.conversation_manager.get_history(conversation_id)

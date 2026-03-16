@@ -106,7 +106,11 @@ class TestThinkingBlocksNonStreaming:
                 {
                     "message": {
                         "role": "assistant",
-                        "content": "<think>Let me analyze this request...</think>I'll turn on the light.",
+                        "content": (
+                            "<think>Let me analyze this"
+                            " request...</think>"
+                            "I'll turn on the light."
+                        ),
                     },
                     "finish_reason": "stop",
                 }
@@ -185,7 +189,10 @@ Step 3: Execute the action
                 {
                     "message": {
                         "role": "assistant",
-                        "content": "<think>First thought</think>Part 1. <think>Second thought</think>Part 2.",
+                        "content": (
+                            "<think>First thought</think>Part 1. "
+                            "<think>Second thought</think>Part 2."
+                        ),
                     },
                     "finish_reason": "stop",
                 }
@@ -310,7 +317,10 @@ class TestThinkingBlocksEdgeCases:
                 {
                     "message": {
                         "role": "assistant",
-                        "content": "<THINK>Uppercase should stay</THINK><think>lowercase removed</think>Answer",
+                        "content": (
+                            "<THINK>Uppercase should stay</THINK>"
+                            "<think>lowercase removed</think>Answer"
+                        ),
                     },
                     "finish_reason": "stop",
                 }

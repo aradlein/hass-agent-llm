@@ -667,7 +667,7 @@ class TestHomeAssistantControlTool:
 
     @pytest.mark.asyncio
     async def test_execute_set_value_cover_with_current_position(self, mock_hass):
-        """Test set_value with current_position parameter gets normalized and uses correct service."""
+        """Test set_value with current_position parameter gets normalized and uses service."""
         tool = HomeAssistantControlTool(mock_hass)
 
         # Create a mock cover state with position support

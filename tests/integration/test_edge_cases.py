@@ -10,7 +10,7 @@ These tests verify that the Home Agent handles edge cases correctly:
 import asyncio
 import logging
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant, State
@@ -54,7 +54,7 @@ async def test_rtl_language_arabic(
             {
                 "message": {
                     "role": "assistant",
-                    "content": "أنا مساعد منزلي ذكي. كيف يمكنني مساعدتك؟",  # "I am a smart home assistant. How can I help you?"
+                    "content": "أنا مساعد منزلي ذكي. كيف يمكنني مساعدتك؟",  # "I am a smart home"
                     "tool_calls": None,
                 },
                 "finish_reason": "stop",
@@ -664,7 +664,7 @@ async def test_hebrew_rtl_text(
             {
                 "message": {
                     "role": "assistant",
-                    "content": "אני עוזר בית חכם. איך אוכל לעזור?",  # "I am a smart home assistant. How can I help?"
+                    "content": "אני עוזר בית חכם. איך אוכל לעזור?",  # "I am a smart home help?"
                     "tool_calls": None,
                 },
                 "finish_reason": "stop",

@@ -18,7 +18,6 @@ from custom_components.home_agent.const import (
     CONF_EMIT_EVENTS,
     CONF_EXTERNAL_LLM_API_KEY,
     CONF_EXTERNAL_LLM_BASE_URL,
-    CONF_EXTERNAL_LLM_ENABLED,
     CONF_EXTERNAL_LLM_KEEP_ALIVE,
     CONF_EXTERNAL_LLM_MODEL,
     CONF_HISTORY_ENABLED,
@@ -114,7 +113,7 @@ class TestKeepAliveOpenAICompatibility:
 
                 assert "keep_alive" not in payload, (
                     "CRITICAL: keep_alive was sent to OpenAI API! "
-                    "This will cause 400 error: 'Unrecognized request argument supplied: keep_alive'"
+                    "This will cause 400 error: 'Unrecognized request argument keep_alive'"
                 )
 
                 # Verify other required parameters ARE present

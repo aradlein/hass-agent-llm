@@ -9,7 +9,7 @@ import logging
 import os
 import uuid
 from typing import Any, AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from dotenv import load_dotenv
@@ -517,8 +517,6 @@ async def skip_if_services_unavailable(
         llm_config: LLM configuration
         embedding_config: Embedding configuration
     """
-    global _health_check_cache
-
     # Check if we should skip on unavailable services (default: use mocks)
     skip_on_unavailable = os.getenv("USE_MOCK_FALLBACK", "1") == "0"
 
@@ -651,7 +649,6 @@ def pytest_sessionstart(session: Any) -> None:
     Args:
         session: Pytest session object
     """
-    global _health_check_cache
     import pytest_socket
 
     # Clear health check cache at session start
@@ -680,7 +677,8 @@ def socket_enabled(request: pytest.FixtureRequest):
     Args:
         request: Pytest request object
     """
-    # pytest-socket is disabled by default via pytest_configure (config.option.disable_socket = False)
+    # pytest-socket is disabled by default via pytest_configure (config.option.disable_socket =
+    # False)
     # This fixture exists to maintain compatibility with tests that depend on it
     # but now just serves as a marker without global state manipulation
     yield

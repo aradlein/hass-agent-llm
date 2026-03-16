@@ -229,7 +229,10 @@ class TestParseAndStoreMemories:
             [
                 {
                     "type": "preference",
-                    "content": "User prefers bedroom temperature at 68°F for sleeping comfort during nighttime",
+                    "content": (
+                        "User prefers bedroom temperature at 68°F"
+                        " for sleeping comfort during nighttime"
+                    ),
                     "importance": 0.8,
                     "entities": ["climate.bedroom"],
                     "topics": ["temperature"],
@@ -246,15 +249,21 @@ class TestParseAndStoreMemories:
         """Test parsing JSON wrapped in markdown code block."""
         home_agent._memory_manager = mock_memory_manager
 
-        extraction_result = """```json
-[
-  {
-    "type": "fact",
-    "content": "The living room has three ceiling lights controlled by smart switches for ambient lighting",
-    "importance": 0.5
-  }
-]
-```"""
+        fact_content = (
+            "The living room has three ceiling lights"
+            " controlled by smart switches"
+            " for ambient lighting"
+        )
+        inner_json = json.dumps(
+            [
+                {
+                    "type": "fact",
+                    "content": fact_content,
+                    "importance": 0.5,
+                }
+            ]
+        )
+        extraction_result = f"```json\n{inner_json}\n```"
 
         count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
@@ -301,17 +310,29 @@ class TestParseAndStoreMemories:
             [
                 {
                     "type": "fact",
-                    "content": "The home office desk has an ergonomic setup with adjustable monitor stands and keyboard tray",
+                    "content": (
+                        "The home office desk has an ergonomic"
+                        " setup with adjustable monitor stands"
+                        " and keyboard tray"
+                    ),
                     "importance": 0.5,
                 },
                 {
                     "type": "preference",
-                    "content": "User prefers warm white lighting in the living room during evening hours for relaxation",
+                    "content": (
+                        "User prefers warm white lighting in the"
+                        " living room during evening hours"
+                        " for relaxation"
+                    ),
                     "importance": 0.8,
                 },
                 {
                     "type": "context",
-                    "content": "The family typically gathers in the living room between 7pm and 9pm for entertainment",
+                    "content": (
+                        "The family typically gathers in the"
+                        " living room between 7pm and 9pm"
+                        " for entertainment"
+                    ),
                     "importance": 0.6,
                 },
             ]
@@ -336,12 +357,20 @@ class TestParseAndStoreMemories:
             [
                 {
                     "type": "fact",
-                    "content": "The garage door opener is connected to the smart home system for remote access",
+                    "content": (
+                        "The garage door opener is connected"
+                        " to the smart home system"
+                        " for remote access"
+                    ),
                     "importance": 0.5,
                 },
                 {
                     "type": "fact",
-                    "content": "The kitchen has under-cabinet LED lighting controlled by motion sensors for convenience",
+                    "content": (
+                        "The kitchen has under-cabinet LED"
+                        " lighting controlled by motion"
+                        " sensors for convenience"
+                    ),
                     "importance": 0.5,
                 },
             ]
@@ -361,7 +390,11 @@ class TestParseAndStoreMemories:
                 {"type": "fact"},  # Missing content
                 {
                     "type": "fact",
-                    "content": "The master bedroom has blackout curtains controlled by automated window shades for better sleep",
+                    "content": (
+                        "The master bedroom has blackout curtains"
+                        " controlled by automated window"
+                        " shades for better sleep"
+                    ),
                 },
             ]
         )
@@ -380,11 +413,28 @@ class TestParseAndStoreMemories:
         home_agent._memory_manager = mock_memory_manager
 
         # Simulate reasoning model output with thinking block before JSON
-        extraction_result = """<think>
-Let me analyze this conversation to extract important memories...
-The user mentioned their preferred bedroom temperature.
-I should extract this as a preference memory.
-</think>[{"type": "preference", "content": "User prefers bedroom temperature at 68°F for sleeping comfort during nighttime hours", "importance": 0.8}]"""
+        pref_content = (
+            "User prefers bedroom temperature at 68°F"
+            " for sleeping comfort during nighttime hours"
+        )
+        extraction_result = (
+            "<think>\n"
+            " Let me analyze this conversation to extract"
+            " important memories...\n"
+            " The user mentioned their preferred bedroom"
+            " temperature.\n"
+            " I should extract this as a preference memory.\n"
+            "</think>"
+            + json.dumps(
+                [
+                    {
+                        "type": "preference",
+                        "content": pref_content,
+                        "importance": 0.8,
+                    }
+                ]
+            )
+        )
 
         count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
@@ -397,11 +447,27 @@ I should extract this as a preference memory.
         """Test that thinking blocks are stripped when JSON is in markdown block."""
         home_agent._memory_manager = mock_memory_manager
 
-        extraction_result = """<think>
-I need to extract the key facts from this conversation...
-</think>```json
-[{"type": "fact", "content": "The living room has three ceiling lights controlled by smart switches for ambient lighting", "importance": 0.5}]
-```"""
+        fact_content = (
+            "The living room has three ceiling lights"
+            " controlled by smart switches"
+            " for ambient lighting"
+        )
+        extraction_result = (
+            "<think>\n"
+            " I need to extract the key facts from this"
+            " conversation...\n"
+            "</think>```json\n"
+            + json.dumps(
+                [
+                    {
+                        "type": "fact",
+                        "content": fact_content,
+                        "importance": 0.5,
+                    }
+                ]
+            )
+            + "\n```"
+        )
 
         count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
@@ -414,11 +480,28 @@ I need to extract the key facts from this conversation...
         """Test handling when thinking block contains JSON-like content."""
         home_agent._memory_manager = mock_memory_manager
 
-        extraction_result = """<think>
-I could return this format:
-{"type": "wrong", "content": "this is inside think block"}
-But I should return proper memories.
-</think>[{"type": "fact", "content": "The smart doorbell is connected to the home automation system for visitor notifications", "importance": 0.6}]"""
+        doorbell_content = (
+            "The smart doorbell is connected to the"
+            " home automation system for visitor"
+            " notifications"
+        )
+        extraction_result = (
+            "<think>\n"
+            " I could return this format:\n"
+            '{"type": "wrong", "content":'
+            ' "this is inside think block"}\n'
+            "But I should return proper memories.\n"
+            "</think>"
+            + json.dumps(
+                [
+                    {
+                        "type": "fact",
+                        "content": doorbell_content,
+                        "importance": 0.6,
+                    }
+                ]
+            )
+        )
 
         count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
@@ -431,7 +514,24 @@ But I should return proper memories.
         """Test handling multiple thinking blocks in output."""
         home_agent._memory_manager = mock_memory_manager
 
-        extraction_result = """<think>First thought...</think><think>Second thought...</think>[{"type": "preference", "content": "User prefers warm white lighting in the living room during evening hours for relaxation", "importance": 0.7}]"""
+        lighting_content = (
+            "User prefers warm white lighting in the"
+            " living room during evening hours"
+            " for relaxation"
+        )
+        extraction_result = (
+            "<think>First thought...</think>"
+            "<think>Second thought...</think>"
+            + json.dumps(
+                [
+                    {
+                        "type": "preference",
+                        "content": lighting_content,
+                        "importance": 0.7,
+                    }
+                ]
+            )
+        )
 
         count = await home_agent._parse_and_store_memories(extraction_result, "conv_123")
 
@@ -469,7 +569,19 @@ class TestExtractAndStoreMemories:
         home_agent._memory_manager = mock_memory_manager
         home_agent.config[CONF_MEMORY_EXTRACTION_LLM] = "local"
 
-        extraction_result = '[{"type": "fact", "content": "The smart thermostat automatically adjusts temperature based on occupancy patterns throughout the day", "importance": 0.5}]'
+        extraction_result = json.dumps(
+            [
+                {
+                    "type": "fact",
+                    "content": (
+                        "The smart thermostat automatically adjusts"
+                        " temperature based on occupancy patterns"
+                        " throughout the day"
+                    ),
+                    "importance": 0.5,
+                }
+            ]
+        )
 
         with patch.object(
             home_agent,
@@ -489,7 +601,19 @@ class TestExtractAndStoreMemories:
         home_agent.config[CONF_MEMORY_EXTRACTION_LLM] = "external"
         home_agent.config[CONF_EXTERNAL_LLM_ENABLED] = True
 
-        extraction_result = '[{"type": "fact", "content": "The smart security system includes door sensors on all entry points with automatic alerts enabled", "importance": 0.5}]'
+        extraction_result = json.dumps(
+            [
+                {
+                    "type": "fact",
+                    "content": (
+                        "The smart security system includes door"
+                        " sensors on all entry points with"
+                        " automatic alerts enabled"
+                    ),
+                    "importance": 0.5,
+                }
+            ]
+        )
 
         home_agent.tool_handler.execute_tool = AsyncMock(
             return_value={"success": True, "result": extraction_result}
@@ -529,7 +653,19 @@ class TestExtractAndStoreMemories:
         home_agent._memory_manager = mock_memory_manager
         home_agent.config[CONF_MEMORY_EXTRACTION_LLM] = "local"
 
-        extraction_result = '[{"type": "fact", "content": "The outdoor lighting system includes motion-activated pathway lights for enhanced security and convenience", "importance": 0.5}]'
+        extraction_result = json.dumps(
+            [
+                {
+                    "type": "fact",
+                    "content": (
+                        "The outdoor lighting system includes"
+                        " motion-activated pathway lights for"
+                        " enhanced security and convenience"
+                    ),
+                    "importance": 0.5,
+                }
+            ]
+        )
 
         with patch.object(
             home_agent,

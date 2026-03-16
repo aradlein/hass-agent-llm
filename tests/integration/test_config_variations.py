@@ -12,6 +12,7 @@ Configuration options tested:
 5. Event Emission: enabled (True) vs. disabled (False)
 """
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -150,9 +151,11 @@ async def test_proxy_headers_sent(
             assert (
                 "X-Ollama-Backend" in headers
             ), f"X-Ollama-Backend header should be set for proxy_headers={header_value}"
-            assert (
-                headers["X-Ollama-Backend"] == header_value
-            ), f"X-Ollama-Backend header should be '{header_value}', got '{headers['X-Ollama-Backend']}'"
+            assert headers["X-Ollama-Backend"] == header_value, (
+                f"X-Ollama-Backend header should be "
+                f"'{header_value}', got "
+                f"'{headers['X-Ollama-Backend']}'"
+            )
 
         await agent.close()
 
@@ -791,24 +794,29 @@ async def test_context_format_variations(
 
         # Check word count
         word_count = len(context_str.split())
-        assert (
-            word_count >= expected_characteristics["min_word_count"]
-        ), f"{expected_characteristics['description']} should have at least {expected_characteristics['min_word_count']} words, got {word_count}"
+        assert word_count >= expected_characteristics["min_word_count"], (
+            f"{expected_characteristics['description']} should have "
+            f"at least {expected_characteristics['min_word_count']} "
+            f"words, got {word_count}"
+        )
 
         # Check JSON density (ratio of JSON chars to total chars)
         json_chars = sum(1 for c in context_str if c in '{[]}":')
         total_chars = len(context_str)
         json_density = json_chars / total_chars if total_chars > 0 else 0
 
-        assert (
-            json_density <= expected_characteristics["max_json_density"]
-        ), f"{expected_characteristics['description']} has too many JSON chars: {json_density:.2%} (expected <= {expected_characteristics['max_json_density']:.2%})"
+        assert json_density <= expected_characteristics["max_json_density"], (
+            f"{expected_characteristics['description']} has too many "
+            f"JSON chars: {json_density:.2%} (expected <= "
+            f"{expected_characteristics['max_json_density']:.2%})"
+        )
 
         # Verify the format is configured correctly
         provider = agent.context_manager._provider
-        assert hasattr(
-            provider, "format_type"
-        ), f"Provider should have format_type attribute for {expected_characteristics['description']}"
+        assert hasattr(provider, "format_type"), (
+            f"Provider should have format_type attribute "
+            f"for {expected_characteristics['description']}"
+        )
         assert (
             provider.format_type == format_value
         ), f"Provider format should be {format_value}, got {provider.format_type}"
@@ -1629,9 +1637,10 @@ async def test_events_do_not_fire_when_disabled(
 
             our_events = [e for e in events_fired if e[0].startswith(f"{DOMAIN}.")]
 
-            assert (
-                len(our_events) == 0
-            ), f"No home_agent.* events should fire when emit_events=False, got: {[e[0] for e in our_events]}"
+            assert len(our_events) == 0, (
+                "No home_agent.* events should fire when "
+                f"emit_events=False, got: {[e[0] for e in our_events]}"
+            )
 
         finally:
             # Restore original async_fire
@@ -1719,9 +1728,10 @@ async def test_emit_events_runtime_check_in_tool_handler(
                 e for e in events_fired if e[0] in [EVENT_TOOL_EXECUTED, EVENT_TOOL_PROGRESS]
             ]
 
-            assert (
-                len(tool_events) == 0
-            ), f"No tool events should fire when emit_events=False, got: {[e[0] for e in tool_events]}"
+            assert len(tool_events) == 0, (
+                "No tool events should fire when "
+                f"emit_events=False, got: {[e[0] for e in tool_events]}"
+            )
 
         finally:
             test_hass.bus.async_fire = original_async_fire
@@ -1809,7 +1819,8 @@ async def test_emit_events_dynamic_change(
 
             # Dynamically disable events
             agent.config[CONF_EMIT_EVENTS] = False
-            # Note: In real usage, the ToolHandler and ContextManager would need to be updated separately
+            # Note: In real usage, the ToolHandler and ContextManager
+            # would need to be updated separately
             # or the agent would need to propagate the config change
             agent.tool_handler.emit_events = False
             agent.context_manager._emit_events = False
@@ -1837,9 +1848,10 @@ async def test_emit_events_dynamic_change(
 
             our_events = [e for e in events_fired if e[0].startswith(f"{DOMAIN}.")]
 
-            assert (
-                len(our_events) == 0
-            ), f"No events should fire after disabling emit_events, got: {[e[0] for e in our_events]}"
+            assert len(our_events) == 0, (
+                "No events should fire after disabling "
+                f"emit_events, got: {[e[0] for e in our_events]}"
+            )
 
             # Re-enable and verify events fire again
             events_fired.clear()
@@ -1936,13 +1948,20 @@ async def test_memory_extraction_event_respects_emit_events(
 
         try:
             # Mock extraction to return a valid memory
-            extraction_result = """[{
-                "type": "preference",
-                "content": "User prefers the living room lights to be turned on automatically during the evening hours",
-                "importance": 0.8,
-                "entities": ["light.living_room"],
-                "topics": ["lighting", "preferences"]
-            }]"""
+            mem_content = (
+                "User prefers living room lights" " activated automatically each" " evening session"
+            )
+            extraction_result = json.dumps(
+                [
+                    {
+                        "type": "preference",
+                        "content": mem_content,
+                        "importance": 0.8,
+                        "entities": ["light.living_room"],
+                        "topics": ["lighting", "preferences"],
+                    }
+                ]
+            )
 
             with patch.object(
                 agent, "_call_primary_llm_for_extraction", new_callable=AsyncMock
@@ -1969,9 +1988,10 @@ async def test_memory_extraction_event_respects_emit_events(
 
             memory_events = [e for e in events_fired if e[0] == EVENT_MEMORY_EXTRACTED]
 
-            assert (
-                len(memory_events) == 1
-            ), f"EVENT_MEMORY_EXTRACTED should fire when emit_events=True, got {len(memory_events)} events"
+            assert len(memory_events) == 1, (
+                "EVENT_MEMORY_EXTRACTED should fire when "
+                f"emit_events=True, got {len(memory_events)} events"
+            )
 
             memory_event = memory_events[0][1]
             assert memory_event["conversation_id"] == "test_memory_events"
@@ -2005,9 +2025,10 @@ async def test_memory_extraction_event_respects_emit_events(
             # Verify EVENT_MEMORY_EXTRACTED was NOT fired
             memory_events = [e for e in events_fired if e[0] == EVENT_MEMORY_EXTRACTED]
 
-            assert (
-                len(memory_events) == 0
-            ), f"EVENT_MEMORY_EXTRACTED should NOT fire when emit_events=False, got {len(memory_events)} events"
+            assert len(memory_events) == 0, (
+                "EVENT_MEMORY_EXTRACTED should NOT fire when "
+                f"emit_events=False, got {len(memory_events)} events"
+            )
 
             # Verify memory was still stored (functionality works)
             assert (

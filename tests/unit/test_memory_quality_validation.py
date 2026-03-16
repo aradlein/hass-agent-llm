@@ -205,12 +205,17 @@ class TestMemoryQualityValidation:
             },
             {
                 "type": "context",
-                "content": "We discussed the temperature settings for the bedroom during evening hours",
+                "content": (
+                    "We discussed the temperature settings for the bedroom during evening" " hours"
+                ),
                 "importance": 0.7,
             },
             {
                 "type": "event",
-                "content": "User asked about the thermostat settings during our conversation earlier today",
+                "content": (
+                    "User asked about the thermostat settings during our conversation earlier"
+                    " today"
+                ),
                 "importance": 0.5,
             },
         ]
@@ -229,12 +234,16 @@ class TestMemoryQualityValidation:
         transient_memories = [
             {
                 "type": "fact",
-                "content": "The bedroom light is currently on and has been since earlier this evening",
+                "content": (
+                    "The bedroom light is currently on and has been since earlier this" " evening"
+                ),
                 "importance": 0.6,
             },
             {
                 "type": "event",
-                "content": "The conversation occurred at three pm when the user asked about controls",
+                "content": (
+                    "The conversation occurred at three pm when the user asked about" " controls"
+                ),
                 "importance": 0.5,
             },
         ]
@@ -253,28 +262,39 @@ class TestMemoryQualityValidation:
         good_memories = [
             {
                 "type": "preference",
-                "content": "User prefers bedroom temperature at 68°F for sleeping and 72°F when awake",
+                "content": (
+                    "User prefers bedroom temperature at 68°F for sleeping and 72°F when" " awake"
+                ),
                 "importance": 0.8,
                 "entities": ["climate.bedroom"],
                 "topics": ["temperature", "bedroom", "sleep"],
             },
             {
                 "type": "fact",
-                "content": "The bedroom has blackout curtains that were installed last month for better sleep",
+                "content": (
+                    "The bedroom has blackout curtains that were installed last month for better"
+                    " sleep"
+                ),
                 "importance": 0.7,
                 "entities": [],
                 "topics": ["bedroom", "curtains", "sleep"],
             },
             {
                 "type": "context",
-                "content": "User works night shift schedule and sleeps during daytime hours between 8am and 4pm",
+                "content": (
+                    "User works night shift schedule and sleeps during daytime hours between 8am"
+                    " and 4pm"
+                ),
                 "importance": 0.9,
                 "entities": [],
                 "topics": ["schedule", "work", "sleep"],
             },
             {
                 "type": "event",
-                "content": "User installed new smart thermostat last week and configured heating schedules for winter",
+                "content": (
+                    "User installed new smart thermostat last week and configured heating"
+                    " schedules for winter"
+                ),
                 "importance": 0.6,
                 "entities": ["climate.bedroom"],
                 "topics": ["thermostat", "installation", "heating"],
@@ -304,7 +324,10 @@ class TestMemoryQualityValidation:
             # Good memory - should be stored
             {
                 "type": "preference",
-                "content": "User prefers bedroom temperature at 68°F for optimal sleeping conditions every night",
+                "content": (
+                    "User prefers bedroom temperature at 68°F for optimal sleeping conditions"
+                    " every night"
+                ),
                 "importance": 0.8,
             },
             # Too short - should be rejected
@@ -316,31 +339,46 @@ class TestMemoryQualityValidation:
             # Good memory - should be stored
             {
                 "type": "context",
-                "content": "User is very sensitive to bright lights in the evening after 8pm due to migraines",
+                "content": (
+                    "User is very sensitive to bright lights in the evening after 8pm due to"
+                    " migraines"
+                ),
                 "importance": 0.9,
             },
             # Low importance - should be rejected
             {
                 "type": "fact",
-                "content": "The user mentioned they sometimes check the weather forecast before leaving home in morning",
+                "content": (
+                    "The user mentioned they sometimes check the weather forecast before leaving"
+                    " home in morning"
+                ),
                 "importance": 0.3,
             },
             # Starts with low-value pattern - should be rejected
             {
                 "type": "fact",
-                "content": "There is no specific automation configured for the morning routine at this moment",
+                "content": (
+                    "There is no specific automation configured for the morning routine at this"
+                    " moment"
+                ),
                 "importance": 0.6,
             },
             # Good memory - should be stored
             {
                 "type": "fact",
-                "content": "The living room has three smart bulbs configured for different lighting scenes and moods",
+                "content": (
+                    "The living room has three smart bulbs configured for different lighting"
+                    " scenes and moods"
+                ),
                 "importance": 0.7,
             },
             # Transient state - should be rejected
             {
                 "type": "event",
-                "content": "The bedroom light is currently on and the temperature is at seventy two degrees",
+                "content": (
+                    "The bedroom light is currently on and the temperature is at seventy two"
+                    " degrees"
+                ),
                 "importance": 0.5,
             },
         ]
@@ -405,12 +443,18 @@ class TestMemoryValidationEdgeCases:
         boundary_memories = [
             {
                 "type": "fact",
-                "content": "User mentioned they prefer using voice commands for controlling bedroom lights primarily",
+                "content": (
+                    "User mentioned they prefer using voice commands for controlling bedroom"
+                    " lights primarily"
+                ),
                 "importance": 0.4,  # Exactly at threshold - should be stored
             },
             {
                 "type": "fact",
-                "content": "User sometimes checks the temperature sensor readings in the morning before work",
+                "content": (
+                    "User sometimes checks the temperature sensor readings in the morning before"
+                    " work"
+                ),
                 "importance": 0.39,  # Just below threshold - should be rejected
             },
         ]
