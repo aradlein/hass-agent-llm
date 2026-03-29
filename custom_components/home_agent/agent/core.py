@@ -94,6 +94,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -1169,12 +1170,17 @@ class HomeAgent(
                     messages.append(msg)
 
                 elif isinstance(content_item, conversation.ToolResultContent):
+                    def json_encoder(obj):
+                        if isinstance(obj, (datetime, date)):
+                            return obj.isoformat()
+                        raise TypeError ("Object of type %s is not JSON serializable" % type(obj))
+
                     messages.append(
                         {
                             "role": "tool",
                             "tool_call_id": content_item.tool_call_id,
                             "name": content_item.tool_name,
-                            "content": json.dumps(content_item.tool_result),
+                            "content": json.dumps(content_item.tool_result, default=json_encoder),
                         }
                     )
 
