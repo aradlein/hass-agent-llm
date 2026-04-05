@@ -199,7 +199,9 @@ class HomeAgent(
         # Initialize components
         self.context_manager = ContextManager(hass, config)
         self.conversation_manager = ConversationHistoryManager(
-            max_messages=config.get(CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES),
+            max_messages=config.get(
+                CONF_HISTORY_MAX_MESSAGES, DEFAULT_HISTORY_MAX_MESSAGES
+            ),
             max_tokens=config.get(CONF_HISTORY_MAX_TOKENS, DEFAULT_HISTORY_MAX_TOKENS),
             hass=hass,
             persist=config.get(CONF_HISTORY_PERSIST, True),
@@ -328,7 +330,9 @@ class HomeAgent(
 
         except ServiceUnavailableError as err:
             _LOGGER.error("Service unavailable: %s", err, exc_info=True)
-            message = "The AI service is temporarily unavailable. Please try again later."
+            message = (
+                "The AI service is temporarily unavailable. Please try again later."
+            )
 
             intent_response = intent.IntentResponse(language=user_input.language)
             intent_response.async_set_error(
@@ -436,7 +440,9 @@ class HomeAgent(
         # Get exposed entities from voice assistant settings
         # Use async_should_expose to respect Home Assistant's exposure settings
         from homeassistant.components import conversation as ha_conversation
-        from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+        from homeassistant.components.homeassistant.exposed_entities import (
+            async_should_expose,
+        )
 
         exposed_entity_ids = {
             state.entity_id
@@ -485,7 +491,9 @@ class HomeAgent(
 
             _LOGGER.info("Memory tools registered")
 
-        _LOGGER.debug("Registered %d tools", len(self.tool_handler.get_registered_tools()))
+        _LOGGER.debug(
+            "Registered %d tools", len(self.tool_handler.get_registered_tools())
+        )
 
     def _register_custom_tools(self, custom_tools_config: list[dict[str, Any]]) -> None:
         """Register custom tools from configuration.
@@ -590,7 +598,9 @@ class HomeAgent(
         exposed_entities = []
 
         # Check if labels should be included
-        include_labels = self.config.get(CONF_PROMPT_INCLUDE_LABELS, DEFAULT_PROMPT_INCLUDE_LABELS)
+        include_labels = self.config.get(
+            CONF_PROMPT_INCLUDE_LABELS, DEFAULT_PROMPT_INCLUDE_LABELS
+        )
 
         for state in states:
             entity_id = state.entity_id
@@ -680,7 +690,9 @@ class HomeAgent(
 
         return prompt
 
-    def _render_template(self, template_str: str, variables: dict[str, Any] | None = None) -> str:
+    def _render_template(
+        self, template_str: str, variables: dict[str, Any] | None = None
+    ) -> str:
         """Render a Jinja2 template string.
 
         Args:
@@ -846,7 +858,9 @@ class HomeAgent(
                     }
                     self.hass.bus.async_fire(EVENT_CONVERSATION_FINISHED, event_data)
                 except Exception as event_err:
-                    _LOGGER.warning("Failed to fire conversation finished event: %s", event_err)
+                    _LOGGER.warning(
+                        "Failed to fire conversation finished event: %s", event_err
+                    )
 
             # Update session activity to prevent expiration of active conversations
             await self.session_manager.update_activity(
@@ -977,7 +991,9 @@ class HomeAgent(
                         tool_input.tool_name, tool_input.tool_args, self.conversation_id
                     )
                     self.metrics["tool_calls"] += 1
-                    return result if isinstance(result, dict) else {"result": str(result)}
+                    return (
+                        result if isinstance(result, dict) else {"result": str(result)}
+                    )
                 except Exception as err:
                     _LOGGER.error("Tool execution failed: %s", err, exc_info=True)
                     return {"error": str(err)}
@@ -1004,7 +1020,7 @@ class HomeAgent(
         chat_log.llm_api = ToolHandlerAPIInstance(
             self.tool_handler, metrics, conversation_id, max_calls_per_turn
         )
-        
+
         # Track start time for metrics
         start_time = time.time()
 
@@ -1025,7 +1041,12 @@ class HomeAgent(
 
         # Build messages list
         messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
-        messages.append({"role": "assistant", "content": f"Tool was called: Toolname: {llm.ToolInput.tool_name} Toolargs: {llm.ToolInput.tool_args}"})
+        messages.append(
+            {
+                "role": "assistant",
+                "content": f"Tool was called: Toolname: {llm.ToolInput.tool_name} Toolargs: {llm.ToolInput.tool_args}",
+            }
+        )
         # Add conversation history if enabled
         if self.config.get(CONF_HISTORY_ENABLED, True):
             history = self.conversation_manager.get_history(
@@ -1043,7 +1064,7 @@ class HomeAgent(
         max_iterations = self.config.get(
             CONF_TOOLS_MAX_CALLS_PER_TURN, DEFAULT_TOOLS_MAX_CALLS_PER_TURN
         )
-        
+
         entry_id = None
         # Try to find entry_id from config or hass.data
         if "entry_id" in self.config:
@@ -1064,7 +1085,9 @@ class HomeAgent(
         first_content_time: float | None = None
 
         for iteration in range(max_iterations):
-            _LOGGER.debug("Starting streaming iteration %d/%d", iteration + 1, max_iterations)
+            _LOGGER.debug(
+                "Starting streaming iteration %d/%d", iteration + 1, max_iterations
+            )
             # Call LLM with streaming
             llm_start = time.time()
             stream = self._call_llm_streaming(messages)
@@ -1103,7 +1126,9 @@ class HomeAgent(
                 )
                 if isinstance(content_item, conversation.AssistantContent):
                     has_tool_calls = bool(content_item.tool_calls)
-                    num_tool_calls = len(content_item.tool_calls) if content_item.tool_calls else 0
+                    num_tool_calls = (
+                        len(content_item.tool_calls) if content_item.tool_calls else 0
+                    )
                     _LOGGER.debug(
                         "Iteration %d: AssistantContent[%d] has_tool_calls=%s, num_tool_calls=%d",
                         iteration + 1,
@@ -1157,8 +1182,9 @@ class HomeAgent(
                         metrics["tool_calls"] += len(content_item.tool_calls)
 
                         # Add tool calls to message
-                        msg["tool_calls"] = [
-                            {
+                        msg["tool_calls"] = []
+                        for tc in content_item.tool_calls:
+                            tool_call_dict = {
                                 "id": tc.id,
                                 "type": "function",
                                 "function": {
@@ -1166,11 +1192,9 @@ class HomeAgent(
                                     "arguments": json.dumps(tc.tool_args),
                                 },
                             }
-                            for tc in content_item.tool_calls
-                        ]
-                        # Add Tool Call to ConversationHistory. 
-                        tools_history_string =+ json.dumps(msg["tool_calls"], indent=2)
-                        
+                            msg["tool_calls"].append(tool_call_dict)
+                        # Add Tool Call to ConversationHistory.
+                            tools_history_string += f"\n- Tool: {tc.tool_name} (ID: {tc.id}) mit Args: {tc.tool_args}"
 
                     messages.append(msg)
                 elif isinstance(content_item, conversation.ToolResultContent):
@@ -1194,7 +1218,9 @@ class HomeAgent(
                     last_assistant_content = content_item
                     break
 
-            _LOGGER.debug("Iteration %d: Checking loop continuation conditions", iteration + 1)
+            _LOGGER.debug(
+                "Iteration %d: Checking loop continuation conditions", iteration + 1
+            )
             _LOGGER.debug(
                 "Iteration %d: last_assistant_content is None: %s",
                 iteration + 1,
@@ -1241,7 +1267,9 @@ class HomeAgent(
                     "last_assistant_content.tool_calls empty=%s, unresponded_tool_results empty=%s",
                     iteration + 1,
                     last_assistant_content is None,
-                    not last_assistant_content.tool_calls if last_assistant_content else "N/A",
+                    not last_assistant_content.tool_calls
+                    if last_assistant_content
+                    else "N/A",
                     not chat_log.unresponded_tool_results,
                 )
                 break
@@ -1257,22 +1285,35 @@ class HomeAgent(
             # Extract final response from chat log
             final_response = ""
             for content_item in new_content:
-                if isinstance(content_item, conversation.AssistantContent) and content_item.content:
+                if (
+                    isinstance(content_item, conversation.AssistantContent)
+                    and content_item.content
+                ):
                     final_response = content_item.content
                     break
 
             self.conversation_manager.add_message(conversation_id, "user", user_message)
             if final_response:
                 if tools_history_string:
-                    self.conversation_manager.add_message(conversation_id, "assistant", f"Called Tools: {tools_history_string}")
-                self.conversation_manager.add_message(conversation_id, "assistant", final_response)
-
+                    self.conversation_manager.add_message(
+                        conversation_id,
+                        "assistant",
+                        f"Following tools were called: {tools_history_string}",
+                    )
+                self.conversation_manager.add_message(
+                    conversation_id, "assistant", final_response
+                )
         # Extract and store memories if enabled (fire and forget)
-        if self.config.get(CONF_MEMORY_EXTRACTION_ENABLED, DEFAULT_MEMORY_EXTRACTION_ENABLED):
+        if self.config.get(
+            CONF_MEMORY_EXTRACTION_ENABLED, DEFAULT_MEMORY_EXTRACTION_ENABLED
+        ):
             # Extract final response for memory extraction
             final_response = ""
             for content_item in new_content:
-                if isinstance(content_item, conversation.AssistantContent) and content_item.content:
+                if (
+                    isinstance(content_item, conversation.AssistantContent)
+                    and content_item.content
+                ):
                     final_response = content_item.content
                     break
 
@@ -1319,7 +1360,9 @@ class HomeAgent(
                 }
                 self.hass.bus.async_fire(EVENT_CONVERSATION_FINISHED, event_data)
             except Exception as event_err:
-                _LOGGER.warning("Failed to fire conversation finished event: %s", event_err)
+                _LOGGER.warning(
+                    "Failed to fire conversation finished event: %s", event_err
+                )
 
         # Update session activity to prevent expiration of active conversations
         await self.session_manager.update_activity(
@@ -1331,7 +1374,10 @@ class HomeAgent(
             # Extract final response to check for "?"
             final_response = ""
             for content_item in new_content:
-                if isinstance(content_item, conversation.AssistantContent) and content_item.content:
+                if (
+                    isinstance(content_item, conversation.AssistantContent)
+                    and content_item.content
+                ):
                     final_response = content_item.content
                     break
             continue_conv = False
@@ -1388,10 +1434,9 @@ class HomeAgent(
         result = ha_conversation.ConversationResult(
             response=intent_response,
             conversation_id=user_input.conversation_id,
-            continue_conversation=continue_conv
+            continue_conversation=continue_conv,
         )
 
-        
         return result
 
     async def _process_conversation(
@@ -1537,7 +1582,9 @@ class HomeAgent(
 
                 # Save to conversation history
                 if self.config.get(CONF_HISTORY_ENABLED, True):
-                    self.conversation_manager.add_message(conversation_id, "user", user_message)
+                    self.conversation_manager.add_message(
+                        conversation_id, "user", user_message
+                    )
                     self.conversation_manager.add_message(
                         conversation_id, "assistant", final_content
                     )
@@ -1588,10 +1635,14 @@ class HomeAgent(
                     # Parse tool arguments - handle both string (OpenAI) and dict (Ollama) formats
                     if isinstance(tool_args_raw, str):
                         tool_args = json.loads(tool_args_raw)
-                        _LOGGER.info("Tool '%s': parsed arguments from JSON string", tool_name)
+                        _LOGGER.info(
+                            "Tool '%s': parsed arguments from JSON string", tool_name
+                        )
                     elif isinstance(tool_args_raw, dict):
                         tool_args = tool_args_raw
-                        _LOGGER.info("Tool '%s': using dict arguments (Ollama format)", tool_name)
+                        _LOGGER.info(
+                            "Tool '%s': using dict arguments (Ollama format)", tool_name
+                        )
                     else:
                         _LOGGER.error(
                             "Invalid tool arguments type for '%s': %s",
@@ -1601,7 +1652,9 @@ class HomeAgent(
                         tool_args = {}
 
                     # Execute tool with timing
-                    _LOGGER.info("Calling tool '%s' with args: %s", tool_name, tool_args)
+                    _LOGGER.info(
+                        "Calling tool '%s' with args: %s", tool_name, tool_args
+                    )
                     tool_start = time.time()
                     result = await self.tool_handler.execute_tool(
                         tool_name, tool_args, conversation_id
