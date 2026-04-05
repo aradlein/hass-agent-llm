@@ -269,9 +269,7 @@ class MemoryValidator:
 
         return True, ""
 
-    def validate_batch(
-        self, memories: list[dict[str, Any]]
-    ) -> list[tuple[bool, str]]:
+    def validate_batch(self, memories: list[dict[str, Any]]) -> list[tuple[bool, str]]:
         """Validate a batch of memories.
 
         Args:
@@ -282,9 +280,7 @@ class MemoryValidator:
         """
         return [self.validate(memory) for memory in memories]
 
-    def get_validation_stats(
-        self, memories: list[dict[str, Any]]
-    ) -> dict[str, Any]:
+    def get_validation_stats(self, memories: list[dict[str, Any]]) -> dict[str, Any]:
         """Get validation statistics for a batch of memories.
 
         Args:

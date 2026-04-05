@@ -389,8 +389,8 @@ class HomeAssistantQueryTool(BaseTool):
         entity_data: dict[str, Any] = {
             "entity_id": state.entity_id,
             "state": state.state,
-            "last_changed": state.last_changed.isoformat(timespec='seconds'),
-            "last_updated": state.last_updated.isoformat(timespec='seconds'),
+            "last_changed": state.last_changed.isoformat(timespec="seconds"),
+            "last_updated": state.last_updated.isoformat(timespec="seconds"),
         }
 
         # Add attributes
@@ -406,12 +406,12 @@ class HomeAssistantQueryTool(BaseTool):
             entity_data["attributes"] = dict(state.attributes)
 
         # Convert brightness (0-255) to brightness_pct (0-100) for light entities
-        domain = state.entity_id.split('.')[0]
-        if domain == 'light' and 'brightness' in entity_data["attributes"]:
-            brightness = entity_data["attributes"]['brightness']
+        domain = state.entity_id.split(".")[0]
+        if domain == "light" and "brightness" in entity_data["attributes"]:
+            brightness = entity_data["attributes"]["brightness"]
             if brightness is not None:
-                entity_data["attributes"]['brightness_pct'] = int(brightness / 255 * 100)
-                del entity_data["attributes"]['brightness']
+                entity_data["attributes"]["brightness_pct"] = int(brightness / 255 * 100)
+                del entity_data["attributes"]["brightness"]
 
         # Add available services
         entity_data["available_services"] = self._get_entity_services(state.entity_id)
@@ -487,8 +487,8 @@ class HomeAssistantQueryTool(BaseTool):
                             "aggregate": aggregate,
                             "value": aggregated_value,
                             "data_points": len(entity_history),
-                            "start_time": start_time.isoformat(timespec='seconds'),
-                            "end_time": end_time.isoformat(timespec='seconds'),
+                            "start_time": start_time.isoformat(timespec="seconds"),
+                            "end_time": end_time.isoformat(timespec="seconds"),
                         }
                     )
 

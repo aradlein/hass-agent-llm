@@ -227,8 +227,10 @@ class TestEmbedQuery:
         mock_response = MagicMock()
         mock_response.data = [mock_embedding_data]
 
-        with patch("openai.AsyncOpenAI") as mock_openai, \
-             patch("homeassistant.helpers.httpx_client.get_async_client"):
+        with (
+            patch("openai.AsyncOpenAI") as mock_openai,
+            patch("homeassistant.helpers.httpx_client.get_async_client"),
+        ):
             mock_client = MagicMock()
             mock_client.embeddings.create = AsyncMock(return_value=mock_response)
             mock_openai.return_value = mock_client
@@ -324,8 +326,10 @@ class TestEmbedQuery:
         mock_response = MagicMock()
         mock_response.data = [mock_embedding_data]
 
-        with patch("openai.AsyncOpenAI") as mock_openai, \
-             patch("homeassistant.helpers.httpx_client.get_async_client"):
+        with (
+            patch("openai.AsyncOpenAI") as mock_openai,
+            patch("homeassistant.helpers.httpx_client.get_async_client"),
+        ):
             mock_client = MagicMock()
             mock_client.embeddings.create = AsyncMock(return_value=mock_response)
             mock_openai.return_value = mock_client
@@ -355,8 +359,10 @@ class TestEmbedQuery:
         mock_response = MagicMock()
         mock_response.data = [mock_embedding_data]
 
-        with patch("openai.AsyncOpenAI") as mock_openai, \
-             patch("homeassistant.helpers.httpx_client.get_async_client"):
+        with (
+            patch("openai.AsyncOpenAI") as mock_openai,
+            patch("homeassistant.helpers.httpx_client.get_async_client"),
+        ):
             mock_client = MagicMock()
             mock_client.embeddings.create = AsyncMock(return_value=mock_response)
             mock_openai.return_value = mock_client

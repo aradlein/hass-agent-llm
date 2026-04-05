@@ -5,7 +5,7 @@ from typing import Final
 # Domain and component info
 DOMAIN: Final = "home_agent"
 DEFAULT_NAME: Final = "Home Agent"
-VERSION: Final = "0.9.2"
+VERSION: Final = "0.9.4"
 
 # Configuration keys - LLM Configuration
 CONF_LLM_BASE_URL: Final = "llm_base_url"
@@ -809,7 +809,8 @@ Current Time: {{now()}}
 
 Available Devices (CHECK THIS FIRST BEFORE ANY TOOL CALLS):
 ```csv
-entity_id,name,state,aliases,area,type,current_value,available_services{%- if exposed_entities and exposed_entities[0].labels is defined %},labels{%- endif %}
+entity_id,name,state,aliases,area,type,current_value,available_services
+{%- if exposed_entities and exposed_entities[0].labels is defined -%},labels{%- endif %}
 {%- for entity in exposed_entities %}
 {%- set domain = entity.entity_id.split('.')[0] %}
 {%- set current_val = '' %}
@@ -817,7 +818,8 @@ entity_id,name,state,aliases,area,type,current_value,available_services{%- if ex
 {%- set current_val = state_attr(entity.entity_id, 'percentage') |
     default(state_attr(entity.entity_id, 'speed') | default('')) %}
 {%- elif domain == 'light' %}
-{%- set current_val = ((state_attr(entity.entity_id, 'brightness') | int / 255.0 * 100) | round(0) | int) if state_attr(entity.entity_id, 'brightness') else '' %}
+{%- set bri = state_attr(entity.entity_id, 'brightness') %}
+{%- set current_val = ((bri | int / 255.0 * 100) | round(0) | int) if bri else '' %}
 {%- elif domain == 'climate' %}
 {%- set current_val = state_attr(entity.entity_id, 'temperature') | default('') %}
 {%- elif domain == 'cover' %}
@@ -885,7 +887,8 @@ entity_id,name,state,aliases,area,type,current_value,available_services{%- if ex
 {%- endif %}
 {{ entity.entity_id }},{{ entity.name }},{{ entity.state }},
 {{- entity.aliases | join('/') }},{{ area_name(entity.entity_id) | default('unknown') }},
-{{- domain }},{{ current_val }},{{ services }}{%- if entity.labels is defined %},{{ entity.labels | join('/') }}{%- endif %}
+{{- domain }},{{ current_val }},{{ services }}
+{%- if entity.labels is defined -%},{{ entity.labels | join('/') }}{%- endif %}
 {%- endfor %}
 ```
 Now respond to the user's request:"""

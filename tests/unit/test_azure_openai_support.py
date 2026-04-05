@@ -22,10 +22,7 @@ These tests validate:
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aiohttp import ClientSession
 
-from custom_components.home_agent.agent.llm import LLMMixin
-from custom_components.home_agent.agent.streaming import StreamingMixin
 from custom_components.home_agent.const import (
     CONF_AZURE_API_VERSION,
     CONF_CONTEXT_MODE,
@@ -56,7 +53,10 @@ class TestIsAzureOpenAIBackendHelper:
             ("https://myresource.openai.azure.com/v1", True),
             ("https://MYRESOURCE.OPENAI.AZURE.COM/v1", True),  # Case insensitive
             ("https://my-resource.openai.azure.com", True),
-            ("https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions", True),
+            (
+                "https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions",
+                True,
+            ),
             # Non-Azure URLs that should NOT be detected
             ("https://api.openai.com/v1", False),
             ("http://localhost:11434/v1", False),
@@ -73,9 +73,9 @@ class TestIsAzureOpenAIBackendHelper:
         from custom_components.home_agent.helpers import is_azure_openai_backend
 
         result = is_azure_openai_backend(base_url)
-        assert result == expected, (
-            f"Expected is_azure_openai_backend('{base_url}') to be {expected}, got {result}"
-        )
+        assert (
+            result == expected
+        ), f"Expected is_azure_openai_backend('{base_url}') to be {expected}, got {result}"
 
 
 class TestBuildApiUrl:
@@ -306,12 +306,12 @@ class TestAzureOpenAIPrimaryLLM:
 
             # Verify the URL contains Azure deployment path
             url = call_args.args[0] if call_args.args else call_args.kwargs.get("url", "")
-            assert "/openai/deployments/" in url, (
-                f"Azure URL should contain /openai/deployments/, got: {url}"
-            )
-            assert "api-version=" in url, (
-                f"Azure URL should contain api-version query parameter, got: {url}"
-            )
+            assert (
+                "/openai/deployments/" in url
+            ), f"Azure URL should contain /openai/deployments/, got: {url}"
+            assert (
+                "api-version=" in url
+            ), f"Azure URL should contain api-version query parameter, got: {url}"
 
         await agent.close()
 
@@ -346,15 +346,15 @@ class TestAzureOpenAIPrimaryLLM:
             headers = call_args.kwargs.get("headers", {})
 
             # Azure should use api-key header
-            assert "api-key" in headers, (
-                f"Azure should use 'api-key' header, got headers: {headers}"
-            )
+            assert (
+                "api-key" in headers
+            ), f"Azure should use 'api-key' header, got headers: {headers}"
             assert headers["api-key"] == "test-key"
 
             # Azure should NOT use Authorization: Bearer header
-            assert "Authorization" not in headers, (
-                f"Azure should NOT use 'Authorization' header, got headers: {headers}"
-            )
+            assert (
+                "Authorization" not in headers
+            ), f"Azure should NOT use 'Authorization' header, got headers: {headers}"
 
         await agent.close()
 
@@ -437,12 +437,12 @@ class TestAzureOpenAIStreaming:
 
             # Verify the URL contains Azure deployment path
             url = call_args.args[0] if call_args.args else call_args.kwargs.get("url", "")
-            assert "/openai/deployments/" in url, (
-                f"Azure streaming URL should contain /openai/deployments/, got: {url}"
-            )
-            assert "api-version=" in url, (
-                f"Azure streaming URL should contain api-version parameter, got: {url}"
-            )
+            assert (
+                "/openai/deployments/" in url
+            ), f"Azure streaming URL should contain /openai/deployments/, got: {url}"
+            assert (
+                "api-version=" in url
+            ), f"Azure streaming URL should contain api-version parameter, got: {url}"
 
         await agent.close()
 
@@ -477,15 +477,15 @@ class TestAzureOpenAIStreaming:
             headers = call_args.kwargs.get("headers", {})
 
             # Azure should use api-key header
-            assert "api-key" in headers, (
-                f"Azure streaming should use 'api-key' header, got: {headers}"
-            )
+            assert (
+                "api-key" in headers
+            ), f"Azure streaming should use 'api-key' header, got: {headers}"
             assert headers["api-key"] == "test-key"
 
             # Azure should NOT use Authorization: Bearer header
-            assert "Authorization" not in headers, (
-                f"Azure streaming should NOT use 'Authorization' header, got: {headers}"
-            )
+            assert (
+                "Authorization" not in headers
+            ), f"Azure streaming should NOT use 'Authorization' header, got: {headers}"
 
         await agent.close()
 
@@ -537,12 +537,12 @@ class TestAzureOpenAIExternalLLM:
 
             # Verify the URL contains Azure deployment path
             url = call_args.args[0] if call_args.args else call_args[0][0]
-            assert "/openai/deployments/" in url, (
-                f"External LLM Azure URL should contain /openai/deployments/, got: {url}"
-            )
-            assert "api-version=" in url, (
-                f"External LLM Azure URL should contain api-version, got: {url}"
-            )
+            assert (
+                "/openai/deployments/" in url
+            ), f"External LLM Azure URL should contain /openai/deployments/, got: {url}"
+            assert (
+                "api-version=" in url
+            ), f"External LLM Azure URL should contain api-version, got: {url}"
 
         await tool.close()
 
@@ -583,15 +583,15 @@ class TestAzureOpenAIExternalLLM:
             headers = call_args[1]["headers"]
 
             # Azure should use api-key header
-            assert "api-key" in headers, (
-                f"External LLM Azure should use 'api-key' header, got: {headers}"
-            )
+            assert (
+                "api-key" in headers
+            ), f"External LLM Azure should use 'api-key' header, got: {headers}"
             assert headers["api-key"] == "test-azure-key"
 
             # Azure should NOT use Authorization: Bearer header
-            assert "Authorization" not in headers, (
-                f"External LLM Azure should NOT use 'Authorization' header, got: {headers}"
-            )
+            assert (
+                "Authorization" not in headers
+            ), f"External LLM Azure should NOT use 'Authorization' header, got: {headers}"
 
         await tool.close()
 
@@ -632,21 +632,22 @@ class TestAzureOpenAIExternalLLM:
             headers = call_args[1]["headers"]
 
             # Standard endpoint should use Authorization: Bearer header
-            assert "Authorization" in headers, (
-                f"Standard endpoint should use 'Authorization' header, got: {headers}"
-            )
+            assert (
+                "Authorization" in headers
+            ), f"Standard endpoint should use 'Authorization' header, got: {headers}"
             assert headers["Authorization"] == "Bearer test-openai-key"
 
             # Standard endpoint should NOT use api-key header
-            assert "api-key" not in headers, (
-                f"Standard endpoint should NOT use 'api-key' header, got: {headers}"
-            )
+            assert (
+                "api-key" not in headers
+            ), f"Standard endpoint should NOT use 'api-key' header, got: {headers}"
 
         await tool.close()
 
 
 class TestNonAzureBackendsUnchanged:
-    """Parametrized tests confirming standard OpenAI/Ollama/Anthropic URLs still work exactly as before.
+    """Parametrized tests confirming standard OpenAI/Ollama/Anthropic
+    URLs still work exactly as before.
 
     These tests serve as regression tests to ensure Azure OpenAI support does not
     break existing functionality for non-Azure backends.
@@ -707,9 +708,7 @@ class TestNonAzureBackendsUnchanged:
             "https://api.groq.com/openai/v1",
         ],
     )
-    async def test_non_azure_llm_uses_standard_url(
-        self, mock_hass, session_manager, base_url
-    ):
+    async def test_non_azure_llm_uses_standard_url(self, mock_hass, session_manager, base_url):
         """Test that non-Azure backends use standard /chat/completions URL."""
         agent = self._create_agent(mock_hass, session_manager, base_url)
 
@@ -738,17 +737,17 @@ class TestNonAzureBackendsUnchanged:
             url = call_args.args[0] if call_args.args else call_args.kwargs.get("url", "")
 
             # Non-Azure should use standard /chat/completions
-            assert url.endswith("/chat/completions"), (
-                f"Non-Azure URL should end with /chat/completions, got: {url}"
-            )
+            assert url.endswith(
+                "/chat/completions"
+            ), f"Non-Azure URL should end with /chat/completions, got: {url}"
             # Non-Azure should NOT contain Azure deployment path
-            assert "/openai/deployments/" not in url, (
-                f"Non-Azure URL should NOT contain /openai/deployments/, got: {url}"
-            )
+            assert (
+                "/openai/deployments/" not in url
+            ), f"Non-Azure URL should NOT contain /openai/deployments/, got: {url}"
             # Non-Azure should NOT contain api-version parameter
-            assert "api-version=" not in url, (
-                f"Non-Azure URL should NOT contain api-version, got: {url}"
-            )
+            assert (
+                "api-version=" not in url
+            ), f"Non-Azure URL should NOT contain api-version, got: {url}"
 
         await agent.close()
 
@@ -761,9 +760,7 @@ class TestNonAzureBackendsUnchanged:
             "https://api.together.xyz/v1",
         ],
     )
-    async def test_non_azure_llm_uses_bearer_auth(
-        self, mock_hass, session_manager, base_url
-    ):
+    async def test_non_azure_llm_uses_bearer_auth(self, mock_hass, session_manager, base_url):
         """Test that non-Azure backends use Authorization: Bearer header."""
         agent = self._create_agent(mock_hass, session_manager, base_url)
 
@@ -791,17 +788,17 @@ class TestNonAzureBackendsUnchanged:
             headers = call_args.kwargs.get("headers", {})
 
             # Non-Azure should use Authorization: Bearer
-            assert "Authorization" in headers, (
-                f"Non-Azure should use 'Authorization' header for {base_url}, got: {headers}"
-            )
-            assert headers["Authorization"] == "Bearer test-key", (
-                f"Non-Azure should use 'Bearer test-key' for {base_url}, got: {headers['Authorization']}"
-            )
+            assert (
+                "Authorization" in headers
+            ), f"Non-Azure should use 'Authorization' header for {base_url}, got: {headers}"
+            assert (
+                headers["Authorization"] == "Bearer test-key"
+            ), f"Non-Azure should use 'Bearer test-key' for {headers['Authorization']}"
 
             # Non-Azure should NOT use api-key header
-            assert "api-key" not in headers, (
-                f"Non-Azure should NOT use 'api-key' header for {base_url}, got: {headers}"
-            )
+            assert (
+                "api-key" not in headers
+            ), f"Non-Azure should NOT use 'api-key' header for {base_url}, got: {headers}"
 
         await agent.close()
 
@@ -844,12 +841,12 @@ class TestNonAzureBackendsUnchanged:
             url = call_args.args[0] if call_args.args else call_args.kwargs.get("url", "")
 
             # Non-Azure should use standard /chat/completions
-            assert url.endswith("/chat/completions"), (
-                f"Non-Azure streaming URL should end with /chat/completions, got: {url}"
-            )
-            assert "/openai/deployments/" not in url, (
-                f"Non-Azure streaming URL should NOT contain /openai/deployments/, got: {url}"
-            )
+            assert url.endswith(
+                "/chat/completions"
+            ), f"Non-Azure streaming URL should end with /chat/completions, got: {url}"
+            assert (
+                "/openai/deployments/" not in url
+            ), f"Non-Azure streaming URL should NOT contain /openai/deployments/, got: {url}"
 
         await agent.close()
 
@@ -862,9 +859,9 @@ class TestAzureApiVersionConstant:
         assert isinstance(DEFAULT_AZURE_API_VERSION, str)
         assert len(DEFAULT_AZURE_API_VERSION) > 0
         # Azure API versions follow a date-based format like "2024-12-01-preview" or "2024-06-01"
-        assert DEFAULT_AZURE_API_VERSION[0:4].isdigit(), (
-            f"Azure API version should start with a year, got: {DEFAULT_AZURE_API_VERSION}"
-        )
+        assert DEFAULT_AZURE_API_VERSION[
+            0:4
+        ].isdigit(), f"Azure API version should start with a year, got: {DEFAULT_AZURE_API_VERSION}"
 
     def test_conf_azure_api_version_is_string(self):
         """Test that CONF_AZURE_API_VERSION config key is defined."""

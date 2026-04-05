@@ -50,9 +50,7 @@ class TestRenderTemplateValue:
 
         with patch(_TEMPLATE_PATCH) as mock_template_class:
             mock_template = MagicMock()
-            mock_template.async_render = MagicMock(
-                return_value="rendered-api-key"
-            )
+            mock_template.async_render = MagicMock(return_value="rendered-api-key")
             mock_template_class.return_value = mock_template
 
             result = render_template_value(mock_hass, template_str)
@@ -67,9 +65,7 @@ class TestRenderTemplateValue:
 
         with patch(_TEMPLATE_PATCH) as mock_template_class:
             mock_template = MagicMock()
-            mock_template.async_render = MagicMock(
-                return_value="secret-key-value"
-            )
+            mock_template.async_render = MagicMock(return_value="secret-key-value")
             mock_template_class.return_value = mock_template
 
             result = render_template_value(mock_hass, template_str)
@@ -131,9 +127,7 @@ class TestApiKeyBackwardsCompatibility:
 
         with patch(_TEMPLATE_PATCH) as mock_template_class:
             mock_template = MagicMock()
-            mock_template.async_render = MagicMock(
-                return_value="dynamic-key-from-helper"
-            )
+            mock_template.async_render = MagicMock(return_value="dynamic-key-from-helper")
             mock_template_class.return_value = mock_template
 
             result = render_template_value(mock_hass, template_str)
@@ -232,10 +226,7 @@ class TestSchemaAcceptsTemplates:
             "external_llm_api_key": "{{ states('input_text.ext_key') }}",
         }
         result = schema(data)
-        assert (
-            result["external_llm_api_key"]
-            == "{{ states('input_text.ext_key') }}"
-        )
+        assert result["external_llm_api_key"] == "{{ states('input_text.ext_key') }}"
 
     def test_vector_db_schema_accepts_template(self):
         """Test that vector DB schema accepts a template for OpenAI API key."""
@@ -248,7 +239,4 @@ class TestSchemaAcceptsTemplates:
             "openai_api_key": "{{ secrets.openai_embedding_key }}",
         }
         result = schema(data)
-        assert (
-            result["openai_api_key"]
-            == "{{ secrets.openai_embedding_key }}"
-        )
+        assert result["openai_api_key"] == "{{ secrets.openai_embedding_key }}"

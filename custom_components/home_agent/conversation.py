@@ -178,7 +178,7 @@ class ConversationHistoryManager:
                 if valid_messages:
                     # Trim to max_messages to handle previously oversized histories
                     if self._max_messages is not None and len(valid_messages) > self._max_messages:
-                        valid_messages = valid_messages[-self._max_messages:]
+                        valid_messages = valid_messages[-self._max_messages :]
                     self._histories[conv_id] = valid_messages
                     loaded_count += 1
                     total_messages += len(valid_messages)

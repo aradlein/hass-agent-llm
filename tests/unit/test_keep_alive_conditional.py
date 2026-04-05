@@ -21,7 +21,6 @@ from custom_components.home_agent.const import (
     CONF_LLM_MODEL,
     CONF_LLM_TEMPERATURE,
     CONTEXT_MODE_DIRECT,
-    DEFAULT_LLM_KEEP_ALIVE,
 )
 
 
@@ -177,9 +176,9 @@ class TestKeepAliveConditionalLLM:
             payload = call_args.kwargs.get("json", {})
 
             assert "keep_alive" in payload, f"keep_alive should be sent to Ollama at {base_url}"
-            assert payload["keep_alive"] == keep_alive_value, (
-                f"Expected keep_alive={keep_alive_value}, got {payload.get('keep_alive')}"
-            )
+            assert (
+                payload["keep_alive"] == keep_alive_value
+            ), f"Expected keep_alive={keep_alive_value}, got {payload.get('keep_alive')}"
 
         await agent.close()
 
@@ -272,9 +271,9 @@ class TestKeepAliveConditionalStreaming:
             call_args = mock_session.post.call_args
             payload = call_args.kwargs.get("json", {})
 
-            assert "keep_alive" not in payload, (
-                f"keep_alive should NOT be sent to {base_url} in streaming mode"
-            )
+            assert (
+                "keep_alive" not in payload
+            ), f"keep_alive should NOT be sent to {base_url} in streaming mode"
 
         await agent.close()
 
@@ -286,9 +285,7 @@ class TestKeepAliveConditionalStreaming:
             "http://ollama:11434/v1",
         ],
     )
-    async def test_streaming_keep_alive_sent_to_ollama(
-        self, mock_hass, session_manager, base_url
-    ):
+    async def test_streaming_keep_alive_sent_to_ollama(self, mock_hass, session_manager, base_url):
         """Test that keep_alive IS sent in streaming requests to Ollama."""
         agent = self._create_agent(mock_hass, session_manager, base_url, keep_alive="10m")
 
@@ -388,9 +385,9 @@ class TestKeepAliveConditionalExternalLLM:
             call_args = mock_session.post.call_args
             payload = call_args[1]["json"]
 
-            assert "keep_alive" not in payload, (
-                f"External LLM tool should NOT send keep_alive to {base_url}"
-            )
+            assert (
+                "keep_alive" not in payload
+            ), f"External LLM tool should NOT send keep_alive to {base_url}"
 
         await tool.close()
 
@@ -449,9 +446,9 @@ class TestKeepAliveConditionalExternalLLM:
             call_args = mock_session.post.call_args
             payload = call_args[1]["json"]
 
-            assert "keep_alive" in payload, (
-                f"External LLM tool should send keep_alive to Ollama at {base_url}"
-            )
+            assert (
+                "keep_alive" in payload
+            ), f"External LLM tool should send keep_alive to Ollama at {base_url}"
             assert payload["keep_alive"] == keep_alive_value
 
         await tool.close()
@@ -491,6 +488,6 @@ class TestIsOllamaBackendHelper:
         from custom_components.home_agent.helpers import is_ollama_backend
 
         result = is_ollama_backend(base_url)
-        assert result == expected, (
-            f"Expected is_ollama_backend('{base_url}') to be {expected}, got {result}"
-        )
+        assert (
+            result == expected
+        ), f"Expected is_ollama_backend('{base_url}') to be {expected}, got {result}"

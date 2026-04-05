@@ -462,7 +462,7 @@ class TestAsyncSetupEntry:
         mock_config_entry,
         mock_agent,
     ):
-        """Test that when no session_persistence_enabled is specified, it defaults to enabled with 3600 second timeout."""
+        """Test that when no session_persistence_enabled is specified, it defaults to timeout."""
         mock_agent_class.return_value = mock_agent
         mock_setup_services.return_value = AsyncMock()
         mock_session_manager = MagicMock()
@@ -491,7 +491,7 @@ class TestAsyncSetupEntry:
         mock_config_entry,
         mock_agent,
     ):
-        """Test that when session_persistence_enabled=False, the session_manager is initialized with timeout=0."""
+        """Test that when session_persistence_enabled=False, the session_manager is timeout=0."""
         mock_agent_class.return_value = mock_agent
         mock_setup_services.return_value = AsyncMock()
         mock_session_manager = MagicMock()
@@ -525,7 +525,7 @@ class TestAsyncSetupEntry:
         mock_config_entry,
         mock_agent,
     ):
-        """Test that when session_timeout is set to a custom value (in minutes), it's converted to seconds correctly."""
+        """Test that when session_timeout is set to a custom value (in minutes), correctly."""
         mock_agent_class.return_value = mock_agent
         mock_setup_services.return_value = AsyncMock()
         mock_session_manager = MagicMock()

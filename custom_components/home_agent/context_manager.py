@@ -127,10 +127,23 @@ class ContextManager:
 
             _LOGGER.info("Initialized context provider: %s", self._provider.__class__.__name__)
         except Exception as error:
-            _LOGGER.error("Failed to initialize context provider: %s", error, exc_info=True)
-            raise ContextInjectionError(
-                f"Failed to initialize context provider: {error}"
-            ) from error
+            if mode == CONTEXT_MODE_VECTOR_DB:
+                _LOGGER.error(
+                    "Failed to initialize vector DB context provider: %s. "
+                    "Falling back to direct context mode.",
+                    error,
+                    exc_info=True,
+                )
+                self._provider = self._create_direct_provider()
+                _LOGGER.info(
+                    "Initialized fallback context provider: %s",
+                    self._provider.__class__.__name__,
+                )
+            else:
+                _LOGGER.error("Failed to initialize context provider: %s", error, exc_info=True)
+                raise ContextInjectionError(
+                    f"Failed to initialize context provider: {error}"
+                ) from error
 
     def _create_direct_provider(self) -> DirectContextProvider:
         """Create and configure a direct context provider.
@@ -447,7 +460,9 @@ class ContextManager:
         if cache_key not in self._cache:
             return None
 
-        _LOGGER.debug("Cache hit (age: %.1fs)", time.time() - self._cache_timestamps.get(cache_key, 0))
+        _LOGGER.debug(
+            "Cache hit (age: %.1fs)", time.time() - self._cache_timestamps.get(cache_key, 0)
+        )
         cached = self._cache[cache_key]
         return str(cached) if cached is not None else None
 
@@ -476,8 +491,7 @@ class ContextManager:
         """
         now = time.time()
         expired_keys = [
-            key for key, ts in self._cache_timestamps.items()
-            if now - ts > self._cache_ttl
+            key for key, ts in self._cache_timestamps.items() if now - ts > self._cache_ttl
         ]
         for key in expired_keys:
             del self._cache[key]

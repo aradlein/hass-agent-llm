@@ -12,7 +12,7 @@ from __future__ import annotations
 import functools
 import hashlib
 from contextlib import contextmanager
-from typing import Any, Callable
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -77,11 +77,13 @@ def create_embedding_response(
     embeddings_data = []
     for i, text in enumerate(texts):
         embedding = generate_deterministic_embedding(text, dimensions)
-        embeddings_data.append({
-            "object": "embedding",
-            "index": i,
-            "embedding": embedding,
-        })
+        embeddings_data.append(
+            {
+                "object": "embedding",
+                "index": i,
+                "embedding": embedding,
+            }
+        )
 
     return {
         "object": "list",
@@ -215,11 +217,13 @@ class MockEmbeddingServer:
             embeddings_data = []
             for i, text in enumerate(texts):
                 embedding = self.get_embedding(text)
-                embeddings_data.append({
-                    "object": "embedding",
-                    "index": i,
-                    "embedding": embedding,
-                })
+                embeddings_data.append(
+                    {
+                        "object": "embedding",
+                        "index": i,
+                        "embedding": embedding,
+                    }
+                )
 
             return {
                 "object": "list",
@@ -242,6 +246,7 @@ class MockEmbeddingServer:
         Yields:
             The mock session for additional assertions
         """
+
         def response_handler(url: str, **kwargs) -> MagicMock:
             payload = kwargs.get("json", {})
 
@@ -305,7 +310,6 @@ def create_similar_embeddings(
     Returns:
         Dict mapping text to embedding
     """
-    import math
 
     base_embedding = generate_deterministic_embedding(base_text, dimensions)
 

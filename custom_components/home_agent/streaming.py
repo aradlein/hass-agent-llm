@@ -10,8 +10,6 @@ from typing import Any, AsyncGenerator
 from homeassistant.components import conversation
 from homeassistant.helpers import llm
 
-from .helpers import strip_thinking_blocks
-
 _LOGGER = logging.getLogger(__name__)
 
 # Pattern for detecting incomplete thinking blocks in streaming content
@@ -81,7 +79,7 @@ class OpenAIStreamingHandler:
                 if start_match:
                     # Yield content before the thinking block
                     if start_match.start() > i:
-                        result_parts.append(full_content[i:start_match.start()])
+                        result_parts.append(full_content[i : start_match.start()])
                     self._in_thinking_block = True
                     i = start_match.end()
                 else:

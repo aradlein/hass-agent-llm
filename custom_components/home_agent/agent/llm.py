@@ -149,7 +149,14 @@ from ..const import (
     HTTP_TIMEOUT,
 )
 from ..exceptions import AuthenticationError, HomeAgentError
-from ..helpers import build_api_url, build_auth_headers, is_ollama_backend, redact_sensitive_data, render_template_value, retry_async
+from ..helpers import (
+    build_api_url,
+    build_auth_headers,
+    is_ollama_backend,
+    redact_sensitive_data,
+    render_template_value,
+    retry_async,
+)
 
 if TYPE_CHECKING:
     pass
@@ -258,7 +265,9 @@ class LLMMixin:
         async def make_llm_request() -> dict[str, Any]:
             """Make the LLM API request."""
             try:
-                async with session.post(url, headers=headers, json=payload, allow_redirects=False) as response:
+                async with session.post(
+                    url, headers=headers, json=payload, allow_redirects=False
+                ) as response:
                     if response.status == 401:
                         raise AuthenticationError(
                             "LLM API authentication failed. Check your API key "
@@ -270,7 +279,11 @@ class LLMMixin:
                     if response.status != 200:
                         error_text = await response.text()
                         error_lower = error_text.lower()
-                        if "authorization" in error_lower or "authentication" in error_lower or "auth" in error_lower:
+                        if (
+                            "authorization" in error_lower
+                            or "authentication" in error_lower
+                            or "auth" in error_lower
+                        ):
                             raise HomeAgentError(
                                 f"LLM API returned status {response.status}: {error_text}. "
                                 "This may indicate an API key configuration issue. "
@@ -279,7 +292,9 @@ class LLMMixin:
                                 "If using a proxy or gateway (e.g., Cloudflare AI Gateway), "
                                 "ensure the Authorization header is being forwarded."
                             )
-                        raise HomeAgentError(f"LLM API returned status {response.status}: {error_text}")
+                        raise HomeAgentError(
+                            f"LLM API returned status {response.status}: {error_text}"
+                        )
 
                     result: dict[str, Any] = await response.json()
                     return result

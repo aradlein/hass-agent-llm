@@ -1,5 +1,7 @@
 """Unit tests for OpenAIStreamingHandler class."""
 
+import json
+
 import pytest
 
 from custom_components.home_agent.streaming import OpenAIStreamingHandler
@@ -726,8 +728,7 @@ class TestThinkingBlockFiltering:
     async def test_streaming_multiline_thinking_block(self, handler):
         """Test filtering of multiline thinking blocks."""
         thinking_content = (
-            "<think>\\nStep 1: Analyze the question\\n"
-            "Step 2: Form a response\\n</think>"
+            "<think>\\nStep 1: Analyze the question\\n" "Step 2: Form a response\\n</think>"
         )
         sse_lines = [
             (
@@ -1138,9 +1139,9 @@ class TestThinkingBlockFiltering:
 
         # The "<th" should NOT be lost - it should be yielded since the stream
         # ended and it will never become a complete <think> tag
-        assert full_content == "The result is <th", (
-            f"Buffered content '<th' was lost at stream end. Got: '{full_content}'"
-        )
+        assert (
+            full_content == "The result is <th"
+        ), f"Buffered content '<th' was lost at stream end. Got: '{full_content}'"
 
     @pytest.mark.asyncio
     async def test_streaming_buffer_single_char_at_stream_end(self, handler):
@@ -1177,9 +1178,9 @@ class TestThinkingBlockFiltering:
         full_content = "".join(content_parts)
 
         # The trailing "<" should not be lost
-        assert full_content == "5 < 10 and 10 <", (
-            f"Buffered '<' was lost at stream end. Got: '{full_content}'"
-        )
+        assert (
+            full_content == "5 < 10 and 10 <"
+        ), f"Buffered '<' was lost at stream end. Got: '{full_content}'"
 
     @pytest.mark.asyncio
     async def test_handler_state_does_not_persist_between_iterations(self):
@@ -1287,9 +1288,9 @@ class TestThinkingBlockFiltering:
         # Verify only text content was yielded
         content_parts = [r.get("content", "") for r in results2 if "content" in r]
         full_content = "".join(content_parts)
-        assert full_content == "The light is on.", (
-            f"Second iteration should yield only text content. Got: '{full_content}'"
-        )
+        assert (
+            full_content == "The light is on."
+        ), f"Second iteration should yield only text content. Got: '{full_content}'"
 
     @pytest.mark.asyncio
     async def test_handler_state_cleared_after_tool_finalization(self):
@@ -1344,9 +1345,9 @@ class TestThinkingBlockFiltering:
 
         # Verify tool_calls were yielded exactly once
         tool_call_results = [r for r in results if "tool_calls" in r]
-        assert len(tool_call_results) == 1, (
-            f"Expected exactly 1 tool_calls delta, got {len(tool_call_results)}"
-        )
+        assert (
+            len(tool_call_results) == 1
+        ), f"Expected exactly 1 tool_calls delta, got {len(tool_call_results)}"
 
     @pytest.mark.asyncio
     async def test_handler_state_cleared_at_stream_end_without_finish_reason(self):
@@ -2029,19 +2030,54 @@ class TestStreamingErrorHandling:
         handler = OpenAIStreamingHandler()
 
         # Break JSON into many small chunks
+        # Helper to build SSE data line
+        def sse(obj):
+            return "data: " + json.dumps(obj)
+
+        def delta_line(delta, **extra):
+            choice = {"delta": delta}
+            choice.update(extra)
+            return sse({"id": "test", "choices": [choice]})
+
+        def arg_delta(arg_str):
+            return delta_line(
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "function": {"arguments": arg_str},
+                        }
+                    ]
+                }
+            )
+
         sse_lines = [
-            'data: {"id":"test","choices":[{"delta":{"role":"assistant"}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"test","arguments":""}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"a"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\":"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"1"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":","}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"b"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\":"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"2"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]}}]}',
-            'data: {"id":"test","choices":[{"delta":{},"finish_reason":"tool_calls"}]}',
+            delta_line({"role": "assistant"}),
+            delta_line(
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "test",
+                                "arguments": "",
+                            },
+                        }
+                    ]
+                }
+            ),
+            arg_delta("{"),
+            arg_delta('"a'),
+            arg_delta('":'),
+            arg_delta("1"),
+            arg_delta(","),
+            arg_delta('"b'),
+            arg_delta('":'),
+            arg_delta("2"),
+            arg_delta("}"),
+            delta_line({}, finish_reason="tool_calls"),
             "data: [DONE]",
         ]
 
@@ -2183,9 +2219,35 @@ class TestStreamingErrorHandling:
         handler = OpenAIStreamingHandler()
 
         async def interrupted_tool_stream():
-            yield 'data: {"id":"test","choices":[{"delta":{"role":"assistant"}}]}'
-            yield 'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"test","arguments":""}}]}}]}'
-            yield 'data: {"id":"test","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"par"}}]}}]}'
+            def sse(delta):
+                return "data: " + json.dumps({"id": "test", "choices": [{"delta": delta}]})
+
+            yield sse({"role": "assistant"})
+            yield sse(
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "test",
+                                "arguments": "",
+                            },
+                        }
+                    ]
+                }
+            )
+            yield sse(
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "function": {"arguments": '{"par'},
+                        }
+                    ]
+                }
+            )
             # Error before tool call completes
             raise IOError("Stream interrupted")
 
@@ -2298,7 +2360,7 @@ class TestStreamingErrorHandling:
             results.append(delta)
 
         content_parts = [r.get("content", "") for r in results if "content" in r]
-        full_content = "".join(content_parts)
+        _ = "".join(content_parts)
 
         # In this edge case, the buffer sees "</th" and waits for more content
         # to determine if it's a closing tag. When "ink>visible content" arrives,

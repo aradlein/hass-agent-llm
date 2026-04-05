@@ -6,11 +6,13 @@ on:
       - main
     paths:
       - 'custom_components/home_agent/manifest.json'
+      - 'custom_components/home_agent/const.py'
   push:
     branches:
       - main
     paths:
       - 'custom_components/home_agent/manifest.json'
+      - 'custom_components/home_agent/const.py'
 
 jobs:
   validate-version:
@@ -32,6 +34,22 @@ jobs:
           fi
 
           echo "✓ Version format is valid"
+
+      - name: Validate manifest.json and const.py versions match
+        run: |
+          MANIFEST_VERSION=$(jq -r '.version' custom_components/home_agent/manifest.json)
+          CONST_VERSION=$(grep -oP '^VERSION:\s*Final\s*=\s*"\K[^"]+' custom_components/home_agent/const.py)
+
+          echo "manifest.json version: $MANIFEST_VERSION"
+          echo "const.py version:      $CONST_VERSION"
+
+          if [ "$MANIFEST_VERSION" != "$CONST_VERSION" ]; then
+            echo "❌ Error: manifest.json version ($MANIFEST_VERSION) does not match const.py version ($CONST_VERSION)"
+            echo "Both files must have the same version string."
+            exit 1
+          fi
+
+          echo "✓ manifest.json and const.py versions match"
 
       - name: Check if version changed
         if: github.event_name == 'pull_request'

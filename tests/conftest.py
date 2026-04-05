@@ -52,7 +52,9 @@ def _create_mock_hass(*, minimal: bool = False, with_loop: bool = True, tmp_path
     mock.config = MagicMock()
     if tmp_path:
         mock.config.config_dir = str(tmp_path)
-        mock.config.path = MagicMock(side_effect=lambda *args: "/".join([str(tmp_path)] + list(args)))
+        mock.config.path = MagicMock(
+            side_effect=lambda *args: "/".join([str(tmp_path)] + list(args))
+        )
     else:
         mock.config.config_dir = "/config"
         mock.config.path = MagicMock(side_effect=lambda *args: "/".join(["/config"] + list(args)))
@@ -85,22 +87,28 @@ def _create_mock_hass(*, minimal: bool = False, with_loop: bool = True, tmp_path
         # Mock async_create_task
         def mock_create_task(coro, *args, **kwargs):
             """Create a task that properly awaits the coroutine."""
-            task = mock.loop.create_task(coro)
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = mock.loop
+            task = loop.create_task(coro)
             created_tasks.append(task)
             return task
 
         mock.async_create_task = MagicMock(side_effect=mock_create_task)
+        mock.async_create_background_task = MagicMock(side_effect=mock_create_task)
         mock._test_tasks = created_tasks
 
-        # Mock exposed entities data structure (required by VectorDBManager)
+        # Mock exposed entities data structure (required by VectorDBManager and async_should_expose)
         mock_exposed_entities = MagicMock()
         mock_exposed_entities.async_should_expose.return_value = True
         mock.data["homeassistant.exposed_entites"] = mock_exposed_entities
+        mock.data["homeassistant.exposed_entities"] = mock_exposed_entities
 
         # Mock registries to prevent AttributeError
-        from homeassistant.helpers import entity_registry as er
         from homeassistant.helpers import area_registry as ar
         from homeassistant.helpers import device_registry as dr
+        from homeassistant.helpers import entity_registry as er
 
         # Entity registry
         mock_entity_registry = MagicMock()
