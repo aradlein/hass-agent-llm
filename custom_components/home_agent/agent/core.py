@@ -908,6 +908,7 @@ class HomeAgent(
         user_message = self._preprocess_user_message(user_input.text)
         device_id = user_input.device_id
         user_id = user_input.context.user_id if user_input.context else None
+        tools_history_string = ""
 
         # Get or create persistent conversation ID for voice interactions
         conversation_id = user_input.conversation_id
@@ -1008,7 +1009,7 @@ class HomeAgent(
         chat_log.llm_api = ToolHandlerAPIInstance(
             self.tool_handler, metrics, conversation_id, max_calls_per_turn
         )
-
+        
         # Track start time for metrics
         start_time = time.time()
 
@@ -1029,7 +1030,7 @@ class HomeAgent(
 
         # Build messages list
         messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
-
+        messages.append({"role": "assistant", "content": f"Tool was called: Toolname: {llm.ToolInput.tool_name} Toolargs: {llm.ToolInput.tool_args}"})
         # Add conversation history if enabled
         if self.config.get(CONF_HISTORY_ENABLED, True):
             history = self.conversation_manager.get_history(
@@ -1047,7 +1048,7 @@ class HomeAgent(
         max_iterations = self.config.get(
             CONF_TOOLS_MAX_CALLS_PER_TURN, DEFAULT_TOOLS_MAX_CALLS_PER_TURN
         )
-
+        
         entry_id = None
         # Try to find entry_id from config or hass.data
         if "entry_id" in self.config:
@@ -1171,9 +1172,11 @@ class HomeAgent(
                             }
                             for tc in content_item.tool_calls
                         ]
+                        # Add Tool Call to ConversationHistory. 
+                        tools_history_string =+ json.dumps(msg["tool_calls"], indent=2)
+                        
 
                     messages.append(msg)
-
                 elif isinstance(content_item, conversation.ToolResultContent):
                     messages.append(
                         {
@@ -1263,6 +1266,8 @@ class HomeAgent(
 
             self.conversation_manager.add_message(conversation_id, "user", user_message)
             if final_response:
+                if tools_history_string:
+                    self.conversation_manager.add_message(conversation_id, "assistant", f"Called Tools: {tools_history_string}")
                 self.conversation_manager.add_message(conversation_id, "assistant", final_response)
 
         # Extract and store memories if enabled (fire and forget)
