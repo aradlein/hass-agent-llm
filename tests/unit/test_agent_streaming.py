@@ -559,9 +559,10 @@ class TestStreamingMessageConstruction:
         separate messages for content and tool_calls, causing issues with the LLM API.
         The fix in core.py ensures a single message with both fields is appended.
         """
+        import json
+
         from homeassistant.components.conversation import AssistantContent, ToolResultContent
         from homeassistant.helpers.llm import ToolInput
-        import json
 
         # Enable streaming to test the streaming message construction path
         agent.config[CONF_STREAMING_ENABLED] = True
@@ -622,14 +623,21 @@ class TestStreamingMessageConstruction:
         def capture_llm_messages(messages):
             """Capture messages and return mock stream."""
             captured_messages.append([m.copy() for m in messages])
+
             async def mock_stream():
                 yield "data: {}"
+
             return mock_stream()
 
         with (
-            patch("homeassistant.components.conversation.chat_log.current_chat_log") as mock_chat_log,
+            patch(
+                "homeassistant.components.conversation.chat_log.current_chat_log"
+            ) as mock_chat_log,
             patch.object(agent, "_call_llm_streaming", side_effect=capture_llm_messages),
-            patch("homeassistant.components.conversation.async_get_result_from_chat_log", return_value=mock_result),
+            patch(
+                "homeassistant.components.conversation.async_get_result_from_chat_log",
+                return_value=mock_result,
+            ),
         ):
             mock_chat_log.get.return_value = mock_chat_log_instance
 
@@ -645,8 +653,14 @@ class TestStreamingMessageConstruction:
                 second_call_messages = captured_messages[1]
 
                 # Find assistant message with tool_calls
-                assistant_msgs = [m for m in second_call_messages if m.get("role") == "assistant" and "tool_calls" in m]
-                assert len(assistant_msgs) >= 1, "Should have at least one assistant message with tool_calls"
+                assistant_msgs = [
+                    m
+                    for m in second_call_messages
+                    if m.get("role") == "assistant" and "tool_calls" in m
+                ]
+                assert (
+                    len(assistant_msgs) >= 1
+                ), "Should have at least one assistant message with tool_calls"
 
                 # Verify it's a SINGLE message with BOTH fields
                 msg = assistant_msgs[0]
@@ -699,9 +713,10 @@ class TestStreamingMessageConstruction:
 
     def test_assistant_content_only_tool_calls_creates_message(self):
         """Test that AssistantContent with only tool_calls works correctly."""
+        import json
+
         from homeassistant.components.conversation import AssistantContent
         from homeassistant.helpers.llm import ToolInput
-        import json
 
         mock_tool_call = ToolInput(
             id="call_456",
@@ -843,9 +858,10 @@ class TestStreamingToolLoopTermination:
     @pytest.mark.asyncio
     async def test_loop_terminates_with_max_iterations(self, agent, mock_hass):
         """Test that the streaming loop terminates at max iterations even with tool calls."""
-        from custom_components.home_agent.const import CONF_TOOLS_MAX_CALLS_PER_TURN
         from homeassistant.components.conversation import AssistantContent, ToolResultContent
         from homeassistant.helpers.llm import ToolInput
+
+        from custom_components.home_agent.const import CONF_TOOLS_MAX_CALLS_PER_TURN
 
         agent.config[CONF_STREAMING_ENABLED] = True
         agent.config[CONF_TOOLS_MAX_CALLS_PER_TURN] = 3  # Limit to 3 iterations
@@ -1042,7 +1058,9 @@ class TestStreamingToolLoopTermination:
                     tool_calls=None,
                 )
 
-        mock_chat_log_instance.async_add_delta_content_stream = mock_content_stream_multiple_assistant
+        mock_chat_log_instance.async_add_delta_content_stream = (
+            mock_content_stream_multiple_assistant
+        )
 
         mock_result = MagicMock(spec=ha_conversation.ConversationResult)
         mock_result.conversation_id = "test-conv"
@@ -1141,13 +1159,17 @@ class TestStreamingToolLoopTermination:
             ),
         ):
             mock_chat_log.get.return_value = mock_chat_log_instance
+
             # Track how many times _call_llm_streaming is called
             def create_stream_gen(*args, **kwargs):
                 nonlocal llm_call_count
                 llm_call_count += 1
+
                 async def gen():
                     yield "data: {}"
+
                 return gen()
+
             mock_stream.side_effect = create_stream_gen
 
             result = await agent.async_process(mock_input)
@@ -1169,8 +1191,11 @@ class TestStreamingToolLoopTermination:
             assert result is not None
 
     @pytest.mark.asyncio
-    async def test_loop_terminates_when_stream_empty_despite_unresponded_tool_results(self, agent, mock_hass):
-        """Test that loop terminates when stream yields nothing even if unresponded_tool_results exists.
+    async def test_loop_terminates_when_stream_empty_despite_unresponded_tool_results(
+        self, agent, mock_hass
+    ):
+        """Test loop terminates when stream yields nothing even if
+        unresponded_tool_results exists.
 
         This is a regression test for a potential bug where:
         1. chat_log.unresponded_tool_results has items (stale state)
@@ -1227,12 +1252,16 @@ class TestStreamingToolLoopTermination:
             ),
         ):
             mock_chat_log.get.return_value = mock_chat_log_instance
+
             def create_stream_gen(*args, **kwargs):
                 nonlocal llm_call_count
                 llm_call_count += 1
+
                 async def gen():
                     yield "data: {}"
+
                 return gen()
+
             mock_stream.side_effect = create_stream_gen
 
             result = await agent.async_process(mock_input)
@@ -1245,14 +1274,13 @@ class TestStreamingToolLoopTermination:
                 f"The loop should terminate when no content is returned, regardless of "
                 f"chat_log.unresponded_tool_results state."
             )
-            assert llm_call_count == 1, (
-                f"Expected 1 LLM call, got {llm_call_count}"
-            )
+            assert llm_call_count == 1, f"Expected 1 LLM call, got {llm_call_count}"
             assert result is not None
 
     @pytest.mark.asyncio
     async def test_infinite_loop_when_new_content_empty_but_messages_grow(self, agent, mock_hass):
-        """Test that exposes infinite loop bug when break logic uses OR instead of checking all conditions.
+        """Test infinite loop bug when break logic uses OR instead of
+        checking all conditions.
 
         This is the ACTUAL bug: The stream might return AssistantContent WITHOUT tool_calls,
         but chat_log.unresponded_tool_results is populated (stale or from a previous iteration).
@@ -1289,7 +1317,7 @@ class TestStreamingToolLoopTermination:
         responds with a final message (keeps returning content with no new tool_calls)?
         """
         from homeassistant.components.conversation import AssistantContent
-        from homeassistant.helpers.llm import ToolInput
+
         from custom_components.home_agent.const import CONF_TOOLS_MAX_CALLS_PER_TURN
 
         agent.config[CONF_STREAMING_ENABLED] = True
@@ -1345,12 +1373,16 @@ class TestStreamingToolLoopTermination:
             ),
         ):
             mock_chat_log.get.return_value = mock_chat_log_instance
+
             def create_stream_gen(*args, **kwargs):
                 nonlocal llm_call_count
                 llm_call_count += 1
+
                 async def gen():
                     yield "data: {}"
+
                 return gen()
+
             mock_stream.side_effect = create_stream_gen
 
             result = await agent.async_process(mock_input)
@@ -1358,8 +1390,7 @@ class TestStreamingToolLoopTermination:
             # With the current break logic, this should break after 1 iteration
             # because last_assistant_content.tool_calls is None
             assert stream_call_count == 1, (
-                f"Expected 1 iteration (empty content, no tool_calls), "
-                f"got {stream_call_count}"
+                f"Expected 1 iteration (empty content, no tool_calls), " f"got {stream_call_count}"
             )
             assert result is not None
 
@@ -1369,7 +1400,8 @@ class TestStreamingMessageAccumulation:
 
     @pytest.mark.asyncio
     async def test_messages_include_tool_results_correctly(self, agent, mock_hass):
-        """Test that tool results are added to messages list to prevent LLM from repeating tool calls.
+        """Test that tool results are added to messages list to prevent
+        LLM from repeating tool calls.
 
         CRITICAL BUG SCENARIO:
         If tool results are NOT added to the messages list, the LLM will see:
@@ -1381,9 +1413,10 @@ class TestStreamingMessageAccumulation:
 
         This test verifies that tool results ARE being added correctly.
         """
+        import json
+
         from homeassistant.components.conversation import AssistantContent, ToolResultContent
         from homeassistant.helpers.llm import ToolInput
-        import json
 
         agent.config[CONF_STREAMING_ENABLED] = True
 
@@ -1406,8 +1439,10 @@ class TestStreamingMessageAccumulation:
         def capture_llm_messages(messages):
             """Capture messages passed to LLM and return mock stream."""
             llm_call_messages.append([m.copy() for m in messages])
+
             async def mock_stream():
                 yield "data: {}"
+
             return mock_stream()
 
         iteration_count = 0
@@ -1456,7 +1491,7 @@ class TestStreamingMessageAccumulation:
             patch(
                 "homeassistant.components.conversation.chat_log.current_chat_log"
             ) as mock_chat_log,
-            patch.object(agent, "_call_llm_streaming", side_effect=capture_llm_messages) as mock_stream,
+            patch.object(agent, "_call_llm_streaming", side_effect=capture_llm_messages),
             patch(
                 "homeassistant.components.conversation.async_get_result_from_chat_log",
                 return_value=mock_result,
@@ -1467,14 +1502,17 @@ class TestStreamingMessageAccumulation:
             result = await agent.async_process(mock_input)
 
             # CRITICAL ASSERTIONS:
-            assert len(llm_call_messages) == 2, f"Expected 2 LLM calls, got {len(llm_call_messages)}"
+            assert (
+                len(llm_call_messages) == 2
+            ), f"Expected 2 LLM calls, got {len(llm_call_messages)}"
 
             # First iteration messages should contain: system + user
             first_iter_messages = llm_call_messages[0]
             user_messages_count = sum(1 for m in first_iter_messages if m["role"] == "user")
             assert user_messages_count >= 1, "First iteration should have user message"
 
-            # Second iteration messages should contain: system + user + assistant + tool + (possibly more)
+            # Second iteration messages should contain: system + user + assistant + tool +
+            # (possibly more)
             second_iter_messages = llm_call_messages[1]
 
             # Find assistant message with tool_calls
@@ -1484,9 +1522,9 @@ class TestStreamingMessageAccumulation:
                     assistant_with_tools = m
                     break
 
-            assert assistant_with_tools is not None, (
-                "Second iteration MUST include assistant message with tool_calls from first iteration"
-            )
+            assert (
+                assistant_with_tools is not None
+            ), "Second iteration MUST include assistant message with tool_calls from iteration"
 
             # Find corresponding tool result message
             tool_result_messages = [m for m in second_iter_messages if m["role"] == "tool"]
@@ -1506,7 +1544,8 @@ class TestStreamingMessageAccumulation:
 
     @pytest.mark.asyncio
     async def test_duplicate_assistant_messages_not_added(self, agent, mock_hass):
-        """Test that multiple AssistantContent items in one iteration don't cause duplicate messages.
+        """Test that multiple AssistantContent items in one iteration
+        don't cause duplicate messages.
 
         POTENTIAL BUG:
         If HA yields multiple AssistantContent items in one iteration:
@@ -1523,9 +1562,9 @@ class TestStreamingMessageAccumulation:
         On the next iteration, the LLM sees TWO assistant messages, which could confuse it.
         This test documents this behavior and checks if it could cause issues.
         """
+
         from homeassistant.components.conversation import AssistantContent, ToolResultContent
         from homeassistant.helpers.llm import ToolInput
-        import json
 
         agent.config[CONF_STREAMING_ENABLED] = True
 
@@ -1546,8 +1585,10 @@ class TestStreamingMessageAccumulation:
         # so the mock should be a regular function that returns an async generator
         def capture_llm_messages(messages):
             llm_call_messages.append([m.copy() for m in messages])
+
             async def mock_stream():
                 yield "data: {}"
+
             return mock_stream()
 
         iteration_count = 0
@@ -1623,8 +1664,6 @@ class TestStreamingMessageAccumulation:
 
         This helps understand why the infinite loop happens.
         """
-        from homeassistant.components.conversation import AssistantContent, ToolResultContent
-        from homeassistant.helpers.llm import ToolInput
         import json
 
         # Scenario: User asks to turn on lights, LLM calls tool
@@ -1790,7 +1829,9 @@ class TestStreamingPreprocessing:
                 "homeassistant.components.conversation.chat_log.current_chat_log"
             ) as mock_chat_log,
             patch.object(agent, "_call_llm_streaming", side_effect=mock_call_llm_streaming),
-            patch.object(agent.context_manager, "get_formatted_context", new_callable=AsyncMock) as mock_context,
+            patch.object(
+                agent.context_manager, "get_formatted_context", new_callable=AsyncMock
+            ) as mock_context,
             patch.object(agent.session_manager, "get_conversation_id", return_value="test-conv"),
             patch.object(agent.session_manager, "update_activity", new_callable=AsyncMock),
             patch(
@@ -1867,7 +1908,9 @@ class TestStreamingPreprocessing:
                 "homeassistant.components.conversation.chat_log.current_chat_log"
             ) as mock_chat_log,
             patch.object(agent, "_call_llm_streaming", side_effect=mock_call_llm_streaming),
-            patch.object(agent.context_manager, "get_formatted_context", new_callable=AsyncMock) as mock_context,
+            patch.object(
+                agent.context_manager, "get_formatted_context", new_callable=AsyncMock
+            ) as mock_context,
             patch.object(agent.session_manager, "get_conversation_id", return_value="test-conv"),
             patch.object(agent.session_manager, "update_activity", new_callable=AsyncMock),
             patch(
@@ -1936,7 +1979,9 @@ class TestStreamingPreprocessing:
                 "homeassistant.components.conversation.chat_log.current_chat_log"
             ) as mock_chat_log,
             patch.object(agent, "_call_llm_streaming", side_effect=mock_call_llm_streaming),
-            patch.object(agent.context_manager, "get_formatted_context", new_callable=AsyncMock) as mock_context,
+            patch.object(
+                agent.context_manager, "get_formatted_context", new_callable=AsyncMock
+            ) as mock_context,
             patch.object(agent.session_manager, "get_conversation_id", return_value="test-conv"),
             patch.object(agent.session_manager, "update_activity", new_callable=AsyncMock),
             patch(
@@ -1955,6 +2000,6 @@ class TestStreamingPreprocessing:
 
             user_content = user_messages[-1]["content"]
             # Preprocessing should strip whitespace then append /no_think
-            assert user_content == "Hello world\n/no_think", (
-                f"Expected 'Hello world\\n/no_think', got: {repr(user_content)}"
-            )
+            assert (
+                user_content == "Hello world\n/no_think"
+            ), f"Expected 'Hello world\\n/no_think', got: {repr(user_content)}"

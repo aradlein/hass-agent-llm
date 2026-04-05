@@ -4,7 +4,6 @@ This module tests all utility functions in the helpers module including
 formatting, validation, security, and token estimation functions.
 """
 
-import asyncio
 from unittest.mock import Mock, patch
 
 import pytest
@@ -111,9 +110,9 @@ Let me think step by step:
 
     def test_thinking_block_with_json_content(self):
         """Test thinking block containing JSON (common in reasoning models)."""
-        text = '''<think>I should return this JSON:
+        text = """<think>I should return this JSON:
 {"type": "fact", "content": "User likes coffee", "importance": 0.8}
-</think>[{"type": "fact", "content": "User likes coffee", "importance": 0.8}]'''
+</think>[{"type": "fact", "content": "User likes coffee", "importance": 0.8}]"""
         result = strip_thinking_blocks(text)
         assert result == '[{"type": "fact", "content": "User likes coffee", "importance": 0.8}]'
 
@@ -523,7 +522,8 @@ class TestRedactSensitiveData:
         assert result.count("***REDACTED***") == 3
 
     def test_redact_sensitive_data_string_instead_of_list_bug(self):
-        """Test that passing a string instead of list doesn't cause character-by-character replacement.
+        """Test that passing a string instead of list doesn't cause
+        character-by-character replacement.
 
         REGRESSION TEST: This catches a bug where calling redact_sensitive_data(url, api_key)
         instead of redact_sensitive_data(url, [api_key]) would iterate over the string

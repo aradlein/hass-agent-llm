@@ -13,7 +13,7 @@ Issue 73: Timestamp precision reduced from nanoseconds to seconds
   - Memory extraction event timestamps in memory_extraction.py
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -30,21 +30,21 @@ class TestTimestampPrecision:
     def test_datetime_isoformat_seconds_only(self):
         """Verify datetime isoformat uses seconds precision."""
         dt = datetime(2025, 12, 9, 10, 30, 45, 123456)  # Has microseconds
-        formatted = dt.isoformat(timespec='seconds')
+        formatted = dt.isoformat(timespec="seconds")
         assert formatted == "2025-12-09T10:30:45"
         assert "." not in formatted  # No decimal point means no microseconds
 
     def test_datetime_isoformat_no_microseconds_when_zero(self):
         """Verify no microseconds shown even when microseconds are zero."""
         dt = datetime(2025, 12, 9, 10, 30, 45, 0)  # No microseconds
-        formatted = dt.isoformat(timespec='seconds')
+        formatted = dt.isoformat(timespec="seconds")
         assert formatted == "2025-12-09T10:30:45"
         assert "." not in formatted
 
     def test_datetime_isoformat_midnight(self):
         """Verify midnight timestamp has no microseconds."""
         dt = datetime(2025, 12, 9, 0, 0, 0, 999999)  # Has microseconds
-        formatted = dt.isoformat(timespec='seconds')
+        formatted = dt.isoformat(timespec="seconds")
         assert formatted == "2025-12-09T00:00:00"
         assert "." not in formatted
 
@@ -76,9 +76,7 @@ class TestMakeJsonSerializable:
         """Test datetime in nested dict is formatted correctly."""
         data = {
             "timestamp": datetime(2025, 12, 9, 10, 30, 45, 123456),
-            "nested": {
-                "time": datetime(2025, 12, 9, 14, 15, 16, 789012)
-            }
+            "nested": {"time": datetime(2025, 12, 9, 14, 15, 16, 789012)},
         }
         result = _make_json_serializable(data)
         assert result["timestamp"] == "2025-12-09T10:30:45"
@@ -161,8 +159,9 @@ class TestEntityStateTimestamps:
 
         # Verify format: should be YYYY-MM-DDTHH:MM:SS+TZ
         import re
+
         # Pattern for ISO 8601 with seconds precision and timezone
-        pattern = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+\-Z]'
+        pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+\-Z]"
         assert re.match(pattern, result["last_changed"])
         assert re.match(pattern, result["last_updated"])
 
@@ -208,11 +207,7 @@ class TestHistoryQueryTimestamps:
         tool = HomeAssistantQueryTool(hass=mock_hass, exposed_entities=None)
 
         # Mock the history retrieval to return some data
-        with patch.object(
-            tool,
-            '_get_entity_history',
-            new_callable=AsyncMock
-        ) as mock_get_history:
+        with patch.object(tool, "_get_entity_history", new_callable=AsyncMock) as mock_get_history:
             # Return mock states with numeric values
             mock_state1 = Mock()
             mock_state1.state = "21.5"
@@ -254,11 +249,7 @@ class TestHistoryQueryTimestamps:
         tool = HomeAssistantQueryTool(hass=mock_hass, exposed_entities=None)
 
         # Mock history for both entities
-        with patch.object(
-            tool,
-            '_get_entity_history',
-            new_callable=AsyncMock
-        ) as mock_get_history:
+        with patch.object(tool, "_get_entity_history", new_callable=AsyncMock) as mock_get_history:
             # Return different mock data for each entity
             def get_history_side_effect(entity_id, start, end):
                 mock_state = Mock()
@@ -302,7 +293,7 @@ class TestMemoryExtractionTimestamp:
         # This is exactly how the timestamp is created in memory_extraction.py:688
         # timestamp = datetime.now().isoformat(timespec='seconds')
         dt = datetime(2025, 12, 9, 10, 30, 45, 123456)
-        timestamp = dt.isoformat(timespec='seconds')
+        timestamp = dt.isoformat(timespec="seconds")
 
         # Verify no microseconds
         assert timestamp == "2025-12-09T10:30:45"
@@ -315,7 +306,7 @@ class TestMemoryExtractionTimestamp:
 
         # Simulate the timestamp creation as done in memory_extraction.py
         now = datetime.now()
-        timestamp_str = now.isoformat(timespec='seconds')
+        timestamp_str = now.isoformat(timespec="seconds")
 
         # Verify it can be parsed back
         parsed = datetime.fromisoformat(timestamp_str)
@@ -339,7 +330,7 @@ class TestTimestampConsistency:
 
         # All should produce identical format
         base_format = _make_json_serializable(dt)
-        direct_format = dt.isoformat(timespec='seconds')
+        direct_format = dt.isoformat(timespec="seconds")
 
         assert base_format == direct_format
         assert base_format == "2025-12-09T10:30:45"
@@ -363,7 +354,7 @@ class TestTimestampConsistency:
         old_format = dt.isoformat()  # Includes .123456
 
         # New format (seconds only)
-        new_format = dt.isoformat(timespec='seconds')
+        new_format = dt.isoformat(timespec="seconds")
 
         # New format should be shorter
         assert len(new_format) < len(old_format)

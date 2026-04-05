@@ -469,9 +469,7 @@ class TestConversationPersistence:
         mock_hass = MagicMock()
 
         # Create manager with persistence enabled
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         # Mock storage data
         storage_data = {
@@ -506,9 +504,7 @@ class TestConversationPersistence:
         from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         # Mock async_load returning None (no data)
         manager._store.async_load = AsyncMock(return_value=None)
@@ -525,9 +521,7 @@ class TestConversationPersistence:
         from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         # Mock corrupted storage data
         corrupted_data = {
@@ -559,7 +553,6 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_load_from_storage_without_persistence(self):
         """Test that load_from_storage returns early when persistence disabled."""
-        from unittest.mock import AsyncMock
 
         # Create manager without persistence
         manager = ConversationHistoryManager(max_messages=10, persist=False)
@@ -576,9 +569,7 @@ class TestConversationPersistence:
         from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         # Mock async_load raising an exception
         manager._store.async_load = AsyncMock(side_effect=Exception("Storage error"))
@@ -598,9 +589,7 @@ class TestConversationPersistence:
         mock_hass.bus = MagicMock()
         mock_hass.bus.async_fire = MagicMock()
 
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         # Add some messages
         manager.add_message("conv_123", "user", "Hello")
@@ -625,7 +614,6 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_save_to_storage_without_persistence(self):
         """Test that save_to_storage returns early when persistence disabled."""
-        from unittest.mock import AsyncMock
 
         manager = ConversationHistoryManager(max_messages=10, persist=False)
         manager.add_message("conv_123", "user", "Hello")
@@ -639,9 +627,7 @@ class TestConversationPersistence:
         from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         manager.add_message("conv_123", "user", "Hello")
 
@@ -655,15 +641,14 @@ class TestConversationPersistence:
     async def test_save_to_storage_fires_event(self):
         """Test that save_to_storage fires history saved event."""
         from unittest.mock import AsyncMock, MagicMock
+
         from custom_components.home_agent.const import EVENT_HISTORY_SAVED
 
         mock_hass = MagicMock()
         mock_hass.bus = MagicMock()
         mock_hass.bus.async_fire = MagicMock()
 
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         manager.add_message("conv_123", "user", "Hello")
         manager._store.async_save = AsyncMock()
@@ -688,9 +673,7 @@ class TestConversationPersistence:
         from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10000, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10000, hass=mock_hass, persist=True)
 
         # Add many large messages to exceed size limit
         for i in range(1000):
@@ -707,8 +690,8 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_debounced_save_coalesces_multiple_saves(self):
         """Test that debounced save coalesces multiple save requests."""
-        from unittest.mock import AsyncMock, MagicMock
         import asyncio
+        from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
         manager = ConversationHistoryManager(
@@ -732,8 +715,8 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_debounced_save_cancels_previous_task(self):
         """Test that debounced save cancels previous pending save."""
-        from unittest.mock import AsyncMock, MagicMock
         import asyncio
+        from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
         manager = ConversationHistoryManager(
@@ -763,8 +746,8 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_debounced_save_handles_cancellation(self):
         """Test that debounced save handles cancellation gracefully."""
-        from unittest.mock import AsyncMock, MagicMock
         import asyncio
+        from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
         manager = ConversationHistoryManager(
@@ -791,9 +774,7 @@ class TestConversationPersistence:
         from unittest.mock import MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=False
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=False)
 
         # Initially no store
         assert manager._persist is False
@@ -822,9 +803,7 @@ class TestConversationPersistence:
         from unittest.mock import MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         assert manager._persist is True
 
@@ -841,9 +820,7 @@ class TestConversationPersistence:
         from unittest.mock import MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         # Mock v1 data (currently v1 is the only version)
         old_data = {
@@ -865,9 +842,7 @@ class TestConversationPersistence:
         from unittest.mock import MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         # Mock future version data
         future_data = {
@@ -883,13 +858,11 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_scheduled_cleanup_removes_old_conversations(self):
         """Test that scheduled cleanup removes conversations older than 24 hours."""
-        from unittest.mock import AsyncMock, MagicMock
         import time
+        from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         # Mock save_to_storage
         manager.save_to_storage = AsyncMock()
@@ -925,13 +898,11 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_scheduled_cleanup_no_deletions(self):
         """Test that cleanup doesn't save when nothing to delete."""
-        from unittest.mock import AsyncMock, MagicMock
         import time
+        from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         manager.save_to_storage = AsyncMock()
 
@@ -959,9 +930,7 @@ class TestConversationPersistence:
         with patch(
             "custom_components.home_agent.conversation.async_track_time_interval"
         ) as mock_track:
-            manager = ConversationHistoryManager(
-                max_messages=10, hass=mock_hass, persist=True
-            )
+            manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
             # Setup scheduled cleanup
             manager.setup_scheduled_cleanup()
@@ -977,9 +946,7 @@ class TestConversationPersistence:
         from unittest.mock import MagicMock
 
         mock_hass = MagicMock()
-        manager = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         # Mock cleanup listener
         mock_listener = MagicMock()
@@ -997,8 +964,8 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_add_message_triggers_debounced_save(self):
         """Test that adding a message triggers debounced save when persistence enabled."""
-        from unittest.mock import AsyncMock, MagicMock, patch
         import asyncio
+        from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
         manager = ConversationHistoryManager(
@@ -1019,8 +986,8 @@ class TestConversationPersistence:
     @pytest.mark.asyncio
     async def test_clear_history_triggers_debounced_save(self):
         """Test that clearing history triggers debounced save when persistence enabled."""
-        from unittest.mock import AsyncMock, MagicMock
         import asyncio
+        from unittest.mock import AsyncMock, MagicMock
 
         mock_hass = MagicMock()
         manager = ConversationHistoryManager(
@@ -1050,9 +1017,7 @@ class TestConversationPersistence:
         mock_hass = MagicMock()
 
         # Create first manager and add data
-        manager1 = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager1 = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         manager1.add_message("conv_123", "user", "Hello")
         manager1.add_message("conv_123", "assistant", "Hi there!")
@@ -1072,9 +1037,7 @@ class TestConversationPersistence:
         assert saved_data is not None
 
         # Create second manager and load data
-        manager2 = ConversationHistoryManager(
-            max_messages=10, hass=mock_hass, persist=True
-        )
+        manager2 = ConversationHistoryManager(max_messages=10, hass=mock_hass, persist=True)
 
         manager2._store.async_load = AsyncMock(return_value=saved_data)
 

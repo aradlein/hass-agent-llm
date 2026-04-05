@@ -48,7 +48,7 @@ htmlcov/
 dmypy.json
 
 # Home Assistant
-config/
+/config/
 .HA_VERSION
 home-assistant.log
 home-assistant_v2.db

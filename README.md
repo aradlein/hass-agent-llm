@@ -1,22 +1,32 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.9.2-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.9.3-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11.0+-blue.svg)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3.1+-blue.svg)](https://www.home-assistant.io/)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.9.2
+## What's New in v0.9.3
+
+> **Compatibility Notice:** This release targets **Home Assistant 2026.3.1** and **Python 3.14**. It may have backwards compatibility issues with older HA versions or Python 3.12/3.13. If you experience problems, please try a [previous release](https://github.com/aradlein/hass-agent-llm/releases).
+
+- **Python 3.14 Support** - Upgraded `chromadb-client` to `1.5.3` to resolve compatibility issues introduced by Python 3.14 (`imghdr` module removal and other deprecations)
+- **Home Assistant 2026.3.1 Compatibility** - Validated and updated for the latest Home Assistant release
+- **Updated Test Mocks** - Dev test suite updated to align with the chromadb-client 1.5.3 API
+
+[View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
+
+---
+
+### Previous Release: v0.9.2
 
 - **Memory Leak Fixes** - Resolved multiple memory leaks that could cause ~6GB memory growth over time, including unbounded embedding caches, per-request HTTP sessions, and uncapped conversation history storage
 - **LRU Cache Eviction** - Embedding caches now use LRU eviction (max 1000 entries) instead of unbounded growth
 - **Debounced Reindexing** - State change reindexing is now batched with a 2-second debounce instead of firing per-change tasks
 - **Proper Resource Cleanup** - HTTP sessions and OpenAI clients are reused and properly cleaned up on shutdown
 - **Setup Timeout Fix** - Moved initial entity indexing to a background task to prevent integration setup from timing out on large installations
-
-[View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
 ## Overview
 
@@ -53,12 +63,12 @@ Home Agent extends Home Assistant's native conversation platform to enable natur
 ## Requirements
 
 ### Required
-- **Home Assistant** - Version 2025.11.0 or later
+- **Home Assistant** - Version 2026.3.1 or later (for Python 3.14 support)
 - **Python Dependencies** - `aiohttp >= 3.9.0` (included with Home Assistant)
 
 ### Optional (Enable Advanced Features)
 - **ChromaDB** - For vector database context mode
-  - `chromadb-client >= 0.4.0`
+  - `chromadb-client == 1.5.3`
   - Required for: Vector DB context injection and memory system
 - **OpenAI** - For embeddings in vector DB mode
   - `openai >= 1.3.8`
@@ -308,7 +318,13 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.9.2 (Latest)
+### v0.9.3 (Latest)
+> **Compatibility Notice:** This release targets **Home Assistant 2026.3.1** and **Python 3.14**. It may have backwards compatibility issues with older HA versions or Python 3.12/3.13. If you experience problems, please try a previous release.
+- **Fix**: Upgraded `chromadb-client` to `1.5.3` to resolve Python 3.14 incompatibility (removal of `imghdr` standard library module)
+- **Fix**: Updated dev requirements and test mocks to align with chromadb-client 1.5.3 API
+- **Changed**: Minimum supported Home Assistant version updated to 2026.3.1
+
+### v0.9.2
 - **Fix**: Move initial entity indexing to background task to prevent setup timeout on large installations
 
 ### v0.9.1

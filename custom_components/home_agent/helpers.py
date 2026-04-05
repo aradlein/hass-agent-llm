@@ -10,11 +10,10 @@ import asyncio
 import logging
 import random
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from typing import Any, TypeVar
 
 import aiohttp
-
 from homeassistant.const import ATTR_FRIENDLY_NAME, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
 
@@ -154,7 +153,7 @@ async def retry_async(
                 # First retry (attempt=0) uses initial_delay
                 # Second retry (attempt=1) uses initial_delay * backoff_factor
                 # etc.
-                delay = initial_delay * (backoff_factor ** attempt)
+                delay = initial_delay * (backoff_factor**attempt)
                 delay = min(delay, max_delay)  # Cap at max_delay
 
                 # Add jitter to prevent thundering herd

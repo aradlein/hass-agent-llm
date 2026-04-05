@@ -108,11 +108,9 @@ jobs:
 
           ### Via HACS (Recommended)
 
-          For private repository installation with Personal Access Token:
-          1. Generate a GitHub PAT with \`repo\` scope
-          2. In HACS → Integrations → Custom repositories
-          3. Add: \`https://YOUR_TOKEN@github.com/YOUR_USERNAME/home-agent\`
-          4. Install Home Agent from HACS
+          1. In HACS → Integrations → Custom repositories
+          2. Add: \`https://github.com/aradlein/hass-agent-llm\`
+          3. Install Home Agent from HACS
 
           See [HACS Installation Guide](docs/HACS_PRIVATE_INSTALL.md) for detailed instructions.
 

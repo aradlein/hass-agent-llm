@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.13"]
+        python-version: ["3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v3
@@ -37,13 +37,48 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest --cov=custom_components.home_agent --cov-report=xml --cov-report=term
+          pytest tests/unit/ tests/integration/ --ignore=tests/integration/test_real_llm.py --ignore=tests/integration/test_real_memory.py --ignore=tests/integration/test_real_vector_db.py --ignore=tests/integration/test_real_ttft_metrics.py -v --cov=custom_components.home_agent --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements_dev.txt
+
+      - name: Run black
+        run: |
+          black --check custom_components/ tests/
+
+      - name: Run isort
+        run: |
+          isort --check custom_components/ tests/
+
+      - name: Run flake8
+        run: |
+          flake8 custom_components/ tests/
 
   validate-manifest:
     runs-on: ubuntu-latest

@@ -1,7 +1,7 @@
 """Unit tests for proxy headers configuration feature."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiohttp import ClientSession
@@ -257,6 +257,7 @@ class TestProxyHeadersInRequests:
         assert headers["X-Header-1"] == "value1"
         assert headers["X-Header-2"] == "value2"
         assert headers["X-Header-3"] == "value3"
+
 
 class TestProxyHeadersInStreaming:
     """Tests for proxy headers in streaming requests."""

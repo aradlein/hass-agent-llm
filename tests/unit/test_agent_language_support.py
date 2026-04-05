@@ -69,9 +69,9 @@ class TestSupportedLanguages:
         second_call = mock_home_agent.supported_languages
         third_call = mock_home_agent.supported_languages
 
-        assert first_call == second_call, (
-            "supported_languages should return the same value on subsequent calls"
-        )
-        assert second_call == third_call, (
-            "supported_languages should return the same value on subsequent calls"
-        )
+        assert (
+            first_call == second_call
+        ), "supported_languages should return the same value on subsequent calls"
+        assert (
+            second_call == third_call
+        ), "supported_languages should return the same value on subsequent calls"

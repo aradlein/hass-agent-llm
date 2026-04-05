@@ -711,9 +711,7 @@ class TestPreserveImportantFields:
         assert "available_services" in result[1]
         assert "set_percentage[percentage]" in result[1]["available_services"]
 
-    def test_compression_preserves_aliases(
-        self, optimizer, entities_with_services_and_aliases
-    ):
+    def test_compression_preserves_aliases(self, optimizer, entities_with_services_and_aliases):
         """Test that compression preserves aliases."""
         result = optimizer.compress_entity_context(
             entities_with_services_and_aliases, target_tokens=5000
@@ -730,9 +728,7 @@ class TestPreserveImportantFields:
         """Test that all compression levels preserve available_services and aliases."""
         for level in ["none", "low", "medium", "high"]:
             optimizer = ContextOptimizer(compression_level=level)
-            result = optimizer._apply_compression_level(
-                entities_with_services_and_aliases, level
-            )
+            result = optimizer._apply_compression_level(entities_with_services_and_aliases, level)
 
             for entity in result:
                 assert "available_services" in entity, f"Level {level} lost available_services"

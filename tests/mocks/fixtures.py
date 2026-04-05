@@ -9,15 +9,12 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from .embedding_mocks import MockEmbeddingServer, generate_deterministic_embedding
 from .llm_mocks import (
     MockLLMServer,
-    create_chat_completion_response,
-    create_tool_call_response,
 )
 
 
@@ -113,8 +110,7 @@ class MockChromaDBCollection:
         """Query the collection by embedding similarity."""
         if query_texts and not query_embeddings:
             query_embeddings = [
-                generate_deterministic_embedding(text, dimensions=1024)
-                for text in query_texts
+                generate_deterministic_embedding(text, dimensions=1024) for text in query_texts
             ]
 
         results: dict[str, list] = {
@@ -247,13 +243,13 @@ def create_mock_llm_for_home_agent() -> MockLLMServer:
         "hello",
         "Hello! I'm your home assistant. I can help you control lights, "
         "check temperatures, and manage your smart home devices. "
-        "What would you like me to do?"
+        "What would you like me to do?",
     )
 
     server.add_response(
         "how are you",
         "I'm doing well, thank you for asking! I'm here to help you "
-        "with your smart home. Is there anything you'd like me to help with?"
+        "with your smart home. Is there anything you'd like me to help with?",
     )
 
     # Light control - trigger tool calls
@@ -265,7 +261,9 @@ def create_mock_llm_for_home_agent() -> MockLLMServer:
 
     # Also match variations without "the"
     server.add_tool_call_response(
-        lambda text: "turn on" in text.lower() and "living room" in text.lower() and "light" in text.lower(),
+        lambda text: "turn on" in text.lower()
+        and "living room" in text.lower()
+        and "light" in text.lower(),
         "ha_control",
         {"action": "turn_on", "entity_id": "light.living_room"},
     )
@@ -305,36 +303,27 @@ def create_mock_llm_for_home_agent() -> MockLLMServer:
     server.add_response(
         "temperature",
         "The current temperature in the living room is 72.5°F. "
-        "The thermostat is set to 72°F in heat mode."
+        "The thermostat is set to 72°F in heat mode.",
     )
 
-    server.add_response(
-        "what is the temp",
-        "The living room temperature sensor shows 72.5°F."
-    )
+    server.add_response("what is the temp", "The living room temperature sensor shows 72.5°F.")
 
     # Multi-turn context - name/color memory
     server.add_response(
         "my name is alice",
         "Nice to meet you, Alice! I'll remember that. "
-        "Is there anything you'd like me to help with in your home?"
+        "Is there anything you'd like me to help with in your home?",
     )
 
-    server.add_response(
-        "what is my name",
-        "Your name is Alice, as you mentioned earlier."
-    )
+    server.add_response("what is my name", "Your name is Alice, as you mentioned earlier.")
 
     server.add_response(
         "color blue",
         "I've noted that you like the color blue. "
-        "I can help adjust lighting to match your preferences if you'd like."
+        "I can help adjust lighting to match your preferences if you'd like.",
     )
 
-    server.add_response(
-        "what color do i like",
-        "You mentioned that you like the color blue."
-    )
+    server.add_response("what color do i like", "You mentioned that you like the color blue.")
 
     # Streaming test
     server.add_streaming_response(

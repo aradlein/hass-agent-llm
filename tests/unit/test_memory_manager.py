@@ -951,9 +951,7 @@ class TestTransientMemoryCleanup:
 
         assert count == 0
 
-    async def test_quality_validation_config_defaults(
-        self, mock_hass, mock_vector_db_manager
-    ):
+    async def test_quality_validation_config_defaults(self, mock_hass, mock_vector_db_manager):
         """Test quality validation config defaults are applied."""
         config = {
             CONF_MEMORY_MAX_MEMORIES: 100,

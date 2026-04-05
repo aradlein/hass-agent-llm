@@ -140,8 +140,10 @@ class HomeAssistantControlTool(BaseTool):
                         "Media Players: volume_level (0.0-1.0), source; "
                         "Humidifiers: humidity (0-100); "
                         "Fans: percentage (0-100), preset_mode. "
-                        "Note: Both attribute names (e.g., 'current_position') and service "
-                        "parameter names (e.g., 'position') are accepted and automatically normalized."
+                        "Note: Both attribute names "
+                        "(e.g., 'current_position') and service "
+                        "parameter names (e.g., 'position') are "
+                        "accepted and automatically normalized."
                     ),
                 },
             },
@@ -310,9 +312,7 @@ class HomeAssistantControlTool(BaseTool):
         # Map action to service using the domain service mappings
         service = self._get_service_for_action(action, domain, entity_id, normalized_parameters)
         if service is None:
-            raise ToolExecutionError(
-                f"Action '{action}' is not supported for domain '{domain}'"
-            )
+            raise ToolExecutionError(f"Action '{action}' is not supported for domain '{domain}'")
 
         # Special handling for climate domain turn_on/turn_off
         # These map to set_hvac_mode but need the hvac_mode parameter injected
@@ -385,9 +385,7 @@ class HomeAssistantControlTool(BaseTool):
         if domain == "cover":
             # Normalize current_position -> position
             if "current_position" in normalized and "position" not in normalized:
-                _LOGGER.debug(
-                    "Normalizing cover parameter 'current_position' -> 'position'"
-                )
+                _LOGGER.debug("Normalizing cover parameter 'current_position' -> 'position'")
                 normalized["position"] = normalized.pop("current_position")
 
             # Normalize current_tilt_position -> tilt_position
@@ -552,7 +550,9 @@ class HomeAssistantControlTool(BaseTool):
                         f"Use action='turn_on' to open or action='turn_off' to close."
                     )
             elif service_name == "set_cover_tilt_position":
-                if not self._entity_supports_feature(entity_id, CoverEntityFeature.SET_TILT_POSITION):
+                if not self._entity_supports_feature(
+                    entity_id, CoverEntityFeature.SET_TILT_POSITION
+                ):
                     raise ToolExecutionError(
                         f"Entity '{entity_id}' does not support tilt position control."
                     )

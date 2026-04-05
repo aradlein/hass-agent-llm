@@ -154,7 +154,13 @@ from ..const import (
     DEFAULT_STREAMING_ENABLED,
 )
 from ..exceptions import AuthenticationError, HomeAgentError
-from ..helpers import build_api_url, build_auth_headers, is_ollama_backend, redact_sensitive_data, render_template_value
+from ..helpers import (
+    build_api_url,
+    build_auth_headers,
+    is_ollama_backend,
+    redact_sensitive_data,
+    render_template_value,
+)
 
 if TYPE_CHECKING:
     from ..tool_handler import ToolHandler
@@ -264,7 +270,9 @@ class StreamingMixin:
             )
 
         try:
-            async with session.post(url, headers=headers, json=payload, allow_redirects=False) as response:
+            async with session.post(
+                url, headers=headers, json=payload, allow_redirects=False
+            ) as response:
                 if response.status == 401:
                     raise AuthenticationError("LLM API authentication failed. Check your API key.")
 
