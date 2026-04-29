@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     from chromadb.api import ClientAPI
     from chromadb.api.models.Collection import Collection
 
+import aiohttp
+
 from ..const import (
     CONF_ADDITIONAL_COLLECTIONS,
     CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD,
@@ -57,14 +59,12 @@ from ..const import (
     EMBEDDING_PROVIDER_OPENAI,
     EVENT_VECTOR_DB_QUERIED,
 )
-import aiohttp
-
 from ..exceptions import ContextInjectionError, EmbeddingTimeoutError
 
 # Maximum number of embedding vectors to cache (each ~3-12KB)
 EMBEDDING_CACHE_MAX_SIZE = 1000
-from .base import ContextProvider
-from .direct import DirectContextProvider
+from .base import ContextProvider  # noqa: E402
+from .direct import DirectContextProvider  # noqa: E402
 
 # Conditional imports for ChromaDB
 try:
@@ -109,9 +109,7 @@ class VectorDBContextProvider(ContextProvider):
         self.embedding_base_url = config.get(
             CONF_VECTOR_DB_EMBEDDING_BASE_URL, DEFAULT_VECTOR_DB_EMBEDDING_BASE_URL
         )
-        self.openai_api_key = render_template_value(
-            hass, config.get(CONF_OPENAI_API_KEY, "")
-        )
+        self.openai_api_key = render_template_value(hass, config.get(CONF_OPENAI_API_KEY, ""))
         self.top_k = config.get(CONF_VECTOR_DB_TOP_K, DEFAULT_VECTOR_DB_TOP_K)
         self.similarity_threshold = config.get(
             CONF_VECTOR_DB_SIMILARITY_THRESHOLD, DEFAULT_VECTOR_DB_SIMILARITY_THRESHOLD
@@ -202,7 +200,7 @@ class VectorDBContextProvider(ContextProvider):
 
                 if entities:
                     entity_context = json.dumps(
-                        {"entities": entities, "count": len(entities)}, indent=2
+                        {"entities": entities, "count": len(entities)}, indent=2, default=str
                     )
 
             # Tier 2: Query additional collections (supplementary)
@@ -218,6 +216,7 @@ class VectorDBContextProvider(ContextProvider):
                             "count": len(additional_results),
                         },
                         indent=2,
+                        default=str,
                     )
 
             # Combine contexts
@@ -364,9 +363,7 @@ class VectorDBContextProvider(ContextProvider):
     async def _ensure_aiohttp_session(self) -> aiohttp.ClientSession:
         """Ensure aiohttp session exists for Ollama requests."""
         if self._aiohttp_session is None or self._aiohttp_session.closed:
-            self._aiohttp_session = aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=30)
-            )
+            self._aiohttp_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30))
         return self._aiohttp_session
 
     async def _embed_with_ollama(self, text: str) -> list[float]:
@@ -379,9 +376,7 @@ class VectorDBContextProvider(ContextProvider):
             async with session.post(url, json=payload) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    raise ContextInjectionError(
-                        f"Ollama API error {response.status}: {error_text}"
-                    )
+                    raise ContextInjectionError(f"Ollama API error {response.status}: {error_text}")
                 result = await response.json()
                 embedding: list[float] = result["embedding"]
                 return embedding
