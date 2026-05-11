@@ -548,3 +548,283 @@ class TestRealVectorDB:
 
         finally:
             await manager.async_shutdown()
+
+
+@pytest.mark.integration
+@pytest.mark.requires_chromadb
+@pytest.mark.requires_embedding
+@pytest.mark.usefixtures("socket_enabled")
+class TestAreaLookupEntityIndexing:
+    """Integration tests for area resolution during entity indexing.
+
+    These tests verify that area names are correctly included in indexed entity
+    text when using the entity registry → device registry → area registry chain.
+    They use real ChromaDB and embeddings to exercise the full indexing pipeline.
+    """
+
+    @pytest.fixture(autouse=True)
+    async def skip_without_real_services(self, chromadb_config, embedding_config):
+        """Skip when real services are unavailable."""
+        from tests.integration.health import check_chromadb_health, check_embedding_health
+
+        chromadb_healthy = await check_chromadb_health(
+            chromadb_config["host"], chromadb_config["port"]
+        )
+        embedding_healthy = await check_embedding_health(embedding_config["base_url"])
+
+        if not chromadb_healthy or not embedding_healthy:
+            pytest.skip(
+                "Real ChromaDB and Embedding services required. "
+                f"ChromaDB: {'ok' if chromadb_healthy else 'unavailable'}. "
+                f"Embedding: {'ok' if embedding_healthy else 'unavailable'}."
+            )
+
+    def _make_registry_mocks(self, entity_area_id=None, device_area_id=None, has_device=True):
+        """Build entity/device/area registry mocks for a single entity."""
+        from unittest.mock import MagicMock
+
+        mock_entity_entry = MagicMock()
+        mock_entity_entry.area_id = entity_area_id
+        mock_entity_entry.device_id = "device_abc" if has_device else None
+        mock_entity_entry.aliases = []
+
+        mock_device_entry = MagicMock()
+        mock_device_entry.area_id = device_area_id
+
+        def area_lookup(area_id):
+            area = MagicMock()
+            area.name = {
+                "bedroom_area": "Bedroom",
+                "kitchen_area": "Kitchen",
+            }.get(area_id, f"Area_{area_id}")
+            return area
+
+        mock_er = MagicMock()
+        mock_er.async_get.return_value = mock_entity_entry
+
+        mock_ar = MagicMock()
+        mock_ar.async_get_area.side_effect = area_lookup
+
+        mock_dr = MagicMock()
+        mock_dr.async_get.return_value = mock_device_entry if has_device else None
+
+        return mock_er, mock_ar, mock_dr
+
+    @pytest.mark.asyncio
+    async def test_entity_area_included_in_indexed_document(
+        self,
+        mock_hass_integration,
+        embedding_config,
+        test_collection_name,
+    ):
+        """Entity-level area_id is reflected in the ChromaDB document text.
+
+        Verifies the full pipeline:
+        entity registry (area_id=bedroom_area) → area name 'Bedroom' → document text.
+        """
+        from unittest.mock import patch
+
+        from homeassistant.core import State
+
+        config = {
+            "vector_db_host": embedding_config["host"],
+            "vector_db_port": embedding_config["port"],
+            "vector_db_collection": test_collection_name,
+            "vector_db_embedding_model": embedding_config["model"],
+            "vector_db_embedding_provider": embedding_config["provider"],
+            "vector_db_embedding_base_url": embedding_config["base_url"],
+        }
+
+        state = State("light.bedroom_lamp", "on", {"friendly_name": "Bedroom Lamp"})
+        mock_hass_integration.states.get.side_effect = (
+            lambda eid: state if eid == "light.bedroom_lamp" else None
+        )
+        mock_hass_integration.states.async_all.return_value = [state]
+
+        mock_er, mock_ar, mock_dr = self._make_registry_mocks(
+            entity_area_id="bedroom_area",
+            device_area_id=None,
+        )
+
+        manager = VectorDBManager(mock_hass_integration, config)
+        try:
+            await manager._ensure_initialized()
+
+            with (
+                patch(
+                    "custom_components.home_agent.vector_db_manager.er.async_get",
+                    return_value=mock_er,
+                ),
+                patch(
+                    "custom_components.home_agent.vector_db_manager.ar.async_get",
+                    return_value=mock_ar,
+                ),
+                patch(
+                    "custom_components.home_agent.vector_db_manager.dr.async_get",
+                    return_value=mock_dr,
+                ),
+            ):
+                await manager.async_index_entity("light.bedroom_lamp")
+
+            collection = manager._collection
+            result = await mock_hass_integration.async_add_executor_job(
+                lambda: collection.get(ids=["light.bedroom_lamp"])
+            )
+
+            assert len(result["ids"]) == 1
+            document = result["documents"][0]
+            assert "Bedroom" in document, f"Expected 'Bedroom' in document, got: {document}"
+            assert "Location:" in document
+
+        finally:
+            await manager.async_shutdown()
+
+    @pytest.mark.asyncio
+    async def test_device_area_fallback_in_indexed_document(
+        self,
+        mock_hass_integration,
+        embedding_config,
+        test_collection_name,
+    ):
+        """Device area is used when entity has no direct area_id.
+
+        Verifies:
+        - entity_entry.area_id = None
+        - device_entry.area_id = 'kitchen_area'
+        - Document contains 'Kitchen'
+        """
+        from unittest.mock import patch
+
+        from homeassistant.core import State
+
+        config = {
+            "vector_db_host": embedding_config["host"],
+            "vector_db_port": embedding_config["port"],
+            "vector_db_collection": test_collection_name,
+            "vector_db_embedding_model": embedding_config["model"],
+            "vector_db_embedding_provider": embedding_config["provider"],
+            "vector_db_embedding_base_url": embedding_config["base_url"],
+        }
+
+        state = State(
+            "sensor.kitchen_temp",
+            "22",
+            {"friendly_name": "Kitchen Temperature", "unit_of_measurement": "°C"},
+        )
+        mock_hass_integration.states.get.side_effect = (
+            lambda eid: state if eid == "sensor.kitchen_temp" else None
+        )
+        mock_hass_integration.states.async_all.return_value = [state]
+
+        # Entity has NO direct area; its device has a kitchen area
+        mock_er, mock_ar, mock_dr = self._make_registry_mocks(
+            entity_area_id=None,
+            device_area_id="kitchen_area",
+            has_device=True,
+        )
+
+        manager = VectorDBManager(mock_hass_integration, config)
+        try:
+            await manager._ensure_initialized()
+
+            with (
+                patch(
+                    "custom_components.home_agent.vector_db_manager.er.async_get",
+                    return_value=mock_er,
+                ),
+                patch(
+                    "custom_components.home_agent.vector_db_manager.ar.async_get",
+                    return_value=mock_ar,
+                ),
+                patch(
+                    "custom_components.home_agent.vector_db_manager.dr.async_get",
+                    return_value=mock_dr,
+                ),
+            ):
+                await manager.async_index_entity("sensor.kitchen_temp")
+
+            collection = manager._collection
+            result = await mock_hass_integration.async_add_executor_job(
+                lambda: collection.get(ids=["sensor.kitchen_temp"])
+            )
+
+            assert len(result["ids"]) == 1
+            document = result["documents"][0]
+            assert "Kitchen" in document, f"Expected 'Kitchen' in document, got: {document}"
+
+        finally:
+            await manager.async_shutdown()
+
+    @pytest.mark.asyncio
+    async def test_entity_area_takes_priority_over_device_area_in_indexed_document(
+        self,
+        mock_hass_integration,
+        embedding_config,
+        test_collection_name,
+    ):
+        """Entity area_id takes priority over device area in the indexed document.
+
+        Both entity and device have areas. Only the entity area should appear.
+        """
+        from unittest.mock import patch
+
+        from homeassistant.core import State
+
+        config = {
+            "vector_db_host": embedding_config["host"],
+            "vector_db_port": embedding_config["port"],
+            "vector_db_collection": test_collection_name,
+            "vector_db_embedding_model": embedding_config["model"],
+            "vector_db_embedding_provider": embedding_config["provider"],
+            "vector_db_embedding_base_url": embedding_config["base_url"],
+        }
+
+        state = State("light.office_desk", "on", {"friendly_name": "Office Desk Light"})
+        mock_hass_integration.states.get.side_effect = (
+            lambda eid: state if eid == "light.office_desk" else None
+        )
+        mock_hass_integration.states.async_all.return_value = [state]
+
+        # Entity has 'bedroom_area', device has 'kitchen_area' — entity should win
+        mock_er, mock_ar, mock_dr = self._make_registry_mocks(
+            entity_area_id="bedroom_area",
+            device_area_id="kitchen_area",
+            has_device=True,
+        )
+
+        manager = VectorDBManager(mock_hass_integration, config)
+        try:
+            await manager._ensure_initialized()
+
+            with (
+                patch(
+                    "custom_components.home_agent.vector_db_manager.er.async_get",
+                    return_value=mock_er,
+                ),
+                patch(
+                    "custom_components.home_agent.vector_db_manager.ar.async_get",
+                    return_value=mock_ar,
+                ),
+                patch(
+                    "custom_components.home_agent.vector_db_manager.dr.async_get",
+                    return_value=mock_dr,
+                ),
+            ):
+                await manager.async_index_entity("light.office_desk")
+
+            collection = manager._collection
+            result = await mock_hass_integration.async_add_executor_job(
+                lambda: collection.get(ids=["light.office_desk"])
+            )
+
+            assert len(result["ids"]) == 1
+            document = result["documents"][0]
+            assert "Bedroom" in document, (
+                f"Expected entity area 'Bedroom' in document, got: {document}"
+            )
+            assert "Kitchen" not in document, (
+                f"'Kitchen' (device area) should not appear, got: {document}"
+            )
+
+        finally:
+            await manager.async_shutdown()

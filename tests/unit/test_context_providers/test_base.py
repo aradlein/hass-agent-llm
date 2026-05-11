@@ -4,7 +4,7 @@ This module tests the abstract base class for context providers,
 including helper methods and the abstract interface.
 """
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from homeassistant.core import State
@@ -18,6 +18,37 @@ class ConcreteContextProvider(ContextProvider):
     async def get_context(self, user_input: str) -> str:
         """Concrete implementation of get_context."""
         return f"Context for: {user_input}"
+
+
+@pytest.fixture(autouse=True)
+def stub_area_registries():
+    """Stub out entity/device/area registry calls for all tests in this module.
+
+    The area-lookup code added in base.py calls er/ar/dr.async_get(hass).
+    Tests that don't care about area resolution get a no-op stub so they
+    don't blow up on the real HA registry internals.  Tests that DO care
+    about area resolution override these stubs in their own patch contexts.
+    """
+    mock_er = Mock()
+    mock_er.async_get.return_value = None  # entity not in registry → no area
+    mock_ar = Mock()
+    mock_dr = Mock()
+
+    with (
+        patch(
+            "custom_components.home_agent.context_providers.base.er.async_get",
+            return_value=mock_er,
+        ),
+        patch(
+            "custom_components.home_agent.context_providers.base.ar.async_get",
+            return_value=mock_ar,
+        ),
+        patch(
+            "custom_components.home_agent.context_providers.base.dr.async_get",
+            return_value=mock_dr,
+        ),
+    ):
+        yield
 
 
 class TestContextProviderInit:
@@ -835,4 +866,157 @@ class TestGetEntityStateWithLabels:
             result = provider._get_entity_state("cover.garage", include_labels=False)
 
         assert result is not None
+
+
+class TestGetEntityStateAreaLookup:
+    """Tests for area resolution via entity/device/area registries."""
+
+    def _make_provider(self, mock_hass):
+        class ConcreteProvider(ContextProvider):
+            async def get_context(self, user_input: str) -> str:
+                return ""
+
+        return ConcreteProvider(mock_hass, {})
+
+    def test_location_from_entity_area_id(self, mock_hass):
+        """Entity-level area_id is resolved to Location in state result."""
+        from unittest.mock import patch
+
+        provider = self._make_provider(mock_hass)
+        state = Mock(spec=State)
+        state.entity_id = "light.bedroom"
+        state.state = "on"
+        state.attributes = {"friendly_name": "Bedroom Light"}
+        mock_hass.states.get.return_value = state
+
+        mock_entity_entry = Mock()
+        mock_entity_entry.aliases = []
+        mock_entity_entry.labels = set()
+        mock_entity_entry.area_id = "bedroom"
+        mock_entity_entry.device_id = None
+
+        mock_area = Mock()
+        mock_area.name = "Bedroom"
+
+        mock_er = Mock()
+        mock_er.async_get.return_value = mock_entity_entry
+        mock_ar = Mock()
+        mock_ar.async_get_area.return_value = mock_area
+        mock_dr = Mock()
+
+        with (
+            patch("custom_components.home_agent.context_providers.base.er.async_get", return_value=mock_er),
+            patch("custom_components.home_agent.context_providers.base.ar.async_get", return_value=mock_ar),
+            patch("custom_components.home_agent.context_providers.base.dr.async_get", return_value=mock_dr),
+        ):
+            result = provider._get_entity_state("light.bedroom")
+
+        assert result is not None
+        assert result.get("Location") == "Bedroom"
+
+    def test_location_falls_back_to_device_area(self, mock_hass):
+        """Device area is used when entity has no direct area_id."""
+        from unittest.mock import patch
+
+        provider = self._make_provider(mock_hass)
+        state = Mock(spec=State)
+        state.entity_id = "sensor.kitchen_temp"
+        state.state = "22"
+        state.attributes = {}
+        mock_hass.states.get.return_value = state
+
+        mock_entity_entry = Mock()
+        mock_entity_entry.aliases = []
+        mock_entity_entry.labels = set()
+        mock_entity_entry.area_id = None
+        mock_entity_entry.device_id = "device_xyz"
+
+        mock_device_entry = Mock()
+        mock_device_entry.area_id = "kitchen"
+
+        mock_area = Mock()
+        mock_area.name = "Kitchen"
+
+        mock_er = Mock()
+        mock_er.async_get.return_value = mock_entity_entry
+        mock_ar = Mock()
+        mock_ar.async_get_area.return_value = mock_area
+        mock_dr = Mock()
+        mock_dr.async_get.return_value = mock_device_entry
+
+        with (
+            patch("custom_components.home_agent.context_providers.base.er.async_get", return_value=mock_er),
+            patch("custom_components.home_agent.context_providers.base.ar.async_get", return_value=mock_ar),
+            patch("custom_components.home_agent.context_providers.base.dr.async_get", return_value=mock_dr),
+        ):
+            result = provider._get_entity_state("sensor.kitchen_temp")
+
+        assert result is not None
+        assert result.get("Location") == "Kitchen"
+
+    def test_entity_area_takes_priority_over_device_area(self, mock_hass):
+        """Entity-level area_id takes priority over device area."""
+        from unittest.mock import patch
+
+        provider = self._make_provider(mock_hass)
+        state = Mock(spec=State)
+        state.entity_id = "light.office"
+        state.state = "on"
+        state.attributes = {}
+        mock_hass.states.get.return_value = state
+
+        mock_entity_entry = Mock()
+        mock_entity_entry.aliases = []
+        mock_entity_entry.labels = set()
+        mock_entity_entry.area_id = "office_area"
+        mock_entity_entry.device_id = "device_abc"
+
+        mock_device_entry = Mock()
+        mock_device_entry.area_id = "garage_area"
+
+        def area_lookup(area_id):
+            a = Mock()
+            a.name = "Office" if area_id == "office_area" else "Garage"
+            return a
+
+        mock_er = Mock()
+        mock_er.async_get.return_value = mock_entity_entry
+        mock_ar = Mock()
+        mock_ar.async_get_area.side_effect = area_lookup
+        mock_dr = Mock()
+        mock_dr.async_get.return_value = mock_device_entry
+
+        with (
+            patch("custom_components.home_agent.context_providers.base.er.async_get", return_value=mock_er),
+            patch("custom_components.home_agent.context_providers.base.ar.async_get", return_value=mock_ar),
+            patch("custom_components.home_agent.context_providers.base.dr.async_get", return_value=mock_dr),
+        ):
+            result = provider._get_entity_state("light.office")
+
+        assert result is not None
+        assert result.get("Location") == "Office"
+
+    def test_no_location_when_entity_not_in_registry(self, mock_hass):
+        """No Location is set when entity is not in the entity registry."""
+        from unittest.mock import patch
+
+        provider = self._make_provider(mock_hass)
+        state = Mock(spec=State)
+        state.entity_id = "sensor.unknown"
+        state.state = "99"
+        state.attributes = {}
+        mock_hass.states.get.return_value = state
+
+        mock_er = Mock()
+        mock_er.async_get.return_value = None
+
+        with (
+            patch("custom_components.home_agent.context_providers.base.er.async_get", return_value=mock_er),
+            patch("custom_components.home_agent.context_providers.base.ar.async_get", return_value=Mock()),
+            patch("custom_components.home_agent.context_providers.base.dr.async_get", return_value=Mock()),
+        ):
+            result = provider._get_entity_state("sensor.unknown")
+
+        assert result is not None
+        assert "Location" not in result
         assert "labels" not in result  # Labels should NOT be included

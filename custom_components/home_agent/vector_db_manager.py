@@ -423,6 +423,17 @@ class VectorDBManager:
         if not entity_id or self._should_skip_entity(entity_id):
             return
 
+        # Skip reindex if state and attributes haven't changed
+        old_state = event.data.get("old_state")
+        new_state = event.data.get("new_state")
+        if (
+            old_state is not None
+            and new_state is not None
+            and old_state.state == new_state.state
+            and old_state.attributes == new_state.attributes
+        ):
+            return
+
         # Record pending reindex (deduplicates rapid changes for same entity)
         self._pending_reindex[entity_id] = asyncio.get_event_loop().time()
 

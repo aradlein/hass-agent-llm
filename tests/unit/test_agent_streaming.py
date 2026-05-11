@@ -2003,3 +2003,111 @@ class TestStreamingPreprocessing:
             assert (
                 user_content == "Hello world\n/no_think"
             ), f"Expected 'Hello world\\n/no_think', got: {repr(user_content)}"
+
+
+class TestToolResultDatetimeSerialization:
+    """Test that datetime/date objects in tool results are serialized correctly."""
+
+    @pytest.mark.asyncio
+    async def test_tool_result_with_datetime_does_not_raise(self, agent, mock_hass):
+        """Test that a tool result containing a datetime value is JSON-serialized without error."""
+        import json
+        from datetime import date, datetime
+
+        from homeassistant.components.conversation import AssistantContent, ToolResultContent
+        from homeassistant.helpers.llm import ToolInput
+
+        agent.config[CONF_STREAMING_ENABLED] = True
+
+        mock_input = MagicMock(spec=ha_conversation.ConversationInput)
+        mock_input.text = "When is the next event?"
+        mock_input.conversation_id = "test-conv"
+        mock_input.language = "en"
+        mock_input.context = MagicMock()
+        mock_input.context.user_id = "test-user"
+        mock_input.device_id = None
+
+        # Leave unresponded_tool_results as a MagicMock (truthy) so the loop
+        # can iterate a second time after processing the tool result.
+        mock_chat_log_instance = MagicMock()
+        mock_chat_log_instance.delta_listener = MagicMock()
+
+        mock_tool_call = ToolInput(
+            id="call_dt",
+            tool_name="ha_query",
+            tool_args={"query": "next event"},
+        )
+
+        # Tool result contains datetime and date objects (e.g. media_player attributes)
+        tool_result_with_datetimes = {
+            "state": "playing",
+            "last_updated": datetime(2026, 5, 10, 12, 0, 0),
+            "scheduled_date": date(2026, 5, 11),
+        }
+
+        stream_call_count = 0
+        captured_messages = []
+
+        # Two-stream setup: iteration 1 yields tool call + result;
+        # iteration 2 yields the final answer (no tool calls → loop breaks).
+        async def mock_content_stream(*args, **kwargs):
+            nonlocal stream_call_count
+            stream_call_count += 1
+            if stream_call_count == 1:
+                yield AssistantContent(
+                    agent_id="home_agent",
+                    content=None,
+                    tool_calls=[mock_tool_call],
+                )
+                yield ToolResultContent(
+                    agent_id="home_agent",
+                    tool_call_id="call_dt",
+                    tool_name="ha_query",
+                    tool_result=tool_result_with_datetimes,
+                )
+            else:
+                yield AssistantContent(
+                    agent_id="home_agent",
+                    content="The event is tomorrow.",
+                    tool_calls=None,
+                )
+
+        mock_chat_log_instance.async_add_delta_content_stream = mock_content_stream
+
+        mock_result = MagicMock(spec=ha_conversation.ConversationResult)
+        mock_result.conversation_id = "test-conv"
+
+        def capture_llm_messages(messages):
+            captured_messages.append([m.copy() for m in messages])
+
+            async def mock_stream():
+                yield "data: {}"
+
+            return mock_stream()
+
+        with (
+            patch(
+                "homeassistant.components.conversation.chat_log.current_chat_log"
+            ) as mock_chat_log,
+            patch.object(agent, "_call_llm_streaming", side_effect=capture_llm_messages),
+            patch(
+                "homeassistant.components.conversation.async_get_result_from_chat_log",
+                return_value=mock_result,
+            ),
+        ):
+            mock_chat_log.get.return_value = mock_chat_log_instance
+
+            # Must not raise TypeError for datetime serialization
+            await agent.async_process(mock_input)
+
+        assert stream_call_count == 2, "Expected two loop iterations"
+
+        # The second LLM call receives the messages INCLUDING the tool result.
+        # Verify datetime values were serialized to ISO strings.
+        tool_messages = [m for m in captured_messages[1] if m.get("role") == "tool"]
+        assert len(tool_messages) >= 1, "Expected a tool message in the second LLM call"
+
+        tool_content = json.loads(tool_messages[0]["content"])
+        assert tool_content["state"] == "playing"
+        assert tool_content["last_updated"] == "2026-05-10T12:00:00"
+        assert tool_content["scheduled_date"] == "2026-05-11"

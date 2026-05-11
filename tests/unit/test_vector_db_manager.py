@@ -1162,3 +1162,330 @@ async def test_async_run_maintenance_handles_empty_result(
 
         # Should not raise
         await manager._async_run_maintenance(None)
+
+
+# ---------------------------------------------------------------------------
+# Tests for unchanged-state skip in _async_handle_state_change
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_state_change_skipped_when_state_and_attributes_unchanged(
+    mock_hass, mock_chromadb, vector_db_config, mock_async_should_expose
+):
+    """Test that reindex is skipped when old and new state are identical."""
+    with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
+        manager = VectorDBManager(mock_hass, vector_db_config)
+
+        with patch.object(manager, "async_index_entity", AsyncMock()) as mock_index:
+            old_state = State("light.living_room", "on", {"brightness": 255})
+            new_state = State("light.living_room", "on", {"brightness": 255})
+
+            event = Event(
+                EVENT_STATE_CHANGED,
+                {
+                    "entity_id": "light.living_room",
+                    "old_state": old_state,
+                    "new_state": new_state,
+                },
+            )
+
+            with patch(
+                "custom_components.home_agent.vector_db_manager.async_should_expose",
+                mock_async_should_expose,
+            ):
+                manager._async_handle_state_change(event)
+                await asyncio.sleep(0.1)
+
+            mock_index.assert_not_called()
+            assert "light.living_room" not in manager._pending_reindex
+
+
+@pytest.mark.asyncio
+async def test_state_change_triggers_reindex_when_state_value_changes(
+    mock_hass, mock_chromadb, vector_db_config, mock_async_should_expose
+):
+    """Test that reindex runs when state value changes."""
+    with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
+        manager = VectorDBManager(mock_hass, vector_db_config)
+        await manager._ensure_initialized()
+
+        with (
+            patch.object(manager, "async_index_entity", AsyncMock()) as mock_index,
+            patch(
+                "custom_components.home_agent.vector_db_manager.async_should_expose",
+                mock_async_should_expose,
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05
+            ),
+        ):
+            old_state = State("light.living_room", "off", {"brightness": 0})
+            new_state = State("light.living_room", "on", {"brightness": 255})
+
+            event = Event(
+                EVENT_STATE_CHANGED,
+                {
+                    "entity_id": "light.living_room",
+                    "old_state": old_state,
+                    "new_state": new_state,
+                },
+            )
+
+            manager._async_handle_state_change(event)
+            await asyncio.sleep(0.2)
+
+        mock_index.assert_called_once_with("light.living_room")
+
+
+@pytest.mark.asyncio
+async def test_state_change_triggers_reindex_when_attributes_change(
+    mock_hass, mock_chromadb, vector_db_config, mock_async_should_expose
+):
+    """Test that reindex runs when attributes change even if state value is same."""
+    with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
+        manager = VectorDBManager(mock_hass, vector_db_config)
+        await manager._ensure_initialized()
+
+        with (
+            patch.object(manager, "async_index_entity", AsyncMock()) as mock_index,
+            patch(
+                "custom_components.home_agent.vector_db_manager.async_should_expose",
+                mock_async_should_expose,
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05
+            ),
+        ):
+            old_state = State("light.living_room", "on", {"brightness": 128})
+            new_state = State("light.living_room", "on", {"brightness": 255})
+
+            event = Event(
+                EVENT_STATE_CHANGED,
+                {
+                    "entity_id": "light.living_room",
+                    "old_state": old_state,
+                    "new_state": new_state,
+                },
+            )
+
+            manager._async_handle_state_change(event)
+            await asyncio.sleep(0.2)
+
+        mock_index.assert_called_once_with("light.living_room")
+
+
+@pytest.mark.asyncio
+async def test_state_change_triggers_reindex_for_new_entity(
+    mock_hass, mock_chromadb, vector_db_config, mock_async_should_expose
+):
+    """Test that reindex runs when old_state is None (entity first appearance)."""
+    with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
+        manager = VectorDBManager(mock_hass, vector_db_config)
+        await manager._ensure_initialized()
+
+        with (
+            patch.object(manager, "async_index_entity", AsyncMock()) as mock_index,
+            patch(
+                "custom_components.home_agent.vector_db_manager.async_should_expose",
+                mock_async_should_expose,
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05
+            ),
+        ):
+            new_state = State("light.living_room", "on", {})
+            event = Event(
+                EVENT_STATE_CHANGED,
+                {
+                    "entity_id": "light.living_room",
+                    "old_state": None,
+                    "new_state": new_state,
+                },
+            )
+
+            manager._async_handle_state_change(event)
+            await asyncio.sleep(0.2)
+
+        mock_index.assert_called_once_with("light.living_room")
+
+
+# ---------------------------------------------------------------------------
+# Tests for area/aliases in _create_entity_text (VectorDBManager)
+# ---------------------------------------------------------------------------
+
+
+def test_create_entity_text_includes_area_from_entity_registry(
+    mock_hass, mock_chromadb, vector_db_config
+):
+    """Test that entity-level area_id is used in entity text."""
+    with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
+        manager = VectorDBManager(mock_hass, vector_db_config)
+        state = State("light.living_room", "on", {"friendly_name": "Living Room Light"})
+
+        mock_entity_entry = MagicMock()
+        mock_entity_entry.area_id = "living_room"
+        mock_entity_entry.device_id = None
+        mock_entity_entry.aliases = []
+
+        mock_area = MagicMock()
+        mock_area.name = "Living Room"
+
+        with (
+            patch(
+                "custom_components.home_agent.vector_db_manager.er.async_get",
+                return_value=MagicMock(async_get=MagicMock(return_value=mock_entity_entry)),
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.ar.async_get",
+                return_value=MagicMock(async_get_area=MagicMock(return_value=mock_area)),
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.dr.async_get",
+                return_value=MagicMock(),
+            ),
+        ):
+            text = manager._create_entity_text(state)
+
+        assert "Location: Living Room" in text
+
+
+def test_create_entity_text_falls_back_to_device_area(
+    mock_hass, mock_chromadb, vector_db_config
+):
+    """Test that device area is used when entity has no direct area_id."""
+    with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
+        manager = VectorDBManager(mock_hass, vector_db_config)
+        state = State("light.living_room", "on", {"friendly_name": "Living Room Light"})
+
+        mock_entity_entry = MagicMock()
+        mock_entity_entry.area_id = None
+        mock_entity_entry.device_id = "device_abc"
+        mock_entity_entry.aliases = []
+
+        mock_device_entry = MagicMock()
+        mock_device_entry.area_id = "kitchen"
+
+        mock_area = MagicMock()
+        mock_area.name = "Kitchen"
+
+        with (
+            patch(
+                "custom_components.home_agent.vector_db_manager.er.async_get",
+                return_value=MagicMock(async_get=MagicMock(return_value=mock_entity_entry)),
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.ar.async_get",
+                return_value=MagicMock(async_get_area=MagicMock(return_value=mock_area)),
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.dr.async_get",
+                return_value=MagicMock(async_get=MagicMock(return_value=mock_device_entry)),
+            ),
+        ):
+            text = manager._create_entity_text(state)
+
+        assert "Location: Kitchen" in text
+
+
+def test_create_entity_text_no_area_when_entity_has_no_device(
+    mock_hass, mock_chromadb, vector_db_config
+):
+    """Test that no Location is included for entities with no device and no area_id."""
+    with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
+        manager = VectorDBManager(mock_hass, vector_db_config)
+        state = State("input_boolean.test", "on", {"friendly_name": "Test Helper"})
+
+        mock_entity_entry = MagicMock()
+        mock_entity_entry.area_id = None
+        mock_entity_entry.device_id = None
+        mock_entity_entry.aliases = []
+
+        with (
+            patch(
+                "custom_components.home_agent.vector_db_manager.er.async_get",
+                return_value=MagicMock(async_get=MagicMock(return_value=mock_entity_entry)),
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.ar.async_get",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.dr.async_get",
+                return_value=MagicMock(),
+            ),
+        ):
+            text = manager._create_entity_text(state)
+
+        assert "Location:" not in text
+
+
+def test_create_entity_text_entity_area_takes_priority_over_device_area(
+    mock_hass, mock_chromadb, vector_db_config
+):
+    """Test that entity-level area_id takes priority over device area."""
+    with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
+        manager = VectorDBManager(mock_hass, vector_db_config)
+        state = State("light.bedroom", "on", {"friendly_name": "Bedroom Light"})
+
+        mock_entity_entry = MagicMock()
+        mock_entity_entry.area_id = "bedroom_area"
+        mock_entity_entry.device_id = "device_abc"
+        mock_entity_entry.aliases = []
+
+        mock_device_entry = MagicMock()
+        mock_device_entry.area_id = "living_room_area"
+
+        def area_lookup(area_id):
+            area = MagicMock()
+            area.name = "Bedroom" if area_id == "bedroom_area" else "Living Room"
+            return area
+
+        with (
+            patch(
+                "custom_components.home_agent.vector_db_manager.er.async_get",
+                return_value=MagicMock(async_get=MagicMock(return_value=mock_entity_entry)),
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.ar.async_get",
+                return_value=MagicMock(async_get_area=area_lookup),
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.dr.async_get",
+                return_value=MagicMock(async_get=MagicMock(return_value=mock_device_entry)),
+            ),
+        ):
+            text = manager._create_entity_text(state)
+
+        assert "Location: Bedroom" in text
+        assert "Living Room" not in text
+
+
+def test_create_entity_text_includes_aliases(mock_hass, mock_chromadb, vector_db_config):
+    """Test that entity aliases are included in entity text."""
+    with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
+        manager = VectorDBManager(mock_hass, vector_db_config)
+        state = State("light.living_room", "on", {"friendly_name": "Living Room Light"})
+
+        mock_entity_entry = MagicMock()
+        mock_entity_entry.area_id = None
+        mock_entity_entry.device_id = None
+        mock_entity_entry.aliases = ["lounge light", "main light"]
+
+        with (
+            patch(
+                "custom_components.home_agent.vector_db_manager.er.async_get",
+                return_value=MagicMock(async_get=MagicMock(return_value=mock_entity_entry)),
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.ar.async_get",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "custom_components.home_agent.vector_db_manager.dr.async_get",
+                return_value=MagicMock(),
+            ),
+        ):
+            text = manager._create_entity_text(state)
+
+        assert "Aliases: lounge light, main light" in text
