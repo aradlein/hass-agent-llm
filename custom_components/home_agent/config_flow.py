@@ -30,6 +30,7 @@ from .const import (
     CONF_ADDITIONAL_COLLECTIONS,
     CONF_ADDITIONAL_L2_DISTANCE_THRESHOLD,
     CONF_ADDITIONAL_TOP_K,
+    CONF_CONTINUE_ON_QUESTION,
     CONF_CONTEXT_FORMAT,
     CONF_CONTEXT_MODE,
     CONF_DEBUG_LOGGING,
@@ -88,6 +89,7 @@ from .const import (
     CONTEXT_MODE_DIRECT,
     CONTEXT_MODE_VECTOR_DB,
     DEFAULT_ADDITIONAL_COLLECTIONS,
+    DEFAULT_CONTINUE_ON_QUESTION,
     DEFAULT_ADDITIONAL_L2_DISTANCE_THRESHOLD,
     DEFAULT_ADDITIONAL_TOP_K,
     DEFAULT_CONTEXT_FORMAT,
@@ -219,8 +221,7 @@ def _migrate_legacy_backend(config: dict[str, Any]) -> dict[str, Any]:
         _LOGGER.info("Migrated legacy llm_backend setting '%s' to llm_proxy_headers", backend)
 
     return config
-
-
+@config_entries.HANDLERS.register(DOMAIN)
 class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Home Agent.
 
@@ -579,6 +580,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 errors["base"] = "unknown"
 
         # Get current values from entry.data (not options)
+        current_options = self._config_entry.options
         current_data = self._config_entry.data
 
         # Convert proxy headers dict to JSON string for display
@@ -620,6 +622,15 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_THINKING_ENABLED,
                         default=current_data.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED),
+                    ): bool,
+                    vol.Optional(
+                        CONF_CONTINUE_ON_QUESTION,
+                        default=current_options.get(
+                            CONF_CONTINUE_ON_QUESTION,
+                            current_data.get(
+                                CONF_CONTINUE_ON_QUESTION, DEFAULT_CONTINUE_ON_QUESTION
+                            ),
+                        ),
                     ): bool,
                 }
             ),
@@ -917,8 +928,8 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                         default=current_options.get(
                             CONF_SESSION_TIMEOUT,
                             current_data.get(CONF_SESSION_TIMEOUT, DEFAULT_SESSION_TIMEOUT),
-                        )
-                        // 60,  # Convert seconds to minutes for display
+                        ) 
+                        // 60,
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=120)),
                 }
             ),
