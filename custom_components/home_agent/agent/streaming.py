@@ -157,6 +157,7 @@ from ..exceptions import AuthenticationError, HomeAgentError
 from ..helpers import (
     build_api_url,
     build_auth_headers,
+    is_anthropic_backend,
     is_ollama_backend,
     redact_sensitive_data,
     render_template_value,
@@ -197,6 +198,12 @@ class StreamingMixin:
 
         # Check if streaming is enabled in config
         if not self.config.get(CONF_STREAMING_ENABLED, DEFAULT_STREAMING_ENABLED):
+            return False
+
+        # Native Anthropic backends use a different SSE event format than the
+        # OpenAI handler understands; route them through the synchronous path
+        # (the adapter only translates non-streaming requests).
+        if is_anthropic_backend(self.config.get(CONF_LLM_BASE_URL, "")):
             return False
 
         # Check if ChatLog with delta_listener exists (means assist pipeline supports streaming)

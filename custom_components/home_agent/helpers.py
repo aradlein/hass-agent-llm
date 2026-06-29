@@ -618,6 +618,40 @@ def is_ollama_backend(base_url: str) -> bool:
     return False
 
 
+def is_anthropic_backend(base_url: str) -> bool:
+    """Check if the LLM base URL points to a native Anthropic Messages endpoint.
+
+    Detects Anthropic backends by checking for:
+    1. The official Anthropic API host (api.anthropic.com)
+    2. An '/anthropic' path segment (gateways that expose a native Anthropic
+       endpoint alongside their OpenAI one, e.g. http://gateway:8080/anthropic)
+
+    When true, requests are sent in the native Anthropic Messages format (see
+    ``agent.anthropic_adapter``) instead of the OpenAI chat-completions format,
+    and streaming is disabled. This avoids OpenAI->Anthropic tool-call
+    translation bugs in intermediary gateways.
+
+    Args:
+        base_url: The LLM API base URL to check
+
+    Returns:
+        True if the URL appears to be a native Anthropic endpoint, False otherwise
+
+    Example:
+        >>> is_anthropic_backend("https://api.anthropic.com")
+        True
+        >>> is_anthropic_backend("http://gateway:20128/anthropic")
+        True
+        >>> is_anthropic_backend("http://gateway:20128/v1")
+        False
+    """
+    if not base_url:
+        return False
+
+    url_lower = base_url.lower()
+    return "api.anthropic.com" in url_lower or "/anthropic" in url_lower
+
+
 def is_azure_openai_backend(base_url: str) -> bool:
     """Check if the LLM base URL points to an Azure OpenAI endpoint.
 
