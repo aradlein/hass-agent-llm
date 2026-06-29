@@ -245,3 +245,136 @@ async def call_anthropic(
             return await response.json()
     except aiohttp.ClientError as err:
         raise HomeAgentError(f"Failed to connect to Anthropic API: {err}") from err
+
+
+def _auth_headers(api_key: str, proxy_headers: dict[str, str] | None) -> dict[str, str]:
+    headers: dict[str, str] = {
+        "Content-Type": "application/json",
+        "anthropic-version": ANTHROPIC_VERSION,
+    }
+    if api_key:
+        headers["x-api-key"] = api_key
+        headers["Authorization"] = f"Bearer {api_key}"
+    if proxy_headers:
+        headers.update(proxy_headers)
+    return headers
+
+
+class _StreamState:
+    """Mutable state threaded through the Anthropic-SSE -> OpenAI-chunk translation.
+
+    Anthropic indexes every content block (text and tool_use) in one sequence;
+    OpenAI streams tool calls under their own 0-based index. We map each Anthropic
+    tool_use block index to an OpenAI tool_call index here.
+    """
+
+    def __init__(self) -> None:
+        self.block_to_toolidx: dict[int, int] = {}
+        self.next_tool_index = 0
+
+
+def anthropic_event_to_openai_chunks(event: dict[str, Any], state: _StreamState) -> list[dict[str, Any]]:
+    """Translate ONE parsed Anthropic SSE event into zero or more OpenAI
+    chat.completion.chunk dicts (the shape ``OpenAIStreamingHandler`` consumes).
+
+    Strips the gateway-injected ``_ide`` tool-name suffix on tool_use starts.
+    """
+    etype = event.get("type")
+    chunks: list[dict[str, Any]] = []
+
+    if etype == "content_block_start":
+        block = event.get("content_block", {}) or {}
+        if block.get("type") == "tool_use":
+            tool_index = state.next_tool_index
+            state.next_tool_index += 1
+            state.block_to_toolidx[event.get("index", 0)] = tool_index
+            chunks.append({
+                "choices": [{
+                    "index": 0,
+                    "delta": {"tool_calls": [{
+                        "index": tool_index,
+                        "id": block.get("id", ""),
+                        "type": "function",
+                        "function": {"name": cleanup_tool_name(block.get("name", "")), "arguments": ""},
+                    }]},
+                    "finish_reason": None,
+                }],
+            })
+
+    elif etype == "content_block_delta":
+        delta = event.get("delta", {}) or {}
+        dtype = delta.get("type")
+        if dtype == "text_delta" and delta.get("text"):
+            chunks.append({"choices": [{"index": 0, "delta": {"content": delta["text"]}, "finish_reason": None}]})
+        elif dtype == "input_json_delta":
+            tool_index = state.block_to_toolidx.get(event.get("index", 0), 0)
+            chunks.append({
+                "choices": [{
+                    "index": 0,
+                    "delta": {"tool_calls": [{
+                        "index": tool_index,
+                        "function": {"arguments": delta.get("partial_json", "")},
+                    }]},
+                    "finish_reason": None,
+                }],
+            })
+
+    elif etype == "message_delta":
+        stop = (event.get("delta", {}) or {}).get("stop_reason")
+        finish = _STOP_REASON_TO_FINISH.get(stop, "stop") if stop else None
+        chunk: dict[str, Any] = {"choices": [{"index": 0, "delta": {}, "finish_reason": finish}]}
+        usage = event.get("usage") or {}
+        if usage:
+            # output_tokens is cumulative in message_delta; input from message_start
+            chunk["usage"] = {
+                "prompt_tokens": 0,
+                "completion_tokens": usage.get("output_tokens", 0),
+                "total_tokens": usage.get("output_tokens", 0),
+            }
+        chunks.append(chunk)
+
+    return chunks
+
+
+def cleanup_tool_name(name: str) -> str:
+    """Strip a trailing gateway-injected ``_ide`` suffix from a tool name."""
+    return name[:-4] if isinstance(name, str) and name.endswith("_ide") else name
+
+
+async def stream_anthropic_as_openai_sse(
+    session: aiohttp.ClientSession,
+    *,
+    url: str,
+    api_key: str,
+    proxy_headers: dict[str, str] | None,
+    body: dict[str, Any],
+):
+    """POST a streaming Anthropic Messages request and yield OpenAI-format SSE
+    lines (``data: {chunk}\\n``) translated from the Anthropic event stream, so
+    the existing ``OpenAIStreamingHandler`` consumes them unchanged. The
+    gateway-injected ``_ide`` tool-name suffix is stripped inline."""
+    headers = _auth_headers(api_key, proxy_headers)
+    state = _StreamState()
+    try:
+        async with session.post(url, headers=headers, json=body, allow_redirects=False) as response:
+            if response.status == 401:
+                raise AuthenticationError("Anthropic API authentication failed. Check your API key.")
+            if response.status != 200:
+                error_text = await response.text()
+                raise HomeAgentError(f"Anthropic API returned status {response.status}: {error_text}")
+            async for raw in response.content:
+                line = raw.decode("utf-8", "ignore").strip()
+                if not line.startswith("data:"):
+                    continue
+                payload = line[5:].strip()
+                if not payload or payload == "[DONE]":
+                    continue
+                try:
+                    event = json.loads(payload)
+                except ValueError:
+                    continue
+                for chunk in anthropic_event_to_openai_chunks(event, state):
+                    yield f"data: {json.dumps(chunk)}\n"
+            yield "data: [DONE]\n"
+    except aiohttp.ClientError as err:
+        raise HomeAgentError(f"Failed to connect to Anthropic API: {err}") from err

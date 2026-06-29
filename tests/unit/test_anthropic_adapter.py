@@ -10,6 +10,9 @@ which Anthropic rejects with
 import json
 
 from custom_components.home_agent.agent.anthropic_adapter import (
+    _StreamState,
+    anthropic_event_to_openai_chunks,
+    cleanup_tool_name,
     from_anthropic_response,
     messages_endpoint,
     to_anthropic_request,
@@ -186,3 +189,74 @@ class TestFromAnthropicResponse:
         msg = from_anthropic_response(resp)["choices"][0]["message"]
         assert "tool_calls" not in msg
         assert msg["content"] == "Hallo"
+
+
+class TestCleanupToolName:
+    def test_strips_ide(self):
+        assert cleanup_tool_name("ha_control_ide") == "ha_control"
+
+    def test_keeps_clean(self):
+        assert cleanup_tool_name("ha_control") == "ha_control"
+
+
+class TestStreamingTranslation:
+    """Anthropic SSE events -> OpenAI chat.completion.chunk dicts, reconstructed
+    the way OpenAIStreamingHandler accumulates them."""
+
+    def _reconstruct(self, events):
+        state = _StreamState()
+        text, tools, finish, completion = "", {}, None, 0
+        for ev in events:
+            for ch in anthropic_event_to_openai_chunks(ev, state):
+                if "usage" in ch:
+                    completion = ch["usage"]["completion_tokens"]
+                choice = ch["choices"][0]
+                if choice.get("finish_reason"):
+                    finish = choice["finish_reason"]
+                delta = choice["delta"]
+                if delta.get("content"):
+                    text += delta["content"]
+                for tcd in delta.get("tool_calls", []):
+                    t = tools.setdefault(tcd["index"], {"id": "", "name": "", "arguments": ""})
+                    if tcd.get("id"):
+                        t["id"] = tcd["id"]
+                    fn = tcd.get("function", {})
+                    if fn.get("name"):
+                        t["name"] = fn["name"]
+                    if "arguments" in fn:
+                        t["arguments"] += fn["arguments"]
+        return text, tools, finish, completion
+
+    def test_text_and_tool_use_stream(self):
+        events = [
+            {"type": "message_start", "message": {"usage": {"input_tokens": 50, "output_tokens": 1}}},
+            {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+            {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Mach "}},
+            {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "ich."}},
+            {"type": "content_block_stop", "index": 0},
+            {"type": "content_block_start", "index": 1,
+             "content_block": {"type": "tool_use", "id": "toolu_7", "name": "ha_control_ide", "input": {}}},
+            {"type": "content_block_delta", "index": 1,
+             "delta": {"type": "input_json_delta", "partial_json": '{"entity_id":"light.x",'}},
+            {"type": "content_block_delta", "index": 1,
+             "delta": {"type": "input_json_delta", "partial_json": '"action":"turn_off"}'}},
+            {"type": "content_block_stop", "index": 1},
+            {"type": "message_delta", "delta": {"stop_reason": "tool_use"}, "usage": {"output_tokens": 18}},
+            {"type": "message_stop"},
+        ]
+        text, tools, finish, completion = self._reconstruct(events)
+        assert text == "Mach ich."
+        assert len(tools) == 1
+        assert tools[0]["name"] == "ha_control"   # _ide stripped inline
+        assert tools[0]["id"] == "toolu_7"
+        assert json.loads(tools[0]["arguments"]) == {"entity_id": "light.x", "action": "turn_off"}
+        assert finish == "tool_calls"
+        assert completion == 18
+
+    def test_ping_and_unknown_events_ignored(self):
+        text, tools, finish, _ = self._reconstruct([
+            {"type": "ping"},
+            {"type": "content_block_start", "index": 0, "content_block": {"type": "text"}},
+            {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "hi"}},
+        ])
+        assert text == "hi" and tools == {} and finish is None
