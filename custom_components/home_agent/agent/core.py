@@ -286,6 +286,12 @@ class HomeAgent(
             # Ensure tools are registered (lazy initialization)
             self._ensure_tools_registered()
 
+            # Refresh the exposed-entity allow-list from HA's current exposure
+            # settings every turn, so entities discovered after the agent first
+            # initialised (cold-boot MQTT/Zigbee race) become controllable
+            # instead of staying frozen out of the initial snapshot.
+            self._refresh_exposed_entities()
+
             # Check if we can stream
             if self._can_stream():
                 try:
@@ -430,31 +436,60 @@ class HomeAgent(
                 conversation_id=user_input.conversation_id,
             )
 
-    def _register_tools(self) -> None:
-        """Register core Home Assistant tools."""
-        # Get exposed entities from voice assistant settings
-        # Use async_should_expose to respect Home Assistant's exposure settings
-        from homeassistant.components import conversation as ha_conversation
-        from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+    def _refresh_exposed_entities(self) -> None:
+        """Recompute the exposed-entity allow-list from Home Assistant's current
+        exposure settings and store it as a NEW frozenset on ``self``.
 
-        exposed_entity_ids = {
+        The ha_control / ha_query tools read it through a provider callable
+        (``lambda: self._exposed_entity_ids``), so reassigning a fresh set here —
+        rather than mutating a shared one in place — keeps the value immutable and
+        avoids handing the tools a mutable reference. Called once at tool
+        registration and again at the start of every conversation turn. This kills
+        a cold-boot race: the agent registers its tools lazily on the first
+        message, but on a fresh boot that message can arrive before late
+        integrations (MQTT / Zigbee discovery) have published their entity states.
+        A one-shot snapshot would freeze those entities out for the life of the
+        agent (HA still has them flagged exposed, but they were absent from
+        hass.states at snapshot time). Re-reading exposure each turn lets them
+        become controllable on the next turn instead.
+        """
+        from homeassistant.components import conversation as ha_conversation
+        from homeassistant.components.homeassistant.exposed_entities import (
+            async_should_expose,
+        )
+
+        current = frozenset(
             state.entity_id
             for state in self.hass.states.async_all()
             if async_should_expose(self.hass, ha_conversation.DOMAIN, state.entity_id)
-        }
-
-        _LOGGER.debug(
-            "Found %d exposed entities for tools: %s",
-            len(exposed_entity_ids),
-            sorted(exposed_entity_ids),
         )
+        previous = getattr(self, "_exposed_entity_ids", frozenset())
+        if current != previous:
+            self._exposed_entity_ids = current
+            _LOGGER.debug(
+                "Refreshed exposed entities for tools: %d total (+%d, -%d)",
+                len(current), len(current - previous), len(previous - current),
+            )
+
+    def _register_tools(self) -> None:
+        """Register core Home Assistant tools."""
+        # Exposed entities respect Home Assistant's exposure settings
+        # (async_should_expose). The allow-list is held on self and recomputed as
+        # a fresh frozenset each turn by _refresh_exposed_entities(); the tools
+        # read the current value through a provider callable (no shared mutable
+        # reference), so a cold-boot discovery race can't freeze entities out.
+        self._exposed_entity_ids: frozenset[str] = frozenset()
+        self._refresh_exposed_entities()
+
+        def exposed_provider() -> frozenset[str]:
+            return self._exposed_entity_ids
 
         # Register ha_control tool
-        ha_control = HomeAssistantControlTool(self.hass, exposed_entity_ids)
+        ha_control = HomeAssistantControlTool(self.hass, exposed_provider)
         self.tool_handler.register_tool(ha_control)
 
         # Register ha_query tool
-        ha_query = HomeAssistantQueryTool(self.hass, exposed_entity_ids)
+        ha_query = HomeAssistantQueryTool(self.hass, exposed_provider)
         self.tool_handler.register_tool(ha_query)
 
         # Register external LLM tool if enabled

@@ -364,6 +364,24 @@ class TestHomeAssistantControlTool:
         assert "not accessible" in str(exc_info.value).lower()
         assert "light.secret_room" in str(exc_info.value)
 
+    def test_exposed_entities_provider_resolved_live(self, mock_hass):
+        """A provider callable is resolved on every access check, so the agent can
+        hand out a FRESH (immutable) set each turn and the tool sees it
+        immediately — without sharing a mutable reference that gets mutated in
+        place. This is the cold-boot exposure-refresh contract."""
+        holder = {"set": frozenset()}
+        tool = HomeAssistantControlTool(mock_hass, lambda: holder["set"])
+
+        # Empty allow-list -> denied.
+        with pytest.raises(PermissionDenied):
+            tool._validate_entity_access("light.living_room")
+
+        # Agent reassigns a brand-new frozenset that now exposes the entity.
+        holder["set"] = frozenset({"light.living_room"})
+
+        # Resolved live through the provider -> now allowed (must not raise).
+        tool._validate_entity_access("light.living_room")
+
     @pytest.mark.asyncio
     async def test_entity_access_validation_none_allows_all(self, mock_hass, sample_light_state):
         """Test that None exposed_entities allows all access."""
