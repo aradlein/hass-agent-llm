@@ -32,8 +32,20 @@ from ..const import (
     DEFAULT_TOOLS_TIMEOUT,
     TOOL_QUERY_EXTERNAL_LLM,
 )
+from ..agent.anthropic_adapter import (
+    call_anthropic,
+    from_anthropic_response,
+    messages_endpoint,
+    to_anthropic_request,
+)
 from ..exceptions import ToolExecutionError, ValidationError
-from ..helpers import build_api_url, build_auth_headers, is_ollama_backend, render_template_value
+from ..helpers import (
+    build_api_url,
+    build_auth_headers,
+    is_anthropic_backend,
+    is_ollama_backend,
+    render_template_value,
+)
 from .registry import BaseTool
 
 if TYPE_CHECKING:
@@ -296,68 +308,90 @@ class ExternalLLMTool(BaseTool):
         )
         max_tokens = self._config.get(CONF_EXTERNAL_LLM_MAX_TOKENS, DEFAULT_EXTERNAL_LLM_MAX_TOKENS)
 
-        # Validate required configuration
+        # Validate required configuration. The API key is intentionally NOT
+        # required: a native Anthropic backend or an OpenAI-compatible gateway on
+        # a trusted network (e.g. Bifrost in the tailnet) authenticates without
+        # one — mirrors the primary LLM path, which also treats the key as
+        # optional. A real provider that needs a key still fails loudly with 401.
         if not base_url:
             raise ValidationError(
                 "External LLM base URL is not configured. "
                 "Please configure it in the integration settings."
             )
 
-        if not api_key:
-            raise ValidationError(
-                "External LLM API key is not configured. "
-                "Please configure it in the integration settings."
+        # Native Anthropic Messages backends speak a different wire format. Route
+        # them through the adapter (same as the primary LLM path), so external
+        # extraction can target Anthropic OR OpenAI from one unified setting.
+        if is_anthropic_backend(base_url):
+            body = to_anthropic_request(
+                [{"role": "user", "content": message}],
+                None,
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=1.0,
+            )
+            _LOGGER.debug(
+                "Calling external Anthropic LLM at %s with model %s",
+                messages_endpoint(base_url), model,
+            )
+            raw = await call_anthropic(
+                session,
+                url=messages_endpoint(base_url),
+                api_key=api_key,
+                proxy_headers=None,
+                body=body,
+            )
+            result = from_anthropic_response(raw)
+        else:
+            # Build request (Azure OpenAI uses different URL structure and auth)
+            url = build_api_url(base_url, model)
+            headers = {
+                "Content-Type": "application/json",
+            }
+            headers.update(build_auth_headers(base_url, api_key))
+
+            payload: dict[str, Any] = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": message,
+                    }
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+
+            # Only include keep_alive for Ollama backends (not supported by OpenAI, etc.)
+            # See: https://github.com/aradlein/home-agent/issues/65
+            if is_ollama_backend(base_url):
+                payload["keep_alive"] = self._config.get(
+                    CONF_EXTERNAL_LLM_KEEP_ALIVE, DEFAULT_EXTERNAL_LLM_KEEP_ALIVE
+                )
+
+            _LOGGER.debug(
+                "Calling external LLM at %s with model %s",
+                url,
+                model,
             )
 
-        # Build request (Azure OpenAI uses different URL structure and auth)
-        url = build_api_url(base_url, model)
-        headers = {
-            "Content-Type": "application/json",
-        }
-        headers.update(build_auth_headers(base_url, api_key))
+            async with session.post(url, headers=headers, json=payload) as response:
+                response.raise_for_status()
+                result = await response.json()
 
-        payload: dict[str, Any] = {
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": message,
-                }
-            ],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
+        # Extract response text from the (now uniformly OpenAI-shaped) result.
+        choices = result.get("choices", [])
+        if not choices:
+            raise ToolExecutionError("External LLM returned empty response (no choices)")
 
-        # Only include keep_alive for Ollama backends (not supported by OpenAI, etc.)
-        # See: https://github.com/aradlein/home-agent/issues/65
-        if is_ollama_backend(base_url):
-            payload["keep_alive"] = self._config.get(
-                CONF_EXTERNAL_LLM_KEEP_ALIVE, DEFAULT_EXTERNAL_LLM_KEEP_ALIVE
-            )
+        message_obj = choices[0].get("message", {})
+        content = message_obj.get("content", "")
 
-        _LOGGER.debug(
-            "Calling external LLM at %s with model %s",
-            url,
-            model,
-        )
+        if not content:
+            raise ToolExecutionError("External LLM returned empty content in response")
 
-        # Make API call
-        async with session.post(url, headers=headers, json=payload) as response:
-            response.raise_for_status()
-            result = await response.json()
-
-            # Extract response text from OpenAI-compatible format
-            choices = result.get("choices", [])
-            if not choices:
-                raise ToolExecutionError("External LLM returned empty response (no choices)")
-
-            message_obj = choices[0].get("message", {})
-            content = message_obj.get("content", "")
-
-            if not content:
-                raise ToolExecutionError("External LLM returned empty content in response")
-
-            return str(content)
+        return str(content)
 
     async def close(self) -> None:
         """Clean up resources."""

@@ -385,19 +385,35 @@ class TestExternalLLMTool:
         assert "not configured" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_execute_missing_api_key_returns_error(self, mock_hass):
-        """Test that missing API key returns error response."""
+    async def test_execute_missing_api_key_proceeds(self, mock_hass, mock_llm_response):
+        """Missing API key no longer errors: keyless Anthropic/gateway backends
+        authenticate without one (mirrors the primary LLM). The call proceeds and
+        is sent WITHOUT an Authorization header."""
         config = {
             CONF_EXTERNAL_LLM_BASE_URL: "https://api.example.com/v1",
         }
         tool = ExternalLLMTool(mock_hass, config)
 
-        result = await tool.execute(prompt="Test prompt")
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value=mock_llm_response)
+        mock_response.raise_for_status = MagicMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=None)
 
-        assert result["success"] is False
-        assert result["result"] is None
-        assert "api key" in result["error"].lower()
-        assert "not configured" in result["error"].lower()
+        with patch("aiohttp.ClientSession") as mock_session_class:
+            mock_session = AsyncMock()
+            mock_session.post = MagicMock(return_value=mock_response)
+            mock_session.closed = False
+            mock_session_class.return_value = mock_session
+
+            result = await tool.execute(prompt="Test prompt")
+
+        assert result["success"] is True
+        assert result["error"] is None
+        # No key configured -> no Authorization header on the outbound request.
+        headers = mock_session.post.call_args[1]["headers"]
+        assert "Authorization" not in headers
 
     @pytest.mark.asyncio
     async def test_execute_uses_config_values(self, mock_hass, mock_config, mock_llm_response):

@@ -220,31 +220,33 @@ class TestExternalLLMValidation:
         with pytest.raises(ValidationError, match="Invalid external LLM URL format"):
             await options_flow._validate_external_llm_config(config)
 
-    async def test_validate_external_llm_config_empty_api_key(self):
-        """Test validation error for empty API key."""
+    async def test_validate_external_llm_config_empty_api_key_accepted(self):
+        """Empty API key is accepted: a native Anthropic backend or a trusted-
+        network gateway (e.g. Bifrost in the tailnet) authenticates without one,
+        mirroring the primary LLM settings. Must NOT raise."""
         options_flow = HomeAgentOptionsFlow(Mock())
 
         config = {
-            CONF_EXTERNAL_LLM_BASE_URL: "https://api.openai.com/v1",
+            CONF_EXTERNAL_LLM_BASE_URL: "http://bootstrap:20128/anthropic",
             CONF_EXTERNAL_LLM_API_KEY: "",
-            CONF_EXTERNAL_LLM_MODEL: "gpt-4",
+            CONF_EXTERNAL_LLM_MODEL: "claude-opus",
         }
 
-        with pytest.raises(ValidationError, match="API key cannot be empty"):
-            await options_flow._validate_external_llm_config(config)
+        # No exception expected.
+        await options_flow._validate_external_llm_config(config)
 
-    async def test_validate_external_llm_config_whitespace_api_key(self):
-        """Test validation error for whitespace-only API key."""
+    async def test_validate_external_llm_config_whitespace_api_key_accepted(self):
+        """Whitespace-only API key is likewise accepted (treated as no key)."""
         options_flow = HomeAgentOptionsFlow(Mock())
 
         config = {
-            CONF_EXTERNAL_LLM_BASE_URL: "https://api.openai.com/v1",
+            CONF_EXTERNAL_LLM_BASE_URL: "http://bootstrap:20128/anthropic",
             CONF_EXTERNAL_LLM_API_KEY: "   ",
-            CONF_EXTERNAL_LLM_MODEL: "gpt-4",
+            CONF_EXTERNAL_LLM_MODEL: "claude-opus",
         }
 
-        with pytest.raises(ValidationError, match="API key cannot be empty"):
-            await options_flow._validate_external_llm_config(config)
+        # No exception expected.
+        await options_flow._validate_external_llm_config(config)
 
     async def test_validate_external_llm_config_empty_model(self):
         """Test validation error for empty model name."""
@@ -857,12 +859,14 @@ class TestHomeAgentOptionsFlow:
         options_flow = HomeAgentOptionsFlow(mock_config_entry)
         options_flow.hass = mock_hass
 
-        # Missing API key should trigger validation error
+        # Empty model name should trigger validation error (an empty API key is
+        # now accepted — keyless Anthropic/gateway backends — so it can no longer
+        # be used to provoke the error path).
         user_input = {
             CONF_EXTERNAL_LLM_ENABLED: True,
             CONF_EXTERNAL_LLM_BASE_URL: "https://api.openai.com/v1",
-            CONF_EXTERNAL_LLM_API_KEY: "",  # Empty API key
-            CONF_EXTERNAL_LLM_MODEL: "gpt-4",
+            CONF_EXTERNAL_LLM_API_KEY: "test-key",
+            CONF_EXTERNAL_LLM_MODEL: "",  # Empty model
         }
 
         result = await options_flow.async_step_external_llm_settings(user_input)

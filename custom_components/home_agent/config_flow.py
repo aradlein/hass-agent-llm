@@ -1183,10 +1183,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
         if not parsed.scheme or not parsed.netloc:
             raise ValidationError(f"Invalid external LLM URL format: {base_url}")
 
-        api_key = config.get(CONF_EXTERNAL_LLM_API_KEY, "")
-        if not api_key or not api_key.strip():
-            raise ValidationError("External LLM API key cannot be empty")
-
+        # The API key is intentionally optional: a native Anthropic backend or an
+        # OpenAI-compatible gateway on a trusted network (e.g. Bifrost in the
+        # tailnet) authenticates without one. This mirrors the primary LLM
+        # settings, which never require a key. A real provider that needs one
+        # still fails loudly at call time with a 401.
         model = config.get(CONF_EXTERNAL_LLM_MODEL, "")
         if not model or not model.strip():
             raise ValidationError("External LLM model name cannot be empty")
