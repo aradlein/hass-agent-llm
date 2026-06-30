@@ -703,13 +703,16 @@ class TestNonAzureBackendsUnchanged:
         [
             "https://api.openai.com/v1",
             "http://localhost:11434/v1",
-            "https://api.anthropic.com/v1",
+            # api.anthropic.com is a NATIVE Anthropic backend (routed through the
+            # adapter to /messages), not an OpenAI /chat/completions one — its URL
+            # behaviour is covered by test_anthropic_adapter, not here.
             "https://api.together.xyz/v1",
             "https://api.groq.com/openai/v1",
         ],
     )
     async def test_non_azure_llm_uses_standard_url(self, mock_hass, session_manager, base_url):
-        """Test that non-Azure backends use standard /chat/completions URL."""
+        """Test that non-Azure OpenAI-compatible backends use the standard
+        /chat/completions URL."""
         agent = self._create_agent(mock_hass, session_manager, base_url)
 
         with patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure:
@@ -807,7 +810,8 @@ class TestNonAzureBackendsUnchanged:
         "base_url",
         [
             "https://api.openai.com/v1",
-            "https://api.anthropic.com/v1",
+            # api.anthropic.com streams via the native Anthropic adapter, not the
+            # OpenAI /chat/completions path — covered by test_anthropic_adapter.
         ],
     )
     async def test_non_azure_streaming_uses_standard_url(

@@ -152,11 +152,18 @@ from ..exceptions import AuthenticationError, HomeAgentError
 from ..helpers import (
     build_api_url,
     build_auth_headers,
+    is_anthropic_backend,
     is_ollama_backend,
     redact_sensitive_data,
     render_template_value,
     retry_async,
 )
+from .anthropic_adapter import (
+    call_anthropic,
+    from_anthropic_response,
+    to_anthropic_request,
+)
+from .anthropic_adapter import messages_endpoint as anthropic_messages_endpoint
 
 if TYPE_CHECKING:
     pass
@@ -212,6 +219,15 @@ class LLMMixin:
         session = await self._ensure_session()
 
         base_url = self.config[CONF_LLM_BASE_URL]
+
+        # Native Anthropic Messages backends speak a different wire format. Route
+        # them through the adapter, which translates the OpenAI-shaped messages
+        # and tools to Anthropic and back so the rest of the agent is unchanged.
+        if is_anthropic_backend(base_url):
+            return await self._call_anthropic(
+                base_url, messages, tools, temperature, max_tokens
+            )
+
         url = build_api_url(
             base_url,
             self.config[CONF_LLM_MODEL],
@@ -304,6 +320,68 @@ class LLMMixin:
 
         return await retry_async(
             make_llm_request,
+            max_retries=DEFAULT_RETRY_MAX_ATTEMPTS,
+            retryable_exceptions=(aiohttp.ClientError,),
+            non_retryable_exceptions=(AuthenticationError,),
+            initial_delay=DEFAULT_RETRY_INITIAL_DELAY,
+            backoff_factor=DEFAULT_RETRY_BACKOFF_FACTOR,
+            max_delay=DEFAULT_RETRY_MAX_DELAY,
+            jitter=DEFAULT_RETRY_JITTER,
+        )
+
+    async def _call_anthropic(
+        self,
+        base_url: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        temperature: float | None,
+        max_tokens: int | None,
+    ) -> dict[str, Any]:
+        """Call a native Anthropic Messages backend and return an OpenAI-shaped
+        response. Translation lives in ``agent.anthropic_adapter``; this keeps the
+        same retry/error semantics as the OpenAI path."""
+        session = await self._ensure_session()
+        url = anthropic_messages_endpoint(base_url)
+        api_key = render_template_value(self.hass, self.config.get(CONF_LLM_API_KEY, ""))
+        proxy_headers = self.config.get(CONF_LLM_PROXY_HEADERS, {})
+
+        body = to_anthropic_request(
+            messages,
+            tools,
+            model=self.config[CONF_LLM_MODEL],
+            max_tokens=(
+                max_tokens
+                if max_tokens is not None
+                else int(self.config.get(CONF_LLM_MAX_TOKENS, 500) or 500)
+            ),
+            temperature=(
+                temperature
+                if temperature is not None
+                else self.config.get(CONF_LLM_TEMPERATURE, 0.7)
+            ),
+            top_p=self.config.get(CONF_LLM_TOP_P, 1.0),
+        )
+
+        if self.config.get(CONF_DEBUG_LOGGING):
+            _LOGGER.debug(
+                "Calling Anthropic at %s with %d messages and %d tools",
+                redact_sensitive_data(url, [self.config.get(CONF_LLM_API_KEY, "")]),
+                len(messages),
+                len(tools) if tools else 0,
+            )
+
+        async def make_anthropic_request() -> dict[str, Any]:
+            raw = await call_anthropic(
+                session,
+                url=url,
+                api_key=api_key,
+                proxy_headers=proxy_headers,
+                body=body,
+            )
+            return from_anthropic_response(raw)
+
+        return await retry_async(
+            make_anthropic_request,
             max_retries=DEFAULT_RETRY_MAX_ATTEMPTS,
             retryable_exceptions=(aiohttp.ClientError,),
             non_retryable_exceptions=(AuthenticationError,),

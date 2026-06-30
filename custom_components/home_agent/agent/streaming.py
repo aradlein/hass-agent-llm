@@ -157,10 +157,16 @@ from ..exceptions import AuthenticationError, HomeAgentError
 from ..helpers import (
     build_api_url,
     build_auth_headers,
+    is_anthropic_backend,
     is_ollama_backend,
     redact_sensitive_data,
     render_template_value,
 )
+from .anthropic_adapter import (
+    stream_anthropic_as_openai_sse,
+    to_anthropic_request,
+)
+from .anthropic_adapter import messages_endpoint as anthropic_messages_endpoint
 
 if TYPE_CHECKING:
     from ..tool_handler import ToolHandler
@@ -220,6 +226,32 @@ class StreamingMixin:
         session = await self._ensure_session()
 
         base_url = self.config[CONF_LLM_BASE_URL]
+
+        # Native Anthropic backends: translate the Anthropic event stream into the
+        # OpenAI SSE lines the handler expects (and strip the gateway `_ide`
+        # tool-name suffix) in the adapter.
+        if is_anthropic_backend(base_url):
+            tool_definitions = self.tool_handler.get_tool_definitions()
+            anth_body = to_anthropic_request(
+                messages,
+                tool_definitions,
+                model=self.config[CONF_LLM_MODEL],
+                max_tokens=int(self.config.get(CONF_LLM_MAX_TOKENS, 1000) or 1000),
+                temperature=self.config.get(CONF_LLM_TEMPERATURE, 0.7),
+                top_p=self.config.get(CONF_LLM_TOP_P, 1.0),
+            )
+            anth_body["stream"] = True
+            api_key = render_template_value(self.hass, self.config.get(CONF_LLM_API_KEY, ""))
+            async for sse_line in stream_anthropic_as_openai_sse(
+                session,
+                url=anthropic_messages_endpoint(base_url),
+                api_key=api_key,
+                proxy_headers=self.config.get(CONF_LLM_PROXY_HEADERS, {}),
+                body=anth_body,
+            ):
+                yield sse_line
+            return
+
         url = build_api_url(
             base_url,
             self.config[CONF_LLM_MODEL],
