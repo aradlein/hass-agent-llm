@@ -615,8 +615,16 @@ class TestExtractAndStoreMemories:
             ]
         )
 
+        # execute_tool wraps the tool's return as {success, result: <tool.execute()>},
+        # and query_external_llm.execute() itself returns an {success, result, error}
+        # envelope — so the result is DOUBLE-nested. Mock that real shape so the
+        # unwrap in _extract_and_store_memories is exercised (without it, the inner
+        # dict reaches strip_thinking_blocks and the extraction silently stores 0).
         home_agent.tool_handler.execute_tool = AsyncMock(
-            return_value={"success": True, "result": extraction_result}
+            return_value={
+                "success": True,
+                "result": {"success": True, "result": extraction_result, "error": None},
+            }
         )
 
         await home_agent._extract_and_store_memories("conv_123", "user msg", "assistant msg", [])
@@ -627,6 +635,8 @@ class TestExtractAndStoreMemories:
         assert call_args[1]["tool_name"] == "query_external_llm"
         assert call_args[1]["conversation_id"] == "conv_123"
         assert isinstance(call_args[1]["parameters"]["prompt"], str)
+        # The double-nested result was unwrapped, parsed, and stored.
+        mock_memory_manager.add_memory.assert_called_once()
 
         # Verify memory was stored
         mock_memory_manager.add_memory.assert_called_once()
