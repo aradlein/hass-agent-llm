@@ -12,6 +12,7 @@ import random
 import re
 from collections.abc import Callable
 from typing import Any, TypeVar
+from urllib.parse import urlparse
 
 import aiohttp
 from homeassistant.const import ATTR_FRIENDLY_NAME, STATE_UNAVAILABLE, STATE_UNKNOWN
@@ -649,7 +650,14 @@ def is_anthropic_backend(base_url: str) -> bool:
         return False
 
     url_lower = base_url.lower()
-    return "api.anthropic.com" in url_lower or "/anthropic" in url_lower
+    if "api.anthropic.com" in url_lower:
+        return True
+    # Match an '/anthropic' PATH SEGMENT exactly, not a bare substring: a URL
+    # like '/my-anthropic-handler' or '/anthropic_proxy' must NOT be detected as
+    # a native Anthropic endpoint, or OpenAI-compatible requests would be sent in
+    # the wrong (Anthropic) wire format and silently break.
+    segments = urlparse(url_lower).path.strip("/").split("/")
+    return "anthropic" in segments
 
 
 def is_azure_openai_backend(base_url: str) -> bool:

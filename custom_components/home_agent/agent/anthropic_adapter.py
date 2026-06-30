@@ -113,6 +113,15 @@ def to_anthropic_request(
                 try:
                     parsed = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
                 except (ValueError, TypeError):
+                    # Malformed tool-call arguments in the replayed history are a
+                    # real defect (model or gateway corruption), not a benign
+                    # case — surface it loudly instead of silently sending an
+                    # empty tool input. We still fall back to {} so one bad
+                    # history entry can't abort the whole turn.
+                    _LOGGER.warning(
+                        "Malformed tool_call arguments for %r; sending empty input: %r",
+                        fn.get("name", ""), raw_args,
+                    )
                     parsed = {}
                 blocks.append(
                     {
@@ -362,6 +371,10 @@ async def stream_anthropic_as_openai_sse(
             if response.status != 200:
                 error_text = await response.text()
                 raise HomeAgentError(f"Anthropic API returned status {response.status}: {error_text}")
+            # aiohttp's StreamReader iterates LINE BY LINE (readline → splits on
+            # '\n'), not in arbitrary byte chunks, so an SSE 'data:' line is never
+            # torn mid-payload here; an over-long line surfaces as a loud
+            # StreamReader error rather than a silent split.
             async for raw in response.content:
                 line = raw.decode("utf-8", "ignore").strip()
                 if not line.startswith("data:"):
@@ -372,6 +385,12 @@ async def stream_anthropic_as_openai_sse(
                 try:
                     event = json.loads(payload)
                 except ValueError:
+                    # An unparsable SSE payload means the upstream sent malformed
+                    # JSON — a real defect. Don't drop it silently (fail loud);
+                    # skip this event but make the corruption visible.
+                    _LOGGER.warning(
+                        "Skipping unparsable Anthropic SSE payload: %r", payload[:200],
+                    )
                     continue
                 for chunk in anthropic_event_to_openai_chunks(event, state):
                     yield f"data: {json.dumps(chunk)}\n"
