@@ -10,6 +10,7 @@ import asyncio
 import fnmatch
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -88,14 +89,15 @@ class HomeAssistantQueryTool(BaseTool):
     def __init__(
         self,
         hass: HomeAssistant,
-        exposed_entities: set[str] | None = None,
+        exposed_entities: set[str] | Callable[[], frozenset[str] | set[str]] | None = None,
     ) -> None:
         """Initialize the Home Assistant query tool.
 
         Args:
             hass: Home Assistant instance
-            exposed_entities: Optional set of entity IDs that are exposed
-                for querying. If None, all entities are accessible.
+            exposed_entities: Exposed entity IDs that may be queried — either a
+                set, or a zero-arg provider returning the current set. If None,
+                all entities are accessible.
         """
         super().__init__(hass)
         self._exposed_entities = exposed_entities
@@ -343,11 +345,21 @@ class HomeAssistantQueryTool(BaseTool):
         Raises:
             PermissionDenied: If entity is not accessible
         """
+        # exposed_entities may be a set or a zero-arg provider returning the
+        # current set. The provider lets the agent hand out a fresh (immutable)
+        # set each turn instead of sharing a mutable reference the tool would
+        # have to see mutated in place.
+        exposed = (
+            self._exposed_entities()
+            if callable(self._exposed_entities)
+            else self._exposed_entities
+        )
+
         # If no exposed entities set is provided, allow all access
-        if self._exposed_entities is None:
+        if exposed is None:
             return
 
-        if entity_id not in self._exposed_entities:
+        if entity_id not in exposed:
             _LOGGER.warning(
                 "Attempted access to unexposed entity: %s",
                 entity_id,
