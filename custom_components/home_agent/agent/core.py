@@ -91,6 +91,7 @@ Events:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -121,6 +122,7 @@ from ..const import (
     CONF_HISTORY_PERSIST,
     CONF_LLM_MODEL,
     CONF_MEMORY_EXTRACTION_ENABLED,
+    CONF_MCP_SERVERS,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_INCLUDE_LABELS,
     CONF_PROMPT_USE_DEFAULT,
@@ -468,6 +470,11 @@ class HomeAgent(
         if custom_tools_config:
             self._register_custom_tools(custom_tools_config)
 
+        # Register MCP server tools (isolated from custom tools)
+        mcp_servers_config = self.config.get(CONF_MCP_SERVERS, [])
+        if mcp_servers_config:
+            self._register_mcp_tools(mcp_servers_config)
+
         # Register memory tools if memory manager is available
         if self.memory_manager is not None:
             from ..tools.memory_tools import RecallMemoryTool, StoreMemoryTool
@@ -541,6 +548,57 @@ class HomeAgent(
             _LOGGER.warning(
                 "Failed to register %d custom tool(s). Check logs for details.",
                 failed_count,
+            )
+
+    def _register_mcp_tools(self, mcp_servers_config: list[dict[str, Any]]) -> None:
+        """Register MCP server tools from configuration.
+
+        This is intentionally isolated from custom tools.  It discovers the
+        tools exposed by each configured MCP server and registers them with the
+        tool handler.  A failure in one server is logged and does not prevent
+        the others from loading.
+        """
+        from ..mcp import McpServerManager
+
+        async def _load_mcp_tools() -> None:
+            mcp_manager = McpServerManager(
+                self.hass, {CONF_MCP_SERVERS: mcp_servers_config}
+            )
+            try:
+                mcp_tools = await mcp_manager.load_tools()
+            except Exception as err:  # pylint: disable=broad-except
+                _LOGGER.error(
+                    "Failed to load MCP server tools: %s. "
+                    "Integration will continue without MCP tools.",
+                    err,
+                    exc_info=True,
+                )
+                return
+
+            for mcp_tool in mcp_tools:
+                try:
+                    self.tool_handler.register_tool(mcp_tool)
+                    _LOGGER.info("Registered MCP tool: %s", mcp_tool.name)
+                except Exception as err:  # pylint: disable=broad-except
+                    _LOGGER.error(
+                        "Failed to register MCP tool '%s': %s",
+                        mcp_tool.name,
+                        err,
+                        exc_info=True,
+                    )
+
+        if not self.hass.loop.is_running():
+            _LOGGER.warning("MCP tool loading requires a running Home Assistant loop")
+            return
+
+        try:
+            asyncio.ensure_future(_load_mcp_tools(), loop=self.hass.loop)
+        except Exception as err:  # pylint: disable=broad-except
+            _LOGGER.error(
+                "Failed to schedule MCP tool loading: %s. "
+                "Integration will continue without MCP tools.",
+                err,
+                exc_info=True,
             )
 
     def _get_exposed_entities(self) -> list[str]:

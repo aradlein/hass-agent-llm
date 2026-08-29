@@ -79,6 +79,13 @@ CONF_TOOLS_CUSTOM: Final = "tools_custom"
 CONF_TOOLS_MAX_CALLS_PER_TURN: Final = "tools_max_calls_per_turn"
 CONF_TOOLS_TIMEOUT: Final = "tools_timeout"
 
+# Configuration keys - MCP Servers
+CONF_MCP_SERVERS: Final = "mcp_servers"
+CONF_MCP_NAME: Final = "name"
+CONF_MCP_TYPE: Final = "type"
+CONF_MCP_URL: Final = "url"
+CONF_MCP_HEADERS: Final = "headers"
+
 # Configuration keys - External LLM Tool
 CONF_EXTERNAL_LLM_ENABLED: Final = "external_llm_enabled"
 CONF_EXTERNAL_LLM_BASE_URL: Final = "external_llm_base_url"
@@ -205,6 +212,10 @@ DEFAULT_TOOLS_ENABLE_NATIVE: Final = True
 DEFAULT_TOOLS_MAX_CALLS_PER_TURN: Final = 5
 DEFAULT_TOOLS_TIMEOUT: Final = 30
 
+# Default values - MCP Servers
+DEFAULT_MCP_TIMEOUT: Final = 30
+DEFAULT_MCP_TYPE: Final = "http"
+
 # Default values - External LLM Tool
 DEFAULT_EXTERNAL_LLM_ENABLED: Final = False
 DEFAULT_EXTERNAL_LLM_MODEL: Final = "gpt-4o"
@@ -322,6 +333,10 @@ CUSTOM_TOOL_HANDLER_REST: Final = "rest"
 CUSTOM_TOOL_HANDLER_SERVICE: Final = "service"
 CUSTOM_TOOL_HANDLER_SCRIPT: Final = "script"
 CUSTOM_TOOL_HANDLER_TEMPLATE: Final = "template"
+
+# MCP server transport types
+MCP_TYPE_HTTP: Final = "http"
+MCP_TYPE_SSE: Final = "sse"
 
 # Domain service mappings - defines which services are available for each domain
 # and which services require specific entity features.
