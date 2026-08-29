@@ -8,6 +8,6 @@
   "documentation": "https://github.com/aradlein/hass-agent-llm",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/aradlein/hass-agent-llm/issues",
-  "requirements": ["aiohttp>=3.9.0", "chromadb-client==1.5.3"],
+  "requirements": ["aiohttp>=3.9.0", "chromadb-client==1.5.3", "mcp==2.1.1", "httpx2>=2.12.0"],
   "version": "0.9.5"
 }

@@ -21,6 +21,7 @@ from .const import (
     CONF_MEMORY_ENABLED,
     CONF_SESSION_PERSISTENCE_ENABLED,
     CONF_SESSION_TIMEOUT,
+    CONF_MCP_SERVERS,
     CONF_TOOLS_CUSTOM,
     CONF_VECTOR_DB_EMBEDDING_BASE_URL,
     CONF_VECTOR_DB_EMBEDDING_PROVIDER,
@@ -78,8 +79,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Merge config data
     config = dict(entry.data) | dict(entry.options)
 
-    # Also merge YAML config for custom tools (if present)
-    # This allows users to define custom tools in configuration.yaml
+    # Also merge YAML config for custom tools and MCP servers (if present)
+    # This allows users to define custom tools and MCP servers in configuration.yaml
     if "yaml_config" in hass.data.get(DOMAIN, {}):
         yaml_config = hass.data[DOMAIN]["yaml_config"]
         if CONF_TOOLS_CUSTOM in yaml_config:
@@ -87,6 +88,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.info(
                 "Loaded %d custom tool(s) from YAML configuration",
                 len(yaml_config[CONF_TOOLS_CUSTOM]),
+            )
+        if CONF_MCP_SERVERS in yaml_config:
+            config[CONF_MCP_SERVERS] = yaml_config[CONF_MCP_SERVERS]
+            _LOGGER.info(
+                "Loaded %d MCP server(s) from YAML configuration",
+                len(yaml_config[CONF_MCP_SERVERS]),
             )
 
     # Initialize conversation session manager for persistent voice conversations

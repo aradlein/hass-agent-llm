@@ -44,6 +44,7 @@ Home Agent extends Home Assistant's native conversation platform to enable natur
 - **Conversation History** - Maintains context across multiple interactions with persistent storage
 - **Native Tools** - Built-in `ha_control` and `ha_query` tools for home automation
 - **Custom Tools** - Define REST API and Home Assistant service tools in configuration
+- **MCP Servers** - Connect to remote HTTP/SSE Model Context Protocol (MCP) servers and expose their tools
 - **Event System** - Rich events for automation triggers and monitoring
 - **Streaming Responses** - Low-latency streaming for voice assistant integration (~10x faster)
 

@@ -13,8 +13,10 @@ Settings → Devices & Services → Home Agent → Configure
 
 **Configuration locations:**
 - **UI Settings**: Most options (LLM, context, history, memory)
-- **configuration.yaml**: Custom tools only
+- **configuration.yaml**: Custom tools and MCP servers
 - **Storage**: History and memories (`.storage/` directory)
+
+For MCP server configuration, see [MCP Servers](MCP_SERVERS.md).
 
 ## Essential Settings
 
