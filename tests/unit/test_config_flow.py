@@ -15,6 +15,7 @@ from custom_components.home_agent.config_flow import (
 from custom_components.home_agent.const import (
     CONF_CONTEXT_FORMAT,
     CONF_CONTEXT_MODE,
+    CONF_CONTINUE_CONVERSATION,
     CONF_DEBUG_LOGGING,
     CONF_EXTERNAL_LLM_API_KEY,
     CONF_EXTERNAL_LLM_BASE_URL,
@@ -36,6 +37,7 @@ from custom_components.home_agent.const import (
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
     CONTEXT_MODE_VECTOR_DB,
+    DEFAULT_CONTINUE_CONVERSATION,
     DEFAULT_PROMPT_INCLUDE_LABELS,
     DEFAULT_SESSION_PERSISTENCE_ENABLED,
     DEFAULT_SESSION_TIMEOUT,
@@ -380,6 +382,73 @@ class TestHomeAgentOptionsFlow:
         for key in schema_keys:
             if hasattr(key, "schema") and key.schema == CONF_STREAMING_ENABLED:
                 assert key.default() == DEFAULT_STREAMING_ENABLED
+                assert key.default() is False
+
+    async def test_options_flow_includes_continue_conversation_option(
+        self, mock_config_entry, mock_hass
+    ):
+        """Test that options flow includes the continue-conversation toggle."""
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        result = await options_flow.async_step_debug_settings()
+
+        schema_keys = list(result["data_schema"].schema.keys())
+        continue_conversation_key = None
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == CONF_CONTINUE_CONVERSATION:
+                continue_conversation_key = key
+
+        assert continue_conversation_key is not None, (
+            "Continue-conversation option not found in schema"
+        )
+        assert "continue_conversation_info" in result["description_placeholders"]
+
+    async def test_continue_conversation_defaults_to_disabled(
+        self, mock_config_entry, mock_hass
+    ):
+        """Test that continue_conversation defaults to False (opt-in)."""
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        result = await options_flow.async_step_debug_settings()
+
+        schema_keys = list(result["data_schema"].schema.keys())
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == CONF_CONTINUE_CONVERSATION:
+                assert key.default() == DEFAULT_CONTINUE_CONVERSATION
+                assert DEFAULT_CONTINUE_CONVERSATION is False
+
+    async def test_continue_conversation_can_be_enabled(self, mock_config_entry, mock_hass):
+        """Test that a user can opt in to keeping the mic open for follow-ups."""
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        user_input = {
+            CONF_DEBUG_LOGGING: False,
+            CONF_STREAMING_ENABLED: False,
+            CONF_CONTINUE_CONVERSATION: True,
+        }
+
+        result = await options_flow.async_step_debug_settings(user_input)
+
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["data"][CONF_CONTINUE_CONVERSATION] is True
+
+    async def test_continue_conversation_backward_compatible_missing_option(
+        self, mock_config_entry, mock_hass
+    ):
+        """Test that installs without this option default to disabled, not an error."""
+        mock_config_entry.options = {CONF_DEBUG_LOGGING: True}
+
+        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow.hass = mock_hass
+
+        result = await options_flow.async_step_debug_settings()
+
+        schema_keys = list(result["data_schema"].schema.keys())
+        for key in schema_keys:
+            if hasattr(key, "schema") and key.schema == CONF_CONTINUE_CONVERSATION:
                 assert key.default() is False
 
     async def test_debug_settings_preserves_other_options(self, mock_config_entry, mock_hass):

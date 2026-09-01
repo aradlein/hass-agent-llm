@@ -349,11 +349,13 @@
         "description": "Configure debugging and logging options.",
         "data": {
           "debug_logging": "Enable Debug Logging",
-          "streaming_enabled": "Enable Streaming Responses"
+          "streaming_enabled": "Enable Streaming Responses",
+          "continue_conversation": "Keep Microphone Open For Follow-Up"
         },
         "data_description": {
           "debug_logging": "Enable detailed logging for troubleshooting (may expose sensitive data)",
-          "streaming_enabled": "Enable streaming responses for low-latency TTS integration. Requires Assist Pipeline with Wyoming TTS. When enabled, responses are sent incrementally for faster audio playback. Automatically falls back to standard mode if streaming fails."
+          "streaming_enabled": "Enable streaming responses for low-latency TTS integration. Requires Assist Pipeline with Wyoming TTS. When enabled, responses are sent incrementally for faster audio playback. Automatically falls back to standard mode if streaming fails.",
+          "continue_conversation": "When enabled, voice satellites reopen their microphone for a follow-up reply after each response, without requiring the wake word again. Only affects the non-streaming response path."
         }
       }
     },

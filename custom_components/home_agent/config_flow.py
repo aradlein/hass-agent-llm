@@ -32,6 +32,7 @@ from .const import (
     CONF_ADDITIONAL_TOP_K,
     CONF_CONTEXT_FORMAT,
     CONF_CONTEXT_MODE,
+    CONF_CONTINUE_CONVERSATION,
     CONF_DEBUG_LOGGING,
     CONF_DIRECT_ENTITIES,
     CONF_EMBEDDING_KEEP_ALIVE,
@@ -92,6 +93,7 @@ from .const import (
     DEFAULT_ADDITIONAL_TOP_K,
     DEFAULT_CONTEXT_FORMAT,
     DEFAULT_CONTEXT_MODE,
+    DEFAULT_CONTINUE_CONVERSATION,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_EMBEDDING_KEEP_ALIVE,
     DEFAULT_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT,
@@ -1354,6 +1356,15 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                             current_data.get(CONF_STREAMING_ENABLED, DEFAULT_STREAMING_ENABLED),
                         ),
                     ): bool,
+                    vol.Required(
+                        CONF_CONTINUE_CONVERSATION,
+                        default=current_options.get(
+                            CONF_CONTINUE_CONVERSATION,
+                            current_data.get(
+                                CONF_CONTINUE_CONVERSATION, DEFAULT_CONTINUE_CONVERSATION
+                            ),
+                        ),
+                    ): bool,
                 }
             ),
             description_placeholders={
@@ -1366,6 +1377,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     "Requires Assist Pipeline with Wyoming TTS. "
                     "When enabled, responses are sent incrementally for faster audio playback. "
                     "Automatically falls back to standard mode if streaming fails."
+                ),
+                "continue_conversation_info": (
+                    "When enabled, voice satellites reopen their microphone for a follow-up "
+                    "reply after each response, without requiring the wake word again. "
+                    "Only affects the non-streaming response path."
                 ),
             },
         )
