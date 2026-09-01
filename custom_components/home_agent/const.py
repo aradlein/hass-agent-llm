@@ -116,6 +116,7 @@ CONF_EMIT_EVENTS: Final = "emit_events"
 CONF_STREAMING_ENABLED: Final = "streaming_enabled"
 
 # Configuration keys - Conversation Session
+CONF_CONTINUE_CONVERSATION: Final = "continue_conversation"
 CONF_SESSION_TIMEOUT: Final = "session_timeout"
 CONF_SESSION_PERSISTENCE_ENABLED: Final = "session_persistence_enabled"
 
@@ -243,6 +244,7 @@ DEFAULT_EMIT_EVENTS: Final = True
 DEFAULT_STREAMING_ENABLED: Final = False
 
 # Default values - Conversation Session
+DEFAULT_CONTINUE_CONVERSATION: Final = False
 DEFAULT_SESSION_TIMEOUT: Final = 3600  # 1 hour in seconds
 DEFAULT_SESSION_PERSISTENCE_ENABLED: Final = True
 

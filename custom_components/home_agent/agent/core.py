@@ -113,6 +113,7 @@ from homeassistant.helpers import intent, template
 from ..const import (
     CONF_CONTEXT_ENTITIES,
     CONF_CONTEXT_MODE,
+    CONF_CONTINUE_CONVERSATION,
     CONF_EMIT_EVENTS,
     CONF_EXTERNAL_LLM_ENABLED,
     CONF_HISTORY_ENABLED,
@@ -128,6 +129,7 @@ from ..const import (
     CONF_TOOLS_CUSTOM,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
+    DEFAULT_CONTINUE_CONVERSATION,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
@@ -1358,6 +1360,9 @@ class HomeAgent(
         return ha_conversation.ConversationResult(
             response=intent_response,
             conversation_id=user_input.conversation_id,
+            continue_conversation=self.config.get(
+                CONF_CONTINUE_CONVERSATION, DEFAULT_CONTINUE_CONVERSATION
+            ),
         )
 
     async def _process_conversation(
