@@ -1,6 +1,6 @@
 # Home Agent
 
-[![Version](https://img.shields.io/badge/version-0.9.5-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
+[![Version](https://img.shields.io/badge/version-0.9.6-blue.svg)](https://github.com/aradlein/hass-agent-llm/releases)
 [![Build Status](https://github.com/aradlein/hass-agent-llm/workflows/CI/badge.svg)](https://github.com/aradlein/hass-agent-llm/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3.1+-blue.svg)](https://www.home-assistant.io/)
@@ -8,20 +8,27 @@
 
 A highly customizable Home Assistant custom component that provides intelligent conversational AI capabilities with advanced tool calling, context injection, and conversation history management.
 
-## What's New in v0.9.5
+## What's New in v0.9.6
 
-- **Vector Reindex Optimization** - Skip reindexing entities when state and attributes are unchanged, reducing unnecessary re-embeddings
-- **Datetime Serialization Fix** - Properly handle datetime objects in tool results and vector DB context provider
-- **Area Lookup Fix** - Use entity/device registry for area resolution instead of state.attributes for more reliable room detection
+- **Memories and Retrieved Context in the Default Prompt** - Recalled memories, vector DB search results and the whole-house summary are now added to the default system prompt. Before, they reached the model only through a custom prompt that included `{{ entity_context }}` (#49)
+- **Whole-House Questions** - In Vector DB mode, questions such as "which lights are on?" or "are any doors unlocked?" now get every matching device, grouped by state and floor with counts, instead of only the closest few. Works in English, German, French, Spanish, Dutch and Italian. See [Vector DB Setup](docs/VECTOR_DB_SETUP.md#whole-house-questions)
+- **Floor Names** - Entity context now includes the floor of each entity's area, for "upstairs" and "basement" questions
+- **Memories in Your Language** - Memories are extracted in the language of the conversation instead of always in English, and the extraction prompt now uses your Minimum Words setting (#50)
+- **Direct Entities Fix** - The "Entities to Include" field is now split into entity IDs. Before, a configured list matched nothing (#47)
+- **Wildcard Query Fix** - `ha_query` wildcards skip unexposed entities instead of failing the whole query (#46)
+- **Ollama Keep Alive Fix** - A Keep Alive of `-1` (or any bare number) is sent as a number, which current Ollama versions require (#52)
+
+> **Prompt size:** if you use Vector DB mode with the default prompt, the prompt now also carries the retrieved entities and memories. With the default Direct mode, only recalled memories are added.
 
 [View Full Changelog](https://github.com/aradlein/hass-agent-llm/releases)
 
 ---
 
-### Previous Release: v0.9.4
+### Previous Release: v0.9.5
 
-- **Embedding Cache Memory Leak Fix** - Fixed a memory leak where the embedding cache accumulated stale entries for frequently-changing entities
-- **CI Fixes** - Fixed version validation workflow, flake8, and black formatting issues
+- **Vector Reindex Optimization** - Skip reindexing entities when state and attributes are unchanged
+- **Datetime Serialization Fix** - Properly handle datetime objects in tool results and vector DB context provider
+- **Area Lookup Fix** - Use entity/device registry for area resolution instead of state.attributes
 
 ## Overview
 
@@ -313,7 +320,17 @@ Built with inspiration from the extended_openai_conversation integration. Specia
 
 ## Changelog
 
-### v0.9.5 (Latest)
+### v0.9.6 (Latest)
+- **Feature**: Default prompt includes recalled memories and retrieved context (#49)
+- **Feature**: Complete, grouped device lists for whole-house questions in Vector DB mode, in six languages
+- **Feature**: Floor names in entity context
+- **Fix**: Memories are extracted in the conversation's language; extraction prompt uses the Minimum Words setting (#50)
+- **Fix**: `direct_entities` is parsed into a list of entity IDs (#47)
+- **Fix**: `ha_query` wildcards skip unexposed entities instead of failing (#46)
+- **Fix**: Numeric Keep Alive values such as `-1` are sent to Ollama as numbers (#52)
+- **Fix**: Removed `aiohttp` from the manifest requirements (hassfest)
+
+### v0.9.5
 - **Fix**: Skip vector reindex when entity state and attributes unchanged — reduces unnecessary re-embeddings
 - **Fix**: Handle datetime serialization in tool results and vector DB context
 - **Fix**: Use entity/device registry for area lookup instead of state.attributes

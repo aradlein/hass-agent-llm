@@ -251,6 +251,53 @@ class TestHomeAssistantQueryTool:
         assert "not accessible" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
+    async def test_wildcard_skips_unexposed_entities(
+        self, mock_hass, exposed_entities, sample_light_state
+    ):
+        """A wildcard returns the exposed matches and leaves out the rest."""
+        tool = HomeAssistantQueryTool(mock_hass, exposed_entities)
+
+        mock_hass.states.async_entity_ids.return_value = [
+            "light.living_room",
+            "light.secret_room",
+            "light.bedroom",
+        ]
+        mock_hass.states.get.return_value = sample_light_state
+
+        assert tool._find_matching_entities("light.*") == ["light.living_room", "light.bedroom"]
+
+        result = await tool.execute(entity_id="light.*")
+        assert result["success"] is True
+        queried = [call.args[0] for call in mock_hass.states.get.call_args_list]
+        assert "light.secret_room" not in queried
+
+    @pytest.mark.asyncio
+    async def test_wildcard_matching_only_unexposed_entities_finds_nothing(
+        self, mock_hass, exposed_entities
+    ):
+        """A wildcard that matches only unexposed entities behaves like no match."""
+        tool = HomeAssistantQueryTool(mock_hass, exposed_entities)
+
+        mock_hass.states.async_entity_ids.return_value = ["lock.secret_door"]
+
+        assert tool._find_matching_entities("lock.*") == []
+        result = await tool.execute(entity_id="lock.*")
+        assert "lock.secret_door" not in str(result)
+
+    @pytest.mark.asyncio
+    async def test_exact_lookup_of_unexposed_entity_still_denied(self, mock_hass, exposed_entities):
+        """Skipping applies to wildcards only; an exact unexposed ID is still refused."""
+        tool = HomeAssistantQueryTool(mock_hass, exposed_entities)
+
+        mock_hass.states.async_entity_ids.return_value = [
+            "light.living_room",
+            "light.secret_room",
+        ]
+
+        with pytest.raises(PermissionDenied):
+            tool._find_matching_entities("light.secret_room")
+
+    @pytest.mark.asyncio
     async def test_entity_access_validation_none_allows_all(self, mock_hass, sample_light_state):
         """Test that None exposed_entities allows all access."""
         tool = HomeAssistantQueryTool(mock_hass, exposed_entities=None)

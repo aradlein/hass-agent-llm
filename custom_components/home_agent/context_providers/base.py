@@ -5,17 +5,16 @@ Context providers are responsible for gathering and formatting relevant
 entity and state information to be injected into LLM prompts.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant, State
-from homeassistant.helpers import (
-    area_registry as ar,
-    device_registry as dr,
-    entity_registry as er,
-)
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import floor_registry as fr
 
 from ..const import DOMAIN_SERVICE_MAPPINGS
 
@@ -400,6 +399,8 @@ class ContextProvider(ABC):
                 if area_id:
                     if area := area_registry.async_get_area(area_id):
                         result["Location"] = area.name
+                        if floor_name := self._get_floor_name(area):
+                            result["Floor"] = floor_name
         except (AttributeError, RuntimeError):
             pass
 
@@ -427,6 +428,18 @@ class ContextProvider(ABC):
                 del result["attributes"]["brightness"]
 
         return result
+
+    def _get_floor_name(self, area: Any) -> str | None:
+        """Return the name of the floor an area is on, if it has one."""
+        try:
+            floor_id = getattr(area, "floor_id", None)
+            if not isinstance(floor_id, str) or not floor_id:
+                return None
+            floor = fr.async_get(self.hass).async_get_floor(floor_id)
+            name = getattr(floor, "name", None)
+            return name if isinstance(name, str) and name else None
+        except (AttributeError, RuntimeError, KeyError):
+            return None
 
     def _get_entities_matching_pattern(self, pattern: str) -> list[str]:
         """Get entity IDs matching a pattern (supports wildcards).

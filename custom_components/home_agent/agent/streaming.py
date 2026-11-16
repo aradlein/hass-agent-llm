@@ -158,6 +158,7 @@ from ..helpers import (
     build_api_url,
     build_auth_headers,
     is_ollama_backend,
+    normalize_keep_alive,
     redact_sensitive_data,
     render_template_value,
 )
@@ -250,7 +251,9 @@ class StreamingMixin:
         # Only include keep_alive for Ollama backends (not supported by OpenAI, etc.)
         # See: https://github.com/aradlein/home-agent/issues/65
         if is_ollama_backend(self.config[CONF_LLM_BASE_URL]):
-            payload["keep_alive"] = self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE)
+            payload["keep_alive"] = normalize_keep_alive(
+                self.config.get(CONF_LLM_KEEP_ALIVE), DEFAULT_LLM_KEEP_ALIVE
+            )
 
         # Add tools if available
         tool_definitions = self.tool_handler.get_tool_definitions()

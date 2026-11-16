@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Sequence, cast
 
 import homeassistant.helpers.httpx_client
 import httpx
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.core import HomeAssistant
 
 from ..helpers import render_template_value, retry_async
@@ -58,6 +59,8 @@ from ..const import (
     EMBEDDING_PROVIDER_OLLAMA,
     EMBEDDING_PROVIDER_OPENAI,
     EVENT_VECTOR_DB_QUERIED,
+    NO_CONTEXT_MESSAGE,
+    VECTOR_DB_FALLBACK_MARKER,
 )
 from ..exceptions import ContextInjectionError, EmbeddingTimeoutError
 
@@ -65,6 +68,12 @@ from ..exceptions import ContextInjectionError, EmbeddingTimeoutError
 EMBEDDING_CACHE_MAX_SIZE = 1000
 from .base import ContextProvider  # noqa: E402
 from .direct import DirectContextProvider  # noqa: E402
+from .whole_house import (  # noqa: E402
+    EntitySelector,
+    detect_whole_house_query,
+    normalize_state,
+    summarize_devices,
+)
 
 # Conditional imports for ChromaDB
 try:
@@ -83,6 +92,18 @@ except ImportError:
     OPENAI_AVAILABLE = False
 
 _LOGGER = logging.getLogger(__name__)
+
+# Most device names listed for a whole-house question. Counts always cover
+# every matching device; only the lists of names are limited.
+WHOLE_HOUSE_MAX_ENTITIES = 60
+
+# Attributes kept in the compact whole-house records, per domain
+WHOLE_HOUSE_ATTRIBUTES: dict[str, tuple[str, ...]] = {
+    "climate": ("temperature", "current_temperature", "hvac_action"),
+    "cover": ("current_position",),
+    "fan": ("percentage",),
+    "media_player": ("media_title",),
+}
 
 
 class VectorDBContextProvider(ContextProvider):
@@ -182,9 +203,9 @@ class VectorDBContextProvider(ContextProvider):
 
             # Build entity context
             entity_context = ""
+            entities: list[dict[str, Any]] = []
             if filtered_entity_results:
                 entity_ids = [r["entity_id"] for r in filtered_entity_results]
-                entities = []
 
                 for entity_id in entity_ids:
                     try:
@@ -198,10 +219,18 @@ class VectorDBContextProvider(ContextProvider):
                     except Exception as err:
                         _LOGGER.warning("Failed to get state for %s: %s", entity_id, err)
 
-                if entities:
-                    entity_context = json.dumps(
-                        {"entities": entities, "count": len(entities)}, indent=2, default=str
-                    )
+            # Whole-house questions ("which lights are on?") need every device
+            # of that kind, not just the closest few.
+            whole_house = self._get_whole_house_context(user_input)
+
+            if entities or whole_house:
+                payload: dict[str, Any] = {}
+                if whole_house:
+                    # First, so the model reads the complete summary before the sample
+                    payload["all_matching_devices"] = whole_house
+                payload["entities"] = entities
+                payload["count"] = len(entities)
+                entity_context = json.dumps(payload, indent=2, default=str)
 
             # Tier 2: Query additional collections (supplementary)
             additional_context = ""
@@ -234,7 +263,7 @@ class VectorDBContextProvider(ContextProvider):
                     f"{additional_context}"
                 )
             else:
-                return "No relevant context found."
+                return NO_CONTEXT_MESSAGE
 
         except EmbeddingTimeoutError:
             # Timeout during embedding - fall back to direct mode
@@ -247,6 +276,86 @@ class VectorDBContextProvider(ContextProvider):
             _LOGGER.error("Vector DB context retrieval failed: %s", err, exc_info=True)
             return await self._fallback_to_direct(user_input)
 
+    def _get_whole_house_context(self, user_input: str) -> dict[str, Any] | None:
+        """Build the complete device list for a whole-house question.
+
+        Returns None for single-device questions and commands, so those keep
+        the semantic-search context unchanged. A failure here must never
+        break the normal context, so errors are logged and swallowed.
+        """
+        try:
+            labels, selectors = detect_whole_house_query(user_input)
+            if not selectors:
+                return None
+
+            devices = self._collect_whole_house_entities(selectors)
+            if not devices:
+                return None
+
+            _LOGGER.debug(
+                "Whole-house question (%s): adding %d entities", ", ".join(labels), len(devices)
+            )
+            summary = summarize_devices(devices, max_listed=WHOLE_HOUSE_MAX_ENTITIES)
+            description = (
+                f"Every one of the {', '.join(labels)} in the home, already grouped by "
+                "state and floor with counts. Answer questions about all, any, which or "
+                "how many ONLY from these groups, naming every item in the matching "
+                "group. The 'entities' list after this is a partial sample."
+            )
+            if summary.get("truncated"):
+                _LOGGER.debug(
+                    "Whole-house context lists %d of %d device names",
+                    WHOLE_HOUSE_MAX_ENTITIES,
+                    len(devices),
+                )
+                description = (
+                    f"The {', '.join(labels)} in the home, grouped by state and floor. "
+                    "The counts are exact and cover every device. A group with "
+                    "'not_listed' names only some of its devices: give its count, and "
+                    "if asked to name them say that the list is partial. Answer "
+                    "questions about all, any, which or how many ONLY from these "
+                    "groups. The 'entities' list after this is a partial sample."
+                )
+            return {"description": description, **summary}
+        except Exception as err:
+            _LOGGER.warning("Whole-house context failed: %s", err, exc_info=True)
+            return None
+
+    def _collect_whole_house_entities(
+        self, selectors: list[EntitySelector]
+    ) -> list[dict[str, Any]]:
+        """Return compact records for every exposed entity the selectors match."""
+        devices: list[dict[str, Any]] = []
+        for state in sorted(self.hass.states.async_all(), key=lambda s: s.entity_id):
+            entity_id = state.entity_id
+            domain = entity_id.split(".")[0]
+            device_class = state.attributes.get("device_class")
+            if not any(sel.matches(domain, device_class) for sel in selectors):
+                continue
+            # Same exposure rule the indexer applies
+            if not async_should_expose(self.hass, "conversation", entity_id):
+                continue
+
+            keep = ("friendly_name",) + WHOLE_HOUSE_ATTRIBUTES.get(domain, ())
+            full = self._get_entity_state(entity_id, attribute_filter=list(keep))
+            if not full:
+                continue
+            attributes = full.get("attributes", {})
+            record: dict[str, Any] = {
+                "entity_id": entity_id,
+                "name": attributes.get("friendly_name", entity_id),
+                "state": normalize_state(domain, device_class, str(full["state"])),
+            }
+            if full.get("Location"):
+                record["area"] = full["Location"]
+            if full.get("Floor"):
+                record["floor"] = full["Floor"]
+            for key in keep[1:]:
+                if attributes.get(key) is not None:
+                    record[key] = attributes[key]
+            devices.append(record)
+        return devices
+
     def _get_fallback_provider(self) -> DirectContextProvider:
         """Lazy-initialize fallback direct context provider."""
         if self._fallback_provider is None:
@@ -258,7 +367,7 @@ class VectorDBContextProvider(ContextProvider):
         _LOGGER.warning("Falling back to direct context provider")
         fallback = self._get_fallback_provider()
         context = await fallback.get_context(user_input)
-        return f"[Fallback mode - Vector DB unavailable]\n{context}" if context else ""
+        return f"{VECTOR_DB_FALLBACK_MARKER}\n{context}" if context else ""
 
     async def _ensure_initialized(self) -> None:
         """Ensure ChromaDB client and collection are initialized."""

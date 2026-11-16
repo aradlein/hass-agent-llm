@@ -158,6 +158,50 @@ class TestBuildExtractionPrompt:
         assert "Current question" in prompt
         assert "Current answer" in prompt
 
+    def test_build_prompt_asks_for_the_conversation_language(self, home_agent):
+        """Memories are written in the user's language, so later searches match them."""
+        prompt = home_agent._build_extraction_prompt(
+            user_message="Je préfère la chambre à 19 degrés",
+            assistant_response="C'est noté, la chambre sera à 19 degrés.",
+            full_messages=[{"role": "user", "content": "Je préfère la chambre à 19 degrés"}],
+        )
+
+        assert 'Write the "content" field in the same language the user wrote in' in prompt
+        # The machine-readable parts stay in English
+        assert '"type" values and the JSON keys in English' in prompt
+        # The prompt ends with the user's own words and the instruction. Small
+        # models followed the English examples unless this came last.
+        ending = prompt[prompt.rindex("The user wrote:") :]
+        assert "Je préfère la chambre à 19 degrés" in ending
+        assert ending.rstrip().endswith("Do not translate it.")
+
+    def test_build_prompt_uses_configured_minimum_words(self, home_agent):
+        """The prompt states the same minimum the validator enforces."""
+        from custom_components.home_agent.const import CONF_MEMORY_MIN_WORDS
+
+        home_agent.config[CONF_MEMORY_MIN_WORDS] = 4
+        prompt = home_agent._build_extraction_prompt(
+            user_message="Current", assistant_response="Response", full_messages=[]
+        )
+
+        assert "Each memory must be at least 4 words long" in prompt
+        assert "Very brief statements under 4 words" in prompt
+        assert "7 words" not in prompt
+
+    def test_build_prompt_default_minimum_words_matches_validator(self, home_agent):
+        """Without a setting, the prompt uses the validator's default, not its own."""
+        from custom_components.home_agent.const import (
+            CONF_MEMORY_MIN_WORDS,
+            DEFAULT_MEMORY_MIN_WORDS,
+        )
+
+        home_agent.config.pop(CONF_MEMORY_MIN_WORDS, None)
+        prompt = home_agent._build_extraction_prompt(
+            user_message="Current", assistant_response="Response", full_messages=[]
+        )
+
+        assert f"Each memory must be at least {DEFAULT_MEMORY_MIN_WORDS} words long" in prompt
+
     def test_build_prompt_excludes_system_and_tool(self, home_agent):
         """Test that prompt excludes system and tool messages."""
         messages = [

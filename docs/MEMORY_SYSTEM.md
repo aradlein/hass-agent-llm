@@ -227,6 +227,13 @@ rm /config/.storage/home_agent.memories
 
 **No action needed** - it all happens in the background!
 
+**Where recalled memories go in the prompt:**
+- **Default prompt:** recalled memories are added automatically, in a "Context Retrieved For This Request" section after the device list.
+- **Default prompt plus custom additions:** the same; your additions do not need to do anything.
+- **Fully custom prompt** (default prompt turned off): include `{{ entity_context }}` in your prompt. Without it, memories are retrieved but never shown to the model.
+
+Memories are written in the language of the conversation, so a search in that language finds them.
+
 ## Advanced: Manual LLM Tools
 
 The LLM can explicitly manage memories during conversations:

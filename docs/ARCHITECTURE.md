@@ -718,4 +718,3 @@ flowchart LR
 - [Custom Tools Guide](CUSTOM_TOOLS.md)
 - [Memory System](MEMORY_SYSTEM.md)
 - [API Reference](API_REFERENCE.md)
-- [Development Standards](.claude/docs/DEVELOPMENT.md)

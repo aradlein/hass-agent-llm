@@ -22,6 +22,7 @@ from custom_components.home_agent.const import (
     CONF_LLM_TEMPERATURE,
     CONTEXT_MODE_DIRECT,
 )
+from custom_components.home_agent.helpers import normalize_keep_alive
 
 
 class TestKeepAliveConditionalLLM:
@@ -134,6 +135,7 @@ class TestKeepAliveConditionalLLM:
             ("http://localhost:11434/v1", "5m"),
             ("http://localhost:11434/v1", "10m"),
             ("http://localhost:11434/v1", "-1"),
+            ("http://localhost:11434/v1", "3600"),
             ("http://127.0.0.1:11434/v1", "5m"),
             ("http://ollama:11434/v1", "5m"),
             ("http://my-ollama-server:11434/v1", "5m"),
@@ -176,9 +178,11 @@ class TestKeepAliveConditionalLLM:
             payload = call_args.kwargs.get("json", {})
 
             assert "keep_alive" in payload, f"keep_alive should be sent to Ollama at {base_url}"
+            expected = normalize_keep_alive(keep_alive_value)
             assert (
-                payload["keep_alive"] == keep_alive_value
-            ), f"Expected keep_alive={keep_alive_value}, got {payload.get('keep_alive')}"
+                payload["keep_alive"] == expected
+            ), f"Expected keep_alive={expected!r}, got {payload.get('keep_alive')!r}"
+            assert type(payload["keep_alive"]) is type(expected)
 
         await agent.close()
 
@@ -449,7 +453,9 @@ class TestKeepAliveConditionalExternalLLM:
             assert (
                 "keep_alive" in payload
             ), f"External LLM tool should send keep_alive to Ollama at {base_url}"
-            assert payload["keep_alive"] == keep_alive_value
+            expected = normalize_keep_alive(keep_alive_value)
+            assert payload["keep_alive"] == expected
+            assert type(payload["keep_alive"]) is type(expected)
 
         await tool.close()
 
@@ -491,3 +497,117 @@ class TestIsOllamaBackendHelper:
         assert (
             result == expected
         ), f"Expected is_ollama_backend('{base_url}') to be {expected}, got {result}"
+
+
+class TestNormalizeKeepAlive:
+    """Ollama accepts a duration with a unit, or a number of seconds.
+
+    A bare number sent as a string ("-1") is rejected with
+    'time: missing unit in duration'.
+    """
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("-1", -1),
+            ("0", 0),
+            ("300", 300),
+            (" 3600 ", 3600),
+            ("+60", 60),
+            ("1.5", 1.5),
+            (-1, -1),
+            (300, 300),
+            (2.5, 2.5),
+            ("5m", "5m"),
+            ("24h", "24h"),
+            ("-1m", "-1m"),
+            ("1h30m", "1h30m"),
+            (" 10m ", "10m"),
+        ],
+    )
+    def test_values(self, value, expected):
+        """Bare numbers become numbers; durations with a unit stay strings."""
+        result = normalize_keep_alive(value)
+        assert result == expected
+        assert type(result) is type(expected)
+
+    @pytest.mark.parametrize("value", ["", "   ", None])
+    def test_blank_falls_back_to_default(self, value):
+        """A blank setting uses the given default instead of sending nothing useful."""
+        assert normalize_keep_alive(value, default="5m") == "5m"
+
+    def test_bool_is_not_a_number(self):
+        """True must not be sent as 1 second."""
+        assert normalize_keep_alive(True, default="5m") == "5m"
+
+
+class TestKeepAliveNumericStreamingAndEmbedding:
+    """The streaming and embedding requests send numeric keep_alive as a number."""
+
+    @pytest.mark.asyncio
+    async def test_streaming_sends_minus_one_as_number(self):
+        """Infinite keep-alive ('-1') reaches Ollama as the number -1."""
+        helper = TestKeepAliveConditionalStreaming()
+        hass = MagicMock()
+        hass.states = MagicMock()
+        hass.states.async_all = MagicMock(return_value=[])
+        hass.data = {}
+        hass.bus = MagicMock()
+        hass.bus.async_fire = MagicMock()
+        hass.config = MagicMock()
+        hass.config.location_name = "Test Home"
+        from custom_components.home_agent.conversation_session import ConversationSessionManager
+
+        agent = helper._create_agent(
+            hass, ConversationSessionManager(hass), "http://localhost:11434/v1", keep_alive="-1"
+        )
+        with patch.object(agent, "_ensure_session", new_callable=AsyncMock) as mock_ensure:
+            mock_session = MagicMock()
+            mock_response = MagicMock()
+            mock_response.status = 200
+
+            async def mock_content_generator():
+                yield b"data: [DONE]\n"
+
+            mock_response.content = mock_content_generator()
+            mock_context = MagicMock()
+            mock_context.__aenter__ = AsyncMock(return_value=mock_response)
+            mock_context.__aexit__ = AsyncMock(return_value=None)
+            mock_session.post = MagicMock(return_value=mock_context)
+            mock_ensure.return_value = mock_session
+
+            async for _ in agent._call_llm_streaming([{"role": "user", "content": "test"}]):
+                pass
+
+            payload = mock_session.post.call_args.kwargs.get("json", {})
+            assert payload["keep_alive"] == -1
+            assert isinstance(payload["keep_alive"], int)
+
+        await agent.close()
+
+    @pytest.mark.asyncio
+    async def test_embedding_sends_minus_one_as_number(self):
+        """The Ollama embedding request also sends -1 as a number."""
+        from custom_components.home_agent.const import CONF_EMBEDDING_KEEP_ALIVE
+        from custom_components.home_agent.vector_db_manager import VectorDBManager
+
+        hass = MagicMock()
+        manager = VectorDBManager(hass, {CONF_EMBEDDING_KEEP_ALIVE: "-1"})
+
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"embedding": [0.1, 0.2]})
+        mock_context = MagicMock()
+        mock_context.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_context.__aexit__ = AsyncMock(return_value=None)
+        mock_session = MagicMock()
+        mock_session.post = MagicMock(return_value=mock_context)
+
+        with patch.object(
+            manager, "_ensure_aiohttp_session", new_callable=AsyncMock, return_value=mock_session
+        ):
+            await manager._embed_with_ollama("hello")
+
+        payload = mock_session.post.call_args.kwargs.get("json", {})
+        assert payload["keep_alive"] == -1
+        assert isinstance(payload["keep_alive"], int)
