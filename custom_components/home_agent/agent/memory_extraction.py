@@ -325,6 +325,10 @@ class MemoryExtractionMixin:
         if previous_turns:
             conversation_text = self._format_conversation_for_extraction(previous_turns)
 
+        # State the same minimum the validator enforces, so the model is not
+        # asked for one length and then judged against another
+        min_words = self.config.get(CONF_MEMORY_MIN_WORDS, DEFAULT_MEMORY_MIN_WORDS)
+
         prompt = f"""You are a memory extraction assistant. Analyze this conversation \
 and extract important information that should be remembered for future conversations.
 
@@ -345,6 +349,9 @@ Assistant: {assistant_response}
 
 ## Instructions
 
+**Language:** Write the "content" field in the same language the user wrote in. \
+Do not translate it to English. Keep the "type" values and the JSON keys in English.
+
 Extract memories as a JSON array. Each memory should have:
 - "type": One of "fact", "preference", "context", "event"
 - "content": Clear, concise description (1-2 sentences)
@@ -361,7 +368,7 @@ Extract memories as a JSON array. Each memory should have:
 
 **Critical Rules:**
 - Only extract genuinely useful, long-term information
-- Each memory must be at least 7 words long
+- Each memory must be at least {min_words} words long
 - Be specific and concrete with actionable details
 - If nothing worth remembering, return empty array: []
 
@@ -379,7 +386,7 @@ Extract memories as a JSON array. Each memory should have:
 - ❌ Timestamps of conversation: "at 8:59 PM on November 4", "during the conversation"
 - ❌ Generic statements: "the lights can be controlled", "temperature can be adjusted"
 - ❌ Questions without answers: "user asked about temperature" (unless you provide the answer)
-- ❌ Very brief statements under 7 words
+- ❌ Very brief statements under {min_words} words
 
 **ALWAYS extract (these are valuable):**
 - ✅ User preferences with values: "user prefers bedroom temperature at 68°F for sleeping"
@@ -418,7 +425,13 @@ Return ONLY valid JSON, no other text:
     "topics": ["temperature", "bedroom", "sleep"]
   }}
 ]
-```"""
+```
+
+The examples above are in English only to show the format.
+
+The user wrote: "{user_message}"
+
+Write every "content" value in the same language as that sentence. Do not translate it."""
 
         return prompt
 

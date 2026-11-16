@@ -10,6 +10,8 @@ on:
 jobs:
   hacs:
     name: HACS Validation
+    # The HACS action can only validate public repositories
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

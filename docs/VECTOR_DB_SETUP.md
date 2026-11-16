@@ -160,6 +160,40 @@ Controls minimum similarity required:
 - Too few entities? Increase threshold or Top K
 - Irrelevant entities? Decrease threshold or Top K
 
+## Whole-House Questions
+
+Semantic search returns the few entities closest to the request. That suits "is the office light on?" but not "which lights are on?", where the answer depends on every light in the home.
+
+When a request asks about a whole category, Home Agent adds a summary of every exposed entity of that kind to the context, ahead of the search results. The summary is grouped by state and by floor, with counts, so the model reads the answer off instead of filtering a long list.
+
+**What triggers it:** a word such as "which", "any", "all", "every" or "how many" (or "anything" / "everything") together with one of these categories:
+
+| Category | Entities included |
+|----------|-------------------|
+| Lights | `light` |
+| Locks and doors | `lock`, door/garage/gate covers, door and lock sensors |
+| Garage doors | garage covers and garage door sensors |
+| Windows | window sensors and window covers |
+| Blinds and covers | `cover` |
+| Thermostats | `climate` |
+| Fans | `fan` |
+| Switches | `switch` |
+| Media players | `media_player` |
+
+Single-device questions and commands ("turn off all the lights") are not affected.
+
+**Languages:** English, German, French, Spanish, Dutch and Italian. A request in another language is handled as before, with the normal search results only.
+
+**Floors:** each entity's floor comes from the floor assigned to its area in Home Assistant. Entities whose area has no floor are grouped under "Floor not set".
+
+**Door and window sensors** report `on`/`off` in Home Assistant. In the summary they are shown as `open`/`closed` (lock sensors as `unlocked`/`locked`) so they group with covers and locks.
+
+**Large homes:** counts always cover every matching entity. At most 60 device names are listed; when a category has more, the least common states are listed in full and the rest are marked as partial.
+
+**Cost:** roughly 300 to 600 extra prompt tokens, on whole-house questions only.
+
+> **Prompts:** the default prompt adds the summary automatically. If you turned the default prompt off and wrote your own, include `{{ entity_context }}` in it; that variable carries the search results, this summary and recalled memories.
+
 ## Troubleshooting
 
 ### ChromaDB Connection Failed

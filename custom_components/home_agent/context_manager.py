@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from typing import Any, cast
 
@@ -34,6 +35,28 @@ from .context_providers import ContextProvider, DirectContextProvider
 from .exceptions import ContextInjectionError, TokenLimitExceeded
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def parse_direct_entities(value: Any) -> list[Any]:
+    """Turn the direct_entities option into a list of entity configurations.
+
+    The options flow stores the field as text ("sensor.a, light.b"). Passing
+    that text on as-is made the provider iterate it one character at a time,
+    so no entity ever matched.
+
+    Args:
+        value: Comma, semicolon or newline separated entity IDs or patterns,
+            or a list that is already in the provider's format.
+
+    Returns:
+        List of entity IDs (or entity config dicts). Empty when nothing is
+        configured, which the provider treats as "all exposed entities".
+    """
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [part.strip() for part in re.split(r"[,;\n]", value) if part.strip()]
+    return list(value)
 
 
 class ContextManager:
@@ -152,7 +175,7 @@ class ContextManager:
             Configured DirectContextProvider instance
         """
         provider_config = {
-            "entities": self.config.get(CONF_DIRECT_ENTITIES, []),
+            "entities": parse_direct_entities(self.config.get(CONF_DIRECT_ENTITIES)),
             "format": self.config.get(CONF_CONTEXT_FORMAT, DEFAULT_CONTEXT_FORMAT),
             "include_labels": self.config.get(
                 CONF_PROMPT_INCLUDE_LABELS, DEFAULT_PROMPT_INCLUDE_LABELS

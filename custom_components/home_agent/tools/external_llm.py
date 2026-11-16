@@ -33,7 +33,13 @@ from ..const import (
     TOOL_QUERY_EXTERNAL_LLM,
 )
 from ..exceptions import ToolExecutionError, ValidationError
-from ..helpers import build_api_url, build_auth_headers, is_ollama_backend, render_template_value
+from ..helpers import (
+    build_api_url,
+    build_auth_headers,
+    is_ollama_backend,
+    normalize_keep_alive,
+    render_template_value,
+)
 from .registry import BaseTool
 
 if TYPE_CHECKING:
@@ -331,8 +337,8 @@ class ExternalLLMTool(BaseTool):
         # Only include keep_alive for Ollama backends (not supported by OpenAI, etc.)
         # See: https://github.com/aradlein/home-agent/issues/65
         if is_ollama_backend(base_url):
-            payload["keep_alive"] = self._config.get(
-                CONF_EXTERNAL_LLM_KEEP_ALIVE, DEFAULT_EXTERNAL_LLM_KEEP_ALIVE
+            payload["keep_alive"] = normalize_keep_alive(
+                self._config.get(CONF_EXTERNAL_LLM_KEEP_ALIVE), DEFAULT_EXTERNAL_LLM_KEEP_ALIVE
             )
 
         _LOGGER.debug(

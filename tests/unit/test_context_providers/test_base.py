@@ -905,9 +905,18 @@ class TestGetEntityStateAreaLookup:
         mock_dr = Mock()
 
         with (
-            patch("custom_components.home_agent.context_providers.base.er.async_get", return_value=mock_er),
-            patch("custom_components.home_agent.context_providers.base.ar.async_get", return_value=mock_ar),
-            patch("custom_components.home_agent.context_providers.base.dr.async_get", return_value=mock_dr),
+            patch(
+                "custom_components.home_agent.context_providers.base.er.async_get",
+                return_value=mock_er,
+            ),
+            patch(
+                "custom_components.home_agent.context_providers.base.ar.async_get",
+                return_value=mock_ar,
+            ),
+            patch(
+                "custom_components.home_agent.context_providers.base.dr.async_get",
+                return_value=mock_dr,
+            ),
         ):
             result = provider._get_entity_state("light.bedroom")
 
@@ -945,9 +954,18 @@ class TestGetEntityStateAreaLookup:
         mock_dr.async_get.return_value = mock_device_entry
 
         with (
-            patch("custom_components.home_agent.context_providers.base.er.async_get", return_value=mock_er),
-            patch("custom_components.home_agent.context_providers.base.ar.async_get", return_value=mock_ar),
-            patch("custom_components.home_agent.context_providers.base.dr.async_get", return_value=mock_dr),
+            patch(
+                "custom_components.home_agent.context_providers.base.er.async_get",
+                return_value=mock_er,
+            ),
+            patch(
+                "custom_components.home_agent.context_providers.base.ar.async_get",
+                return_value=mock_ar,
+            ),
+            patch(
+                "custom_components.home_agent.context_providers.base.dr.async_get",
+                return_value=mock_dr,
+            ),
         ):
             result = provider._get_entity_state("sensor.kitchen_temp")
 
@@ -987,9 +1005,18 @@ class TestGetEntityStateAreaLookup:
         mock_dr.async_get.return_value = mock_device_entry
 
         with (
-            patch("custom_components.home_agent.context_providers.base.er.async_get", return_value=mock_er),
-            patch("custom_components.home_agent.context_providers.base.ar.async_get", return_value=mock_ar),
-            patch("custom_components.home_agent.context_providers.base.dr.async_get", return_value=mock_dr),
+            patch(
+                "custom_components.home_agent.context_providers.base.er.async_get",
+                return_value=mock_er,
+            ),
+            patch(
+                "custom_components.home_agent.context_providers.base.ar.async_get",
+                return_value=mock_ar,
+            ),
+            patch(
+                "custom_components.home_agent.context_providers.base.dr.async_get",
+                return_value=mock_dr,
+            ),
         ):
             result = provider._get_entity_state("light.office")
 
@@ -1011,12 +1038,84 @@ class TestGetEntityStateAreaLookup:
         mock_er.async_get.return_value = None
 
         with (
-            patch("custom_components.home_agent.context_providers.base.er.async_get", return_value=mock_er),
-            patch("custom_components.home_agent.context_providers.base.ar.async_get", return_value=Mock()),
-            patch("custom_components.home_agent.context_providers.base.dr.async_get", return_value=Mock()),
+            patch(
+                "custom_components.home_agent.context_providers.base.er.async_get",
+                return_value=mock_er,
+            ),
+            patch(
+                "custom_components.home_agent.context_providers.base.ar.async_get",
+                return_value=Mock(),
+            ),
+            patch(
+                "custom_components.home_agent.context_providers.base.dr.async_get",
+                return_value=Mock(),
+            ),
         ):
             result = provider._get_entity_state("sensor.unknown")
 
         assert result is not None
         assert "Location" not in result
         assert "labels" not in result  # Labels should NOT be included
+
+    def _state_with_area(self, mock_hass, floor_id):
+        state = Mock(spec=State)
+        state.entity_id = "light.bedroom"
+        state.state = "on"
+        state.attributes = {"friendly_name": "Bedroom Light"}
+        mock_hass.states.get.return_value = state
+
+        entry = Mock()
+        entry.aliases = []
+        entry.labels = set()
+        entry.area_id = "bedroom"
+        entry.device_id = None
+        area = Mock()
+        area.name = "Bedroom"
+        area.floor_id = floor_id
+        mock_er = Mock()
+        mock_er.async_get.return_value = entry
+        mock_ar = Mock()
+        mock_ar.async_get_area.return_value = area
+        return mock_er, mock_ar
+
+    def test_floor_from_area(self, mock_hass):
+        """The floor of the entity's area is included as Floor."""
+        from unittest.mock import patch
+
+        provider = self._make_provider(mock_hass)
+        mock_er, mock_ar = self._state_with_area(mock_hass, "upstairs")
+        floor = Mock()
+        floor.name = "Upstairs"
+        mock_fr = Mock()
+        mock_fr.async_get_floor.return_value = floor
+
+        base = "custom_components.home_agent.context_providers.base"
+        with (
+            patch(f"{base}.er.async_get", return_value=mock_er),
+            patch(f"{base}.ar.async_get", return_value=mock_ar),
+            patch(f"{base}.dr.async_get", return_value=Mock()),
+            patch(f"{base}.fr.async_get", return_value=mock_fr),
+        ):
+            result = provider._get_entity_state("light.bedroom")
+
+        assert result["Location"] == "Bedroom"
+        assert result["Floor"] == "Upstairs"
+        mock_fr.async_get_floor.assert_called_once_with("upstairs")
+
+    def test_no_floor_when_area_has_none(self, mock_hass):
+        """Areas without a floor produce no Floor key."""
+        from unittest.mock import patch
+
+        provider = self._make_provider(mock_hass)
+        mock_er, mock_ar = self._state_with_area(mock_hass, None)
+
+        base = "custom_components.home_agent.context_providers.base"
+        with (
+            patch(f"{base}.er.async_get", return_value=mock_er),
+            patch(f"{base}.ar.async_get", return_value=mock_ar),
+            patch(f"{base}.dr.async_get", return_value=Mock()),
+        ):
+            result = provider._get_entity_state("light.bedroom")
+
+        assert result["Location"] == "Bedroom"
+        assert "Floor" not in result
