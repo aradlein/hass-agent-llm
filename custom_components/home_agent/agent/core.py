@@ -120,6 +120,7 @@ from ..const import (
     CONF_HISTORY_MAX_TOKENS,
     CONF_HISTORY_PERSIST,
     CONF_LLM_MODEL,
+    CONF_MCP_ENABLED,
     CONF_MEMORY_EXTRACTION_ENABLED,
     CONF_PROMPT_CUSTOM_ADDITIONS,
     CONF_PROMPT_INCLUDE_LABELS,
@@ -130,6 +131,7 @@ from ..const import (
     CONF_TOOLS_TIMEOUT,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
+    DEFAULT_MCP_ENABLED,
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
     DEFAULT_PROMPT_INCLUDE_LABELS,
     DEFAULT_SYSTEM_PROMPT,
@@ -221,6 +223,7 @@ class HomeAgent(
 
         # Memory manager reference (will be populated from hass.data if available)
         self._memory_manager = None
+        self._mcp_manager = None
 
         _LOGGER.info("Home Agent initialized with model %s", config.get(CONF_LLM_MODEL))
 
@@ -249,6 +252,17 @@ class HomeAgent(
                     self._memory_manager = entry_data["memory_manager"]
                     break
         return self._memory_manager
+
+    @property
+    def mcp_manager(self) -> Any:
+        """Get MCP manager from hass.data if available."""
+        if self._mcp_manager is None:
+            domain_data = self.hass.data.get(DOMAIN, {})
+            for entry_data in domain_data.values():
+                if isinstance(entry_data, dict) and "mcp_manager" in entry_data:
+                    self._mcp_manager = entry_data["mcp_manager"]
+                    break
+        return self._mcp_manager
 
     def _ensure_tools_registered(self) -> None:
         """Ensure tools are registered (lazy registration).
@@ -462,6 +476,18 @@ class HomeAgent(
             external_llm = ExternalLLMTool(self.hass, self.config)
             self.tool_handler.register_tool(external_llm)
             _LOGGER.info("External LLM tool registered")
+
+        # Register MCP discovered tools if enabled and manager is available.
+        if self.config.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED):
+            mcp_manager = self.mcp_manager
+            if mcp_manager is not None:
+                registered_count = mcp_manager.register_discovered_tools(self.tool_handler)
+                _LOGGER.info("Registered %d discovered MCP tool(s)", registered_count)
+            else:
+                _LOGGER.warning(
+                    "MCP is enabled in config, but MCP manager is not available; "
+                    "skipping MCP tool registration"
+                )
 
         # Register custom tools from configuration
         custom_tools_config = self.config.get(CONF_TOOLS_CUSTOM, [])
@@ -1173,7 +1199,7 @@ class HomeAgent(
                     def json_encoder(obj):
                         if isinstance(obj, (datetime, date)):
                             return obj.isoformat()
-                        raise TypeError ("Object of type %s is not JSON serializable" % type(obj))
+                        raise TypeError("Object of type %s is not JSON serializable" % type(obj))
 
                     messages.append(
                         {

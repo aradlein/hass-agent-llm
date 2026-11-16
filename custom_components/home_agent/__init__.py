@@ -18,6 +18,9 @@ from homeassistant.helpers.typing import ConfigType
 from .agent import HomeAgent
 from .const import (
     CONF_CONTEXT_MODE,
+    CONF_MCP_ENABLED,
+    CONF_MCP_TRANSPORT,
+    CONF_MCP_URL,
     CONF_MEMORY_ENABLED,
     CONF_SESSION_PERSISTENCE_ENABLED,
     CONF_SESSION_TIMEOUT,
@@ -27,6 +30,9 @@ from .const import (
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
     CONTEXT_MODE_VECTOR_DB,
+    DEFAULT_MCP_ENABLED,
+    DEFAULT_MCP_TRANSPORT,
+    DEFAULT_MCP_URL,
     DEFAULT_MEMORY_ENABLED,
     DEFAULT_SESSION_PERSISTENCE_ENABLED,
     DEFAULT_SESSION_TIMEOUT,
@@ -38,6 +44,7 @@ from .const import (
 )
 from .conversation_session import ConversationSessionManager
 from .helpers import check_chromadb_health, check_ollama_health
+from .mcp_manager import MCPClientManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -171,6 +178,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("Failed to set up Vector DB Manager: %s", err)
             # Continue setup without vector DB
 
+    # Set up MCP manager if enabled
+    mcp_enabled = config.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED)
+    mcp_transport = config.get(CONF_MCP_TRANSPORT, DEFAULT_MCP_TRANSPORT)
+    mcp_url = config.get(CONF_MCP_URL, DEFAULT_MCP_URL)
+    config[CONF_MCP_ENABLED] = mcp_enabled
+    config[CONF_MCP_TRANSPORT] = mcp_transport
+    config[CONF_MCP_URL] = mcp_url
+
+    if mcp_enabled:
+        try:
+            mcp_manager = MCPClientManager(hass, config)
+            await mcp_manager.async_setup()
+            hass.data[DOMAIN][entry.entry_id]["mcp_manager"] = mcp_manager
+            _LOGGER.info("MCP Client Manager enabled for this entry")
+        except Exception as err:
+            _LOGGER.error("Failed to set up MCP Client Manager: %s", err, exc_info=True)
+            # Continue setup without MCP manager
+    else:
+        _LOGGER.debug("MCP disabled by configuration")
+
     # Set up memory manager if enabled
     memory_enabled = config.get(CONF_MEMORY_ENABLED, DEFAULT_MEMORY_ENABLED)
     if memory_enabled:
@@ -237,6 +264,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Shut down memory manager if it exists
         if "memory_manager" in entry_data:
             await entry_data["memory_manager"].async_shutdown()
+
+        # Shut down MCP manager if it exists
+        if "mcp_manager" in entry_data:
+            await entry_data["mcp_manager"].async_shutdown()
 
         # Shut down vector DB manager if it exists
         if "vector_manager" in entry_data:
@@ -673,6 +704,52 @@ async def async_setup_services(
             count = await session_manager.clear_all_sessions()
             _LOGGER.info("Cleared all %d conversation session(s)", count)
 
+    async def handle_mcp_status(call: ServiceCall) -> dict[str, Any]:
+        """Handle the mcp_status service call.
+
+        Returns manager connection state, discovered tool names, and
+        the last discovery error if one occurred.
+        """
+        target_entry_id = call.data.get("entry_id", entry_id)
+
+        entry_data = _get_entry_data(target_entry_id)
+        mcp_manager = entry_data.get("mcp_manager")
+
+        if not mcp_manager:
+            return {
+                "connected": False,
+                "discovered_tools": [],
+                "last_discovery_error": "MCP manager is not enabled for this entry",
+            }
+
+        return mcp_manager.get_status()
+
+    async def handle_mcp_refresh_tools(call: ServiceCall) -> dict[str, Any]:
+        """Handle the mcp_refresh_tools service call.
+
+        Re-triggers MCP discovery and refreshes dynamic tool registrations.
+        """
+        target_entry_id = call.data.get("entry_id", entry_id)
+
+        entry_data = _get_entry_data(target_entry_id)
+        mcp_manager = entry_data.get("mcp_manager")
+        target_agent = entry_data.get("agent")
+
+        if not mcp_manager:
+            return {
+                "connected": False,
+                "discovered_tools": [],
+                "last_discovery_error": "MCP manager is not enabled for this entry",
+            }
+
+        if target_agent is None:
+            raise ValueError("Agent not found for entry")
+
+        target_agent = cast(HomeAgent, target_agent)
+        refreshed = await mcp_manager.async_refresh_tools(target_agent.tool_handler)
+        refreshed["refreshed"] = True
+        return refreshed
+
     # Register services (only once for all instances)
     if not hass.services.has_service(DOMAIN, "process"):
         hass.services.async_register(DOMAIN, "process", handle_process)
@@ -743,6 +820,24 @@ async def async_setup_services(
         hass.services.async_register(DOMAIN, "clear_conversation", handle_clear_conversation)
         _LOGGER.debug("Registered service: clear_conversation")
 
+    if not hass.services.has_service(DOMAIN, "mcp_status"):
+        hass.services.async_register(
+            DOMAIN,
+            "mcp_status",
+            handle_mcp_status,
+            supports_response=SupportsResponse.ONLY,
+        )
+        _LOGGER.debug("Registered service: mcp_status")
+
+    if not hass.services.has_service(DOMAIN, "mcp_refresh_tools"):
+        hass.services.async_register(
+            DOMAIN,
+            "mcp_refresh_tools",
+            handle_mcp_refresh_tools,
+            supports_response=SupportsResponse.ONLY,
+        )
+        _LOGGER.debug("Registered service: mcp_refresh_tools")
+
 
 async def async_remove_services(hass: HomeAssistant) -> None:
     """Remove Home Agent services.
@@ -763,6 +858,8 @@ async def async_remove_services(hass: HomeAssistant) -> None:
         "search_memories",
         "add_memory",
         "clear_conversation",
+        "mcp_status",
+        "mcp_refresh_tools",
     ]
 
     for service in services:

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from .ha_control import HomeAssistantControlTool
 from .ha_query import HomeAssistantQueryTool
+from .mcp_client import MCPDiscoveredTool
 from .registry import ToolRegistry
 
 __all__ = [
     "ToolRegistry",
     "HomeAssistantControlTool",
     "HomeAssistantQueryTool",
+    "MCPDiscoveredTool",
 ]
