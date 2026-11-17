@@ -26,57 +26,26 @@ Thank you for your interest in contributing to Home Agent. This guide covers eve
    pip install -r requirements.txt -r requirements_dev.txt
    ```
 
-2. Copy the test environment template:
-   ```bash
-   cp .env.test.example .env.test
-   ```
-   You can leave the placeholder values in `.env.test` if you only plan to run unit tests and mocked integration tests. Real service endpoints are only needed for the `test_real_*.py` integration tests.
-
 ## Running Tests
 
-### Unit Tests
+The public repository ships the unit test suite. Integration tests run against
+the maintainers' own services and are kept in the private development repository.
 
 ```bash
 pytest tests/unit/ -v
 ```
 
-### Integration Tests (Mocked)
-
-These tests run with mocked dependencies and do not require external services:
-
-```bash
-pytest tests/integration/ -v \
-  --ignore=tests/integration/test_real_llm.py \
-  --ignore=tests/integration/test_real_memory.py \
-  --ignore=tests/integration/test_real_vector_db.py \
-  --ignore=tests/integration/test_real_ttft_metrics.py
-```
-
-### Integration Tests (Real Services)
-
-For running against real ChromaDB, LLM, and embedding services, configure `.env.test` with valid endpoints and run:
-
-```bash
-./scripts/run_integration_tests.sh
-```
-
 ### Coverage
 
 ```bash
-pytest tests/unit/ tests/integration/ \
-  --ignore=tests/integration/test_real_llm.py \
-  --ignore=tests/integration/test_real_memory.py \
-  --ignore=tests/integration/test_real_vector_db.py \
-  --ignore=tests/integration/test_real_ttft_metrics.py \
-  --cov=custom_components.home_agent
+pytest tests/unit/ --cov=custom_components.home_agent
 ```
 
 ## Test Requirements for Pull Requests
 
 - All unit tests must pass.
-- All mocked integration tests must pass (test files **not** prefixed with `test_real_`).
-- **New code paths must include corresponding unit or integration tests.** PRs that add functionality without test coverage will not be merged.
-- `test_real_*.py` tests are optional for contributors. They require external infrastructure and are validated internally.
+- **New code paths must include corresponding unit tests.** PRs that add functionality without test coverage will not be merged.
+- Integration tests against real services are run by the maintainers before a change is released.
 
 ## Code Style
 
@@ -103,7 +72,7 @@ isort custom_components/ tests/
 
 ## Pull Request Process
 
-1. Ensure all tests pass locally (unit + mocked integration).
+1. Ensure all unit tests pass locally.
 2. Ensure code passes linting (`black`, `isort`, `flake8`).
 3. Fill out the [PR template](.github/PULL_REQUEST_TEMPLATE.md) completely, including:
    - Description of what the PR does and why

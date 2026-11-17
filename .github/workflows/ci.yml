@@ -37,7 +37,13 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest tests/unit/ tests/integration/ --ignore=tests/integration/test_real_llm.py --ignore=tests/integration/test_real_memory.py --ignore=tests/integration/test_real_vector_db.py --ignore=tests/integration/test_real_ttft_metrics.py -v --cov=custom_components.home_agent --cov-report=xml --cov-report=term
+          # tests/integration/ exists only in the private repo (not exported to public).
+          # The test_real_* files need live services and are never run in CI.
+          TARGETS="tests/unit/"
+          if [ -d tests/integration ]; then
+            TARGETS="$TARGETS tests/integration/"
+          fi
+          pytest $TARGETS --ignore=tests/integration/test_real_llm.py --ignore=tests/integration/test_real_memory.py --ignore=tests/integration/test_real_vector_db.py --ignore=tests/integration/test_real_ttft_metrics.py -v --cov=custom_components.home_agent --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

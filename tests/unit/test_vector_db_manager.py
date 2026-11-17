@@ -1216,9 +1216,7 @@ async def test_state_change_triggers_reindex_when_state_value_changes(
                 "custom_components.home_agent.vector_db_manager.async_should_expose",
                 mock_async_should_expose,
             ),
-            patch(
-                "custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05
-            ),
+            patch("custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05),
         ):
             old_state = State("light.living_room", "off", {"brightness": 0})
             new_state = State("light.living_room", "on", {"brightness": 255})
@@ -1253,9 +1251,7 @@ async def test_state_change_triggers_reindex_when_attributes_change(
                 "custom_components.home_agent.vector_db_manager.async_should_expose",
                 mock_async_should_expose,
             ),
-            patch(
-                "custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05
-            ),
+            patch("custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05),
         ):
             old_state = State("light.living_room", "on", {"brightness": 128})
             new_state = State("light.living_room", "on", {"brightness": 255})
@@ -1290,9 +1286,7 @@ async def test_state_change_triggers_reindex_for_new_entity(
                 "custom_components.home_agent.vector_db_manager.async_should_expose",
                 mock_async_should_expose,
             ),
-            patch(
-                "custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05
-            ),
+            patch("custom_components.home_agent.vector_db_manager.REINDEX_DEBOUNCE_DELAY", 0.05),
         ):
             new_state = State("light.living_room", "on", {})
             event = Event(
@@ -1350,9 +1344,7 @@ def test_create_entity_text_includes_area_from_entity_registry(
         assert "Location: Living Room" in text
 
 
-def test_create_entity_text_falls_back_to_device_area(
-    mock_hass, mock_chromadb, vector_db_config
-):
+def test_create_entity_text_falls_back_to_device_area(mock_hass, mock_chromadb, vector_db_config):
     """Test that device area is used when entity has no direct area_id."""
     with patch("custom_components.home_agent.vector_db_manager.CHROMADB_AVAILABLE", True):
         manager = VectorDBManager(mock_hass, vector_db_config)

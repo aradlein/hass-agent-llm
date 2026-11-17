@@ -19,7 +19,7 @@ from custom_components.home_agent.const import (
     MAX_CONTEXT_TOKENS,
     TOKEN_WARNING_THRESHOLD,
 )
-from custom_components.home_agent.context_manager import ContextManager
+from custom_components.home_agent.context_manager import ContextManager, parse_direct_entities
 from custom_components.home_agent.context_providers import ContextProvider, DirectContextProvider
 from custom_components.home_agent.exceptions import ContextInjectionError, TokenLimitExceeded
 
@@ -871,3 +871,67 @@ class TestEdgeCases:
         assert all(len(r) > 0 for r in results)
         # Verify provider was actually called
         assert provider.get_context_called
+
+
+class TestDirectEntitiesParsing:
+    """The direct_entities option is typed as comma-separated text in the UI."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("sun.sun", ["sun.sun"]),
+            ("sensor.temperature,light.living_room", ["sensor.temperature", "light.living_room"]),
+            (
+                " sensor.temperature , light.living_room ,",
+                ["sensor.temperature", "light.living_room"],
+            ),
+            ("sensor.a\nlight.b; switch.c", ["sensor.a", "light.b", "switch.c"]),
+            ("light.*", ["light.*"]),
+            ("", []),
+            ("  ,  ", []),
+            (None, []),
+            (["light.a", "light.b"], ["light.a", "light.b"]),
+            (
+                [{"entity_id": "light.a", "attributes": ["brightness"]}],
+                [{"entity_id": "light.a", "attributes": ["brightness"]}],
+            ),
+        ],
+    )
+    def test_parse_direct_entities(self, value, expected):
+        """Text is split into entity IDs; lists pass through unchanged."""
+        assert parse_direct_entities(value) == expected
+
+    def test_provider_receives_a_list_of_entity_ids(self, mock_hass):
+        """A comma-separated string reaches the provider as separate entity IDs."""
+        manager = ContextManager(
+            mock_hass,
+            {
+                CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT,
+                CONF_DIRECT_ENTITIES: "sun.sun, light.living_room",
+            },
+        )
+        assert manager._provider.entities_config == ["sun.sun", "light.living_room"]
+
+    @pytest.mark.asyncio
+    async def test_configured_entities_are_looked_up_by_id(self, mock_hass):
+        """Each configured entity is looked up whole, not character by character."""
+        mock_hass.states.async_entity_ids.return_value = ["sun.sun", "light.living_room"]
+        manager = ContextManager(
+            mock_hass,
+            {CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT, CONF_DIRECT_ENTITIES: "sun.sun"},
+        )
+        looked_up = []
+        with patch.object(
+            manager._provider,
+            "_get_entities_matching_pattern",
+            side_effect=lambda pattern: looked_up.append(pattern) or [],
+        ):
+            await manager._provider.get_context("is the sun up?")
+        assert looked_up == ["sun.sun"]
+
+    def test_empty_text_means_all_exposed_entities(self, mock_hass):
+        """A blank field keeps the documented default of all exposed entities."""
+        manager = ContextManager(
+            mock_hass, {CONF_CONTEXT_MODE: CONTEXT_MODE_DIRECT, CONF_DIRECT_ENTITIES: "  "}
+        )
+        assert manager._provider.entities_config == []

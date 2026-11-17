@@ -20,13 +20,10 @@ from homeassistant.components import conversation as ha_conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Event, HomeAssistant, State, callback
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_interval
-
-from homeassistant.helpers import (
-    area_registry as ar,
-    device_registry as dr,
-    entity_registry as er,
-)
 
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI
@@ -57,7 +54,7 @@ from .const import (
     EMBEDDING_PROVIDER_OPENAI,
 )
 from .exceptions import ContextInjectionError
-from .helpers import render_template_value, retry_async
+from .helpers import normalize_keep_alive, render_template_value, retry_async
 
 # Conditional imports for ChromaDB
 try:
@@ -762,7 +759,9 @@ class VectorDBManager:
         payload = {
             "model": self.embedding_model,
             "prompt": text,
-            "keep_alive": self.config.get(CONF_EMBEDDING_KEEP_ALIVE, DEFAULT_EMBEDDING_KEEP_ALIVE),
+            "keep_alive": normalize_keep_alive(
+                self.config.get(CONF_EMBEDDING_KEEP_ALIVE), DEFAULT_EMBEDDING_KEEP_ALIVE
+            ),
         }
 
         async def make_embedding_request() -> list[float]:

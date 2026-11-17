@@ -5,7 +5,7 @@ from typing import Final
 # Domain and component info
 DOMAIN: Final = "home_agent"
 DEFAULT_NAME: Final = "Home Agent"
-VERSION: Final = "0.9.5"
+VERSION: Final = "0.9.6"
 
 # Configuration keys - LLM Configuration
 CONF_LLM_BASE_URL: Final = "llm_base_url"
@@ -132,6 +132,11 @@ CONF_SESSION_PERSISTENCE_ENABLED: Final = "session_persistence_enabled"
 # Context modes
 CONTEXT_MODE_DIRECT: Final = "direct"
 CONTEXT_MODE_VECTOR_DB: Final = "vector_db"
+
+# Markers inside the context string that the providers produce
+MEMORY_CONTEXT_HEADER: Final = "## Relevant Information from Past Conversations"
+VECTOR_DB_FALLBACK_MARKER: Final = "[Fallback mode - Vector DB unavailable]"
+NO_CONTEXT_MESSAGE: Final = "No relevant context found."
 
 # Context format options
 CONTEXT_FORMAT_JSON: Final = "json"
@@ -915,4 +920,15 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {%- if entity.labels is defined -%},{{ entity.labels | join('/') }}{%- endif %}
 {%- endfor %}
 ```
+{%- if relevant_context %}
+
+## Context Retrieved For This Request
+Retrieved for the current request: the most relevant devices with extra detail, and things \
+remembered from past conversations. Use it together with the CSV above. When it has \
+"all_matching_devices", answer questions about all, any, which or how many devices from those \
+groups. Use remembered information to answer personal questions.
+
+{{ relevant_context }}
+{%- endif %}
+
 Now respond to the user's request:"""

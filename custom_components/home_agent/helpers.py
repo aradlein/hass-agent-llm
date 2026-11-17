@@ -574,6 +574,44 @@ async def check_chromadb_health(host: str, port: int, timeout: int = 5) -> tuple
         return False, f"ChromaDB health check error: {err}"
 
 
+def normalize_keep_alive(value: Any, default: str | int | float = "5m") -> str | int | float:
+    """Put a keep_alive setting in the form Ollama accepts.
+
+    Ollama takes either a duration with a unit ("5m", "24h") or a number of
+    seconds, where a negative number keeps the model loaded indefinitely.
+    A bare number sent as a string ("-1") is rejected with
+    'time: missing unit in duration', and the options flow stores what the
+    user typed as text, so bare numbers are converted here.
+
+    Args:
+        value: The configured keep_alive value.
+        default: Returned when the value is blank or not usable.
+
+    Returns:
+        An int or float for bare numbers, otherwise the trimmed string.
+
+    Example:
+        >>> normalize_keep_alive("-1")
+        -1
+        >>> normalize_keep_alive("24h")
+        '24h'
+    """
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        return value
+    if not isinstance(value, str):
+        return default
+    text = value.strip()
+    if not text:
+        return default
+    if re.fullmatch(r"[+-]?\d+", text):
+        return int(text)
+    if re.fullmatch(r"[+-]?\d+\.\d+", text):
+        return float(text)
+    return text
+
+
 def is_ollama_backend(base_url: str) -> bool:
     """Check if the LLM base URL points to an Ollama server.
 

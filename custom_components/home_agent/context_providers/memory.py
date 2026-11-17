@@ -18,6 +18,7 @@ from ..const import (
     DEFAULT_MEMORY_CONTEXT_TOP_K,
     DEFAULT_MEMORY_ENABLED,
     DEFAULT_MEMORY_MIN_IMPORTANCE,
+    MEMORY_CONTEXT_HEADER,
 )
 from .base import ContextProvider
 
@@ -114,7 +115,7 @@ class MemoryContextProvider(ContextProvider):
         if not memories:
             return ""
 
-        context = "## Relevant Information from Past Conversations\n\n"
+        context = f"{MEMORY_CONTEXT_HEADER}\n\n"
 
         for memory in memories:
             # Format each memory with type indicator

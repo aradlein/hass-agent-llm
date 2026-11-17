@@ -6,6 +6,8 @@ on:
 
 jobs:
   sync-issue:
+    # Runs on the public repo only; in the private repo there is nothing to sync
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
 
     steps:

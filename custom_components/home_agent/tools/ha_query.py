@@ -315,20 +315,29 @@ class HomeAssistantQueryTool(BaseTool):
             List of matching entity IDs
 
         Raises:
-            PermissionDenied: If any matched entity is not accessible
+            PermissionDenied: If an exact entity ID is not accessible
         """
         # Get all entity IDs from state machine
         all_entities = self.hass.states.async_entity_ids()
 
-        # Filter by pattern
         if "*" in pattern:
-            # Use fnmatch for wildcard matching
+            # A wildcard is a search: return the matches the caller may see and
+            # leave out the rest, instead of failing the whole query because
+            # one matched entity is not exposed.
             matching = [e for e in all_entities if fnmatch.fnmatch(e, pattern)]
-        else:
-            # Exact match
-            matching = [pattern] if pattern in all_entities else []
+            if self._exposed_entities is None:
+                return matching
+            exposed = [e for e in matching if e in self._exposed_entities]
+            if len(exposed) < len(matching):
+                _LOGGER.debug(
+                    "Wildcard %s: skipped %d unexposed entities",
+                    pattern,
+                    len(matching) - len(exposed),
+                )
+            return exposed
 
-        # Validate access to matched entities
+        # Exact match: asking for an unexposed entity by name is refused
+        matching = [pattern] if pattern in all_entities else []
         for entity_id in matching:
             self._validate_entity_access(entity_id)
 
