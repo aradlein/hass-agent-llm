@@ -55,6 +55,10 @@ from .const import (
     CONF_LLM_MODEL,
     CONF_LLM_PROXY_HEADERS,
     CONF_LLM_TEMPERATURE,
+    CONF_MCP_ENABLED,
+    CONF_MCP_TOOL_ALLOWLIST,
+    CONF_MCP_TRANSPORT,
+    CONF_MCP_URL,
     CONF_MAX_CONTEXT_TOKENS,
     CONF_MEMORY_COLLECTION_NAME,
     CONF_MEMORY_CONTEXT_TOP_K,
@@ -106,6 +110,10 @@ from .const import (
     DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_LLM_KEEP_ALIVE,
     DEFAULT_LLM_MODEL,
+    DEFAULT_MCP_ENABLED,
+    DEFAULT_MCP_TOOL_ALLOWLIST,
+    DEFAULT_MCP_TRANSPORT,
+    DEFAULT_MCP_URL,
     DEFAULT_MAX_CONTEXT_TOKENS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MEMORY_COLLECTION_NAME,
@@ -221,6 +229,15 @@ def _migrate_legacy_backend(config: dict[str, Any]) -> dict[str, Any]:
     return config
 
 
+def _parse_csv_list(value: str | list[str] | None, fallback: list[str]) -> list[str]:
+    """Normalize comma-separated UI input into a clean string list."""
+    if value is None:
+        return list(fallback)
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [item.strip() for item in str(value).split(",") if item.strip()]
+
+
 class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Home Agent.
 
@@ -272,12 +289,8 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                 # Store the configuration
                 self._data.update(user_input)
 
-                # Create the config entry with basic configuration
-                # Options flow will handle advanced settings
-                return self.async_create_entry(
-                    title=user_input.get("name", DEFAULT_NAME),
-                    data=self._data,
-                )
+                # Continue with optional MCP setup before creating the entry.
+                return await self.async_step_mcp_setup()
 
             except ValidationError as err:
                 _LOGGER.error("Validation error: %s", err)
@@ -332,6 +345,108 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                 "default_model": DEFAULT_LLM_MODEL,
             },
         )
+
+    async def async_step_mcp_setup(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Optional MCP setup step in the initial wizard."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            merged = {
+                CONF_MCP_ENABLED: user_input.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED),
+                CONF_MCP_TRANSPORT: user_input.get(CONF_MCP_TRANSPORT, DEFAULT_MCP_TRANSPORT),
+                CONF_MCP_URL: user_input.get(CONF_MCP_URL, DEFAULT_MCP_URL),
+            }
+
+            if merged[CONF_MCP_ENABLED]:
+                try:
+                    await self._validate_mcp_config(merged)
+                except ValidationError as err:
+                    _LOGGER.error("MCP setup validation error: %s", err)
+                    errors["base"] = "invalid_mcp"
+                else:
+                    merged[CONF_MCP_TRANSPORT] = merged[CONF_MCP_TRANSPORT].lower()
+
+            if not errors:
+                self._data.update(merged)
+                return self.async_create_entry(
+                    title=self._data.get("name", DEFAULT_NAME),
+                    data=self._data,
+                )
+
+        defaults = {
+            CONF_MCP_ENABLED: user_input.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED)
+            if user_input
+            else self._data.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED),
+            CONF_MCP_TRANSPORT: user_input.get(CONF_MCP_TRANSPORT, DEFAULT_MCP_TRANSPORT)
+            if user_input
+            else self._data.get(CONF_MCP_TRANSPORT, DEFAULT_MCP_TRANSPORT),
+            CONF_MCP_URL: user_input.get(CONF_MCP_URL, DEFAULT_MCP_URL)
+            if user_input
+            else self._data.get(CONF_MCP_URL, DEFAULT_MCP_URL),
+        }
+
+        include_url = bool(defaults.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED))
+
+        return self.async_show_form(
+            step_id="mcp_setup",
+            data_schema=self._build_mcp_schema(defaults, include_url=include_url),
+            errors=errors,
+        )
+
+    def _build_mcp_schema(self, defaults: dict[str, Any], include_url: bool) -> vol.Schema:
+        """Build MCP schema for initial setup.
+
+        The setup step intentionally keeps this minimal: enable flag, transport,
+        and URL (when enabled). Advanced controls are available in options.
+        """
+        fields: dict[Any, Any] = {
+            vol.Required(
+                CONF_MCP_ENABLED,
+                default=defaults.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED),
+            ): bool,
+            vol.Optional(
+                CONF_MCP_TRANSPORT,
+                default=defaults.get(CONF_MCP_TRANSPORT, DEFAULT_MCP_TRANSPORT),
+            ): vol.In(["streamable_http"]),
+        }
+
+        if include_url:
+            fields[
+                vol.Required(
+                    CONF_MCP_URL,
+                    default=defaults.get(CONF_MCP_URL, DEFAULT_MCP_URL),
+                )
+            ] = str
+
+        return vol.Schema(fields)
+
+    async def _validate_mcp_config(self, config: dict[str, Any]) -> None:
+        """Validate MCP configuration for setup/options flow."""
+        enabled = bool(config.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED))
+
+        transport = str(config.get(CONF_MCP_TRANSPORT, DEFAULT_MCP_TRANSPORT)).lower()
+        if transport not in {"streamable_http", "http"}:
+            raise ValidationError("Invalid MCP transport. Expected: streamable_http")
+
+        if transport == "http":
+            # Backward-compatible alias.
+            config[CONF_MCP_TRANSPORT] = "streamable_http"
+
+        if not enabled:
+            return
+
+        url = str(config.get(CONF_MCP_URL, "")).strip()
+        if not url:
+            raise ValidationError("MCP URL cannot be empty when MCP is enabled")
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValidationError(f"Invalid MCP URL format: {url}")
+        if parsed.scheme not in ("http", "https"):
+            raise ValidationError(
+                f"MCP URL scheme must be http or https, got: {parsed.scheme}"
+            )
 
     async def _validate_llm_config(self, config: dict[str, Any]) -> None:
         """Validate LLM configuration.
@@ -511,6 +626,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 "prompt_settings",
                 "tool_settings",
                 "external_llm_settings",
+                "mcp_settings",
                 "debug_settings",
             ],
         )
@@ -1190,6 +1306,145 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
         model = config.get(CONF_EXTERNAL_LLM_MODEL, "")
         if not model or not model.strip():
             raise ValidationError("External LLM model name cannot be empty")
+
+    async def async_step_mcp_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Configure MCP manager/tool settings."""
+        current_options = self._config_entry.options
+        current_data = self._config_entry.data
+
+        defaults = {
+            CONF_MCP_ENABLED: current_options.get(
+                CONF_MCP_ENABLED,
+                current_data.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED),
+            ),
+            CONF_MCP_TRANSPORT: current_options.get(
+                CONF_MCP_TRANSPORT,
+                current_data.get(CONF_MCP_TRANSPORT, DEFAULT_MCP_TRANSPORT),
+            ),
+            CONF_MCP_URL: current_options.get(
+                CONF_MCP_URL,
+                current_data.get(CONF_MCP_URL, DEFAULT_MCP_URL),
+            ),
+            CONF_MCP_TOOL_ALLOWLIST: current_options.get(
+                CONF_MCP_TOOL_ALLOWLIST,
+                current_data.get(CONF_MCP_TOOL_ALLOWLIST, DEFAULT_MCP_TOOL_ALLOWLIST),
+            ),
+        }
+
+        if user_input is not None:
+            merged = {
+                CONF_MCP_ENABLED: user_input.get(
+                    CONF_MCP_ENABLED,
+                    defaults[CONF_MCP_ENABLED],
+                ),
+                CONF_MCP_TRANSPORT: user_input.get(
+                    CONF_MCP_TRANSPORT,
+                    defaults[CONF_MCP_TRANSPORT],
+                ),
+                CONF_MCP_URL: user_input.get(
+                    CONF_MCP_URL,
+                    defaults[CONF_MCP_URL],
+                ),
+                CONF_MCP_TOOL_ALLOWLIST: _parse_csv_list(
+                    user_input.get(CONF_MCP_TOOL_ALLOWLIST),
+                    defaults[CONF_MCP_TOOL_ALLOWLIST],
+                ),
+            }
+
+            if merged[CONF_MCP_ENABLED]:
+                try:
+                    await self._validate_mcp_config(merged)
+                except ValidationError as err:
+                    _LOGGER.error("MCP validation error: %s", err)
+                    return self.async_show_form(
+                        step_id="mcp_settings",
+                        data_schema=self._build_mcp_schema(merged, include_url=True),
+                        errors={"base": "invalid_mcp"},
+                    )
+                else:
+                    merged[CONF_MCP_TRANSPORT] = merged[CONF_MCP_TRANSPORT].lower()
+
+            updated_options = {
+                **self._config_entry.options,
+                CONF_MCP_ENABLED: merged[CONF_MCP_ENABLED],
+                CONF_MCP_TRANSPORT: merged[CONF_MCP_TRANSPORT],
+                CONF_MCP_URL: merged[CONF_MCP_URL],
+                CONF_MCP_TOOL_ALLOWLIST: merged[CONF_MCP_TOOL_ALLOWLIST],
+            }
+            return self.async_create_entry(title="", data=updated_options)
+
+        include_url = bool(defaults.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED))
+
+        return self.async_show_form(
+            step_id="mcp_settings",
+            data_schema=self._build_mcp_schema(defaults, include_url=include_url),
+            description_placeholders={
+                "mcp_note": (
+                    "The MCP manager is created once during setup and reused for all "
+                    "MCP tool calls."
+                ),
+            },
+        )
+
+    def _build_mcp_schema(self, defaults: dict[str, Any], include_url: bool) -> vol.Schema:
+        """Build the MCP form schema for setup/options flow."""
+        fields: dict[Any, Any] = {
+            vol.Required(
+                CONF_MCP_ENABLED,
+                default=defaults.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED),
+            ): bool,
+            vol.Optional(
+                CONF_MCP_TRANSPORT,
+                default=defaults.get(CONF_MCP_TRANSPORT, DEFAULT_MCP_TRANSPORT),
+            ): vol.In(["streamable_http"]),
+            vol.Optional(
+                CONF_MCP_TOOL_ALLOWLIST,
+                default=", ".join(
+                    _parse_csv_list(
+                        defaults.get(CONF_MCP_TOOL_ALLOWLIST),
+                        DEFAULT_MCP_TOOL_ALLOWLIST,
+                    )
+                ),
+            ): str,
+        }
+
+        if include_url:
+            fields[
+                vol.Required(
+                    CONF_MCP_URL,
+                    default=defaults.get(CONF_MCP_URL, DEFAULT_MCP_URL),
+                )
+            ] = str
+
+        return vol.Schema(fields)
+
+    async def _validate_mcp_config(self, config: dict[str, Any]) -> None:
+        """Validate MCP configuration."""
+        enabled = bool(config.get(CONF_MCP_ENABLED, DEFAULT_MCP_ENABLED))
+
+        transport = str(config.get(CONF_MCP_TRANSPORT, DEFAULT_MCP_TRANSPORT)).lower()
+        if transport not in {"streamable_http", "http"}:
+            raise ValidationError("Invalid MCP transport. Expected: streamable_http")
+
+        if transport == "http":
+            # Backward-compatible alias.
+            config[CONF_MCP_TRANSPORT] = "streamable_http"
+
+        if not enabled:
+            return
+
+        url = str(config.get(CONF_MCP_URL, "")).strip()
+        if not url:
+            raise ValidationError("MCP URL cannot be empty when MCP is enabled")
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValidationError(f"Invalid MCP URL format: {url}")
+        if parsed.scheme not in ("http", "https"):
+            raise ValidationError(
+                f"MCP URL scheme must be http or https, got: {parsed.scheme}"
+            )
 
     async def async_step_memory_settings(
         self, user_input: dict[str, Any] | None = None

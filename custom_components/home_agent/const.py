@@ -90,6 +90,16 @@ CONF_EXTERNAL_LLM_TOOL_DESCRIPTION: Final = "external_llm_tool_description"
 CONF_EXTERNAL_LLM_AUTO_INCLUDE_CONTEXT: Final = "external_llm_auto_include_context"
 CONF_EXTERNAL_LLM_KEEP_ALIVE: Final = "external_llm_keep_alive"
 
+# Configuration keys - MCP Tool
+CONF_MCP_ENABLED: Final = "mcp_enabled"
+CONF_MCP_TRANSPORT: Final = "mcp_transport"
+CONF_MCP_URL: Final = "mcp_url"
+CONF_MCP_AUTH_TYPE: Final = "mcp_auth_type"
+CONF_MCP_AUTH_VALUE: Final = "mcp_auth_value"
+CONF_MCP_AUTH_HEADER: Final = "mcp_auth_header"
+CONF_MCP_HEADERS: Final = "mcp_headers"
+CONF_MCP_TOOL_ALLOWLIST: Final = "mcp_tool_allowlist"
+
 # Configuration keys - Memory Configuration
 CONF_MEMORY_ENABLED: Final = "memory_enabled"
 CONF_MEMORY_MAX_MEMORIES: Final = "memory_max_memories"
@@ -222,6 +232,21 @@ DEFAULT_EXTERNAL_LLM_TOOL_DESCRIPTION: Final = (
     "or comprehensive recommendations beyond simple home control."
 )
 
+# Default values - MCP Tool
+DEFAULT_MCP_ENABLED: Final = False
+DEFAULT_MCP_TRANSPORT: Final = "streamable_http"
+DEFAULT_MCP_URL: Final = "http://localhost:8080/mcp"
+DEFAULT_MCP_AUTH_TYPE: Final = "none"
+DEFAULT_MCP_AUTH_HEADER: Final = "Authorization"
+DEFAULT_MCP_HEADERS: Final[dict[str, str]] = {}
+MCP_TOOL_ALLOWLIST: Final[list[str]] = [
+    "ha_get_state",
+    "ha_call_service",
+    "ha_search",
+    "ha_get_overview",
+]
+DEFAULT_MCP_TOOL_ALLOWLIST: Final[list[str]] = MCP_TOOL_ALLOWLIST
+
 # Default values - Memory Configuration
 DEFAULT_MEMORY_ENABLED: Final = True
 DEFAULT_MEMORY_MAX_MEMORIES: Final = 100
@@ -268,6 +293,7 @@ EVENT_TOOL_PROGRESS: Final = f"{DOMAIN}.tool.progress"
 TOOL_HA_CONTROL: Final = "ha_control"
 TOOL_HA_QUERY: Final = "ha_query"
 TOOL_QUERY_EXTERNAL_LLM: Final = "query_external_llm"
+TOOL_MCP_CLIENT: Final = "mcp_client"
 
 # Tool actions (for ha_control)
 ACTION_TURN_ON: Final = "turn_on"

@@ -1248,6 +1248,8 @@ class TestAsyncRemoveServices:
             "clear_history",
             "reload_context",
             "execute_tool",
+            "mcp_status",
+            "mcp_refresh_tools",
             "reindex_entities",
             "index_entity",
             "list_memories",

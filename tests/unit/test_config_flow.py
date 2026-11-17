@@ -21,6 +21,7 @@ from custom_components.home_agent.const import (
     CONF_EXTERNAL_LLM_ENABLED,
     CONF_EXTERNAL_LLM_MODEL,
     CONF_LLM_BACKEND,
+    CONF_MCP_ENABLED,
     CONF_LLM_PROXY_HEADERS,
     CONF_MEMORY_ENABLED,
     CONF_MEMORY_EXTRACTION_ENABLED,
@@ -40,6 +41,7 @@ from custom_components.home_agent.const import (
     DEFAULT_SESSION_PERSISTENCE_ENABLED,
     DEFAULT_SESSION_TIMEOUT,
     DEFAULT_STREAMING_ENABLED,
+    DOMAIN,
     LLM_BACKEND_OLLAMA_GPU,
 )
 from custom_components.home_agent.exceptions import ValidationError
@@ -1079,10 +1081,8 @@ class TestHomeAgentConfigFlow:
         assert "errors" in result
         assert result["errors"]["base"] == "invalid_config"
 
-    async def test_config_flow_success_with_valid_config(self):
+    async def test_config_flow_success_with_valid_config(self, hass):
         """Test successful config entry creation."""
-        config_flow = HomeAgentConfigFlow()
-
         user_input = {
             "name": "Test Agent",
             "llm_base_url": "https://api.openai.com/v1",
@@ -1092,16 +1092,28 @@ class TestHomeAgentConfigFlow:
             "llm_max_tokens": 1000,
         }
 
-        result = await config_flow.async_step_user(user_input)
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}
+        )
+
+        assert result["type"] == FlowResultType.FORM
+        assert result["step_id"] == "user"
+
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input)
+
+        assert result["type"] == FlowResultType.FORM
+        assert result["step_id"] == "mcp_setup"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_MCP_ENABLED: False}
+        )
 
         assert result["type"] == FlowResultType.CREATE_ENTRY
         assert result["title"] == "Test Agent"
         assert "data" in result
 
-    async def test_config_flow_success_with_empty_api_key(self):
+    async def test_config_flow_success_with_empty_api_key(self, hass):
         """Test successful config entry creation with empty API key (local LLM)."""
-        config_flow = HomeAgentConfigFlow()
-
         user_input = {
             "name": "Local LLM",
             "llm_base_url": "http://localhost:11434/v1",
@@ -1109,15 +1121,27 @@ class TestHomeAgentConfigFlow:
             "llm_model": "llama3",
         }
 
-        result = await config_flow.async_step_user(user_input)
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}
+        )
+
+        assert result["type"] == FlowResultType.FORM
+        assert result["step_id"] == "user"
+
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input)
+
+        assert result["type"] == FlowResultType.FORM
+        assert result["step_id"] == "mcp_setup"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_MCP_ENABLED: False}
+        )
 
         assert result["type"] == FlowResultType.CREATE_ENTRY
         assert result["title"] == "Local LLM"
 
-    async def test_config_flow_success_with_valid_proxy_headers(self):
+    async def test_config_flow_success_with_valid_proxy_headers(self, hass):
         """Test successful config entry with valid proxy headers."""
-        config_flow = HomeAgentConfigFlow()
-
         user_input = {
             "name": "Test Agent",
             "llm_base_url": "https://api.openai.com/v1",
@@ -1126,26 +1150,37 @@ class TestHomeAgentConfigFlow:
             CONF_LLM_PROXY_HEADERS: '{"X-Custom-Header": "value"}',
         }
 
-        result = await config_flow.async_step_user(user_input)
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}
+        )
+
+        assert result["type"] == FlowResultType.FORM
+        assert result["step_id"] == "user"
+
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input)
+
+        assert result["type"] == FlowResultType.FORM
+        assert result["step_id"] == "mcp_setup"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_MCP_ENABLED: False}
+        )
 
         assert result["type"] == FlowResultType.CREATE_ENTRY
         assert result["data"][CONF_LLM_PROXY_HEADERS] == {"X-Custom-Header": "value"}
 
-    async def test_config_flow_migrates_legacy_backend(self):
+    def test_config_flow_migrates_legacy_backend(self):
         """Test that legacy backend setting is migrated to proxy headers."""
-        config_flow = HomeAgentConfigFlow()
-
-        user_input = {
+        config = {
             "name": "Test Agent",
             "llm_base_url": "http://localhost:11434/v1",
             "llm_model": "llama3",
             CONF_LLM_BACKEND: LLM_BACKEND_OLLAMA_GPU,
         }
 
-        result = await config_flow.async_step_user(user_input)
+        result = _migrate_legacy_backend(config)
 
-        assert result["type"] == FlowResultType.CREATE_ENTRY
-        assert CONF_LLM_PROXY_HEADERS in result["data"]
-        assert result["data"][CONF_LLM_PROXY_HEADERS] == {
+        assert CONF_LLM_PROXY_HEADERS in result
+        assert result[CONF_LLM_PROXY_HEADERS] == {
             "X-Ollama-Backend": LLM_BACKEND_OLLAMA_GPU
         }

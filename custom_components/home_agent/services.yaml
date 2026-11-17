@@ -303,3 +303,29 @@ clear_conversation:
       advanced: true
       selector:
         text:
+
+mcp_status:
+  name: MCP status
+  description: Return MCP manager connection status, discovered tools, and the last discovery error
+  supports_response: only
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
+
+mcp_refresh_tools:
+  name: MCP refresh tools
+  description: Re-trigger MCP tool discovery and refresh dynamic MCP tool registrations
+  supports_response: only
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use (defaults to first entry)
+      required: false
+      advanced: true
+      selector:
+        text:
