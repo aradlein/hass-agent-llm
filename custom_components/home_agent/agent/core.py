@@ -93,6 +93,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
@@ -113,7 +114,6 @@ from homeassistant.helpers import intent, template
 from ..const import (
     CONF_CONTEXT_ENTITIES,
     CONF_CONTEXT_MODE,
-    CONF_DIRECT_ENTITIES,
     CONF_EMIT_EVENTS,
     CONF_EXTERNAL_LLM_ENABLED,
     CONF_HISTORY_ENABLED,
@@ -129,8 +129,6 @@ from ..const import (
     CONF_TOOLS_CUSTOM,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
-    CONTEXT_MODE_VECTOR_DB,
-    DEFAULT_CONTEXT_MODE,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
@@ -143,12 +141,9 @@ from ..const import (
     EVENT_CONVERSATION_STARTED,
     EVENT_ERROR,
     EVENT_STREAMING_ERROR,
-    MEMORY_CONTEXT_HEADER,
-    NO_CONTEXT_MESSAGE,
     TOOL_QUERY_EXTERNAL_LLM,
-    VECTOR_DB_FALLBACK_MARKER,
 )
-from ..context_manager import ContextManager, parse_direct_entities
+from ..context_manager import ContextManager
 from ..conversation import ConversationHistoryManager
 from ..exceptions import (
     AuthenticationError,
@@ -169,6 +164,11 @@ from .memory_extraction import MemoryExtractionMixin
 from .streaming import StreamingMixin
 
 _LOGGER = logging.getLogger(__name__)
+_LITERAL_TEMPLATE_EXAMPLE_RE = re.compile(
+    r"(?P<prefix>(?:[\"']template[\"']\s*:\s*|template\s*=\s*|template\s*:\s*))"
+    r"(?P<quote>[\"'])(?P<expr>\{\{.*?\}\})(?P=quote)",
+    re.IGNORECASE,
+)
 
 
 class HomeAgent(
@@ -662,8 +662,6 @@ class HomeAgent(
         # Template variables available to custom prompts
         template_vars = {
             "entity_context": entity_context,
-            # What the default prompt adds after its CSV of all exposed entities
-            "relevant_context": self._default_prompt_context(entity_context),
             "exposed_entities": self.get_exposed_entities(),
             "ha_name": self.hass.config.location_name,
             "current_device_id": device_id,
@@ -687,43 +685,6 @@ class HomeAgent(
 
         return prompt
 
-    def _default_prompt_context(self, entity_context: str) -> str:
-        """Pick the part of the retrieved context the default prompt should add.
-
-        The default prompt already lists every exposed entity as CSV. Context
-        that only repeats those entities would double the prompt for nothing,
-        so it is left out and only what the CSV lacks is added:
-
-        - Vector DB mode: everything (relevant entities with detail, the
-          whole-house summary, memories).
-        - Direct mode with a configured entity list: everything, since the
-          list is the detail the user asked for.
-        - Direct mode over all exposed entities, and the vector DB fallback
-          (which is the same thing): memories only.
-
-        Custom prompts are not affected; they keep the full ``entity_context``.
-
-        Args:
-            entity_context: Context string from the context manager.
-
-        Returns:
-            Text for the default prompt's context section, or "" for none.
-        """
-        context = (entity_context or "").strip()
-        if not context or context.rstrip(".") == NO_CONTEXT_MESSAGE.rstrip("."):
-            return ""
-
-        mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
-        repeats_csv = VECTOR_DB_FALLBACK_MARKER in context or (
-            mode != CONTEXT_MODE_VECTOR_DB
-            and not parse_direct_entities(self.config.get(CONF_DIRECT_ENTITIES))
-        )
-        if not repeats_csv:
-            return entity_context
-
-        start = context.find(MEMORY_CONTEXT_HEADER)
-        return context[start:].strip() if start >= 0 else ""
-
     def _render_template(self, template_str: str, variables: dict[str, Any] | None = None) -> str:
         """Render a Jinja2 template string.
 
@@ -742,6 +703,8 @@ class HomeAgent(
         if not template_str:
             return ""
 
+        template_str = self._escape_literal_template_examples(template_str)
+
         try:
             tpl = template.Template(template_str, self.hass)
             result = tpl.async_render(variables or {})
@@ -750,6 +713,26 @@ class HomeAgent(
         except TemplateError as err:
             _LOGGER.warning("Template rendering failed: %s. Using raw template.", err)
             return template_str
+
+    def _escape_literal_template_examples(self, prompt: str) -> str:
+        """Keep Jinja examples literal for tool usage explanations.
+
+        Any value that looks like a literal template argument (for example
+        `template="{{ now() }}"`) is wrapped in `{% raw %}` blocks so the model
+        sees the syntax instead of an evaluated timestamp.
+        """
+
+        def _repl(match: re.Match[str]) -> str:
+            prefix = match.group("prefix")
+            quote = match.group("quote")
+            expr = match.group("expr")
+
+            if "{% raw %}" in expr or "{% endraw %}" in expr:
+                return match.group(0)
+
+            return f"{prefix}{quote}{{% raw %}}{expr}{{% endraw %}}{quote}"
+
+        return _LITERAL_TEMPLATE_EXAMPLE_RE.sub(_repl, prompt)
 
     async def process_message(
         self,
@@ -1215,11 +1198,10 @@ class HomeAgent(
                     messages.append(msg)
 
                 elif isinstance(content_item, conversation.ToolResultContent):
-
                     def json_encoder(obj):
                         if isinstance(obj, (datetime, date)):
                             return obj.isoformat()
-                        raise TypeError("Object of type %s is not JSON serializable" % type(obj))
+                        raise TypeError ("Object of type %s is not JSON serializable" % type(obj))
 
                     messages.append(
                         {
