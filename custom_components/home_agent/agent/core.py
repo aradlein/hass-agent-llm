@@ -93,6 +93,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
@@ -111,9 +112,9 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import intent, template
 
 from ..const import (
+    CONF_DEBUG_LOGGING,
     CONF_CONTEXT_ENTITIES,
     CONF_CONTEXT_MODE,
-    CONF_DIRECT_ENTITIES,
     CONF_EMIT_EVENTS,
     CONF_EXTERNAL_LLM_ENABLED,
     CONF_HISTORY_ENABLED,
@@ -129,8 +130,6 @@ from ..const import (
     CONF_TOOLS_CUSTOM,
     CONF_TOOLS_MAX_CALLS_PER_TURN,
     CONF_TOOLS_TIMEOUT,
-    CONTEXT_MODE_VECTOR_DB,
-    DEFAULT_CONTEXT_MODE,
     DEFAULT_HISTORY_MAX_MESSAGES,
     DEFAULT_HISTORY_MAX_TOKENS,
     DEFAULT_MEMORY_EXTRACTION_ENABLED,
@@ -143,12 +142,9 @@ from ..const import (
     EVENT_CONVERSATION_STARTED,
     EVENT_ERROR,
     EVENT_STREAMING_ERROR,
-    MEMORY_CONTEXT_HEADER,
-    NO_CONTEXT_MESSAGE,
     TOOL_QUERY_EXTERNAL_LLM,
-    VECTOR_DB_FALLBACK_MARKER,
 )
-from ..context_manager import ContextManager, parse_direct_entities
+from ..context_manager import ContextManager
 from ..conversation import ConversationHistoryManager
 from ..exceptions import (
     AuthenticationError,
@@ -169,6 +165,7 @@ from .memory_extraction import MemoryExtractionMixin
 from .streaming import StreamingMixin
 
 _LOGGER = logging.getLogger(__name__)
+_JSON_CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.IGNORECASE | re.DOTALL)
 
 
 class HomeAgent(
@@ -662,8 +659,6 @@ class HomeAgent(
         # Template variables available to custom prompts
         template_vars = {
             "entity_context": entity_context,
-            # What the default prompt adds after its CSV of all exposed entities
-            "relevant_context": self._default_prompt_context(entity_context),
             "exposed_entities": self.get_exposed_entities(),
             "ha_name": self.hass.config.location_name,
             "current_device_id": device_id,
@@ -686,43 +681,6 @@ class HomeAgent(
             prompt += f"\n\n## Additional Context\n\n{rendered_additions}"
 
         return prompt
-
-    def _default_prompt_context(self, entity_context: str) -> str:
-        """Pick the part of the retrieved context the default prompt should add.
-
-        The default prompt already lists every exposed entity as CSV. Context
-        that only repeats those entities would double the prompt for nothing,
-        so it is left out and only what the CSV lacks is added:
-
-        - Vector DB mode: everything (relevant entities with detail, the
-          whole-house summary, memories).
-        - Direct mode with a configured entity list: everything, since the
-          list is the detail the user asked for.
-        - Direct mode over all exposed entities, and the vector DB fallback
-          (which is the same thing): memories only.
-
-        Custom prompts are not affected; they keep the full ``entity_context``.
-
-        Args:
-            entity_context: Context string from the context manager.
-
-        Returns:
-            Text for the default prompt's context section, or "" for none.
-        """
-        context = (entity_context or "").strip()
-        if not context or context.rstrip(".") == NO_CONTEXT_MESSAGE.rstrip("."):
-            return ""
-
-        mode = self.config.get(CONF_CONTEXT_MODE, DEFAULT_CONTEXT_MODE)
-        repeats_csv = VECTOR_DB_FALLBACK_MARKER in context or (
-            mode != CONTEXT_MODE_VECTOR_DB
-            and not parse_direct_entities(self.config.get(CONF_DIRECT_ENTITIES))
-        )
-        if not repeats_csv:
-            return entity_context
-
-        start = context.find(MEMORY_CONTEXT_HEADER)
-        return context[start:].strip() if start >= 0 else ""
 
     def _render_template(self, template_str: str, variables: dict[str, Any] | None = None) -> str:
         """Render a Jinja2 template string.
@@ -750,6 +708,78 @@ class HomeAgent(
         except TemplateError as err:
             _LOGGER.warning("Template rendering failed: %s. Using raw template.", err)
             return template_str
+
+    def _extract_tool_call_from_content_fallback(
+        self,
+        content: Any,
+    ) -> tuple[list[dict[str, Any]], str | None]:
+        """Extract one tool call from JSON content when tool_calls is absent."""
+        if not isinstance(content, str):
+            return [], None
+
+        candidate = content.strip()
+        if not candidate:
+            return [], None
+
+        fenced = _JSON_CODE_FENCE_RE.match(candidate)
+        if fenced:
+            candidate = fenced.group(1).strip()
+
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            return [], None
+
+        if not isinstance(parsed, dict):
+            return [], None
+
+        tool_name = parsed.get("tool") or parsed.get("name")
+        arguments = parsed.get("arguments", parsed.get("parameters", parsed.get("params", {})))
+
+        # Additional fallback format:
+        # {"tool_name": {"arg": "value"}}
+        # Only accept when tool_name is a registered tool to avoid false positives.
+        extraction_mode = "wrapped"
+        if not tool_name:
+            registered_tools = set(self.tool_handler.get_registered_tools())
+            if len(parsed) == 1:
+                only_key = next(iter(parsed.keys()))
+                only_value = parsed[only_key]
+                if isinstance(only_key, str) and only_key in registered_tools and isinstance(
+                    only_value, dict
+                ):
+                    tool_name = only_key
+                    arguments = only_value
+                    extraction_mode = "flat"
+
+        if not isinstance(tool_name, str) or not tool_name.strip():
+            return [], None
+
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                return [], None
+
+        if arguments is None:
+            arguments = {}
+
+        if not isinstance(arguments, dict):
+            return [], None
+
+        return (
+            [
+                {
+                    "id": f"fallback_tool_{time.time_ns()}",
+                    "type": "function",
+                    "function": {
+                        "name": tool_name.strip(),
+                        "arguments": json.dumps(arguments),
+                    },
+                }
+            ],
+            extraction_mode,
+        )
 
     async def process_message(
         self,
@@ -1215,11 +1245,10 @@ class HomeAgent(
                     messages.append(msg)
 
                 elif isinstance(content_item, conversation.ToolResultContent):
-
                     def json_encoder(obj):
                         if isinstance(obj, (datetime, date)):
                             return obj.isoformat()
-                        raise TypeError("Object of type %s is not JSON serializable" % type(obj))
+                        raise TypeError ("Object of type %s is not JSON serializable" % type(obj))
 
                     messages.append(
                         {
@@ -1516,6 +1545,35 @@ class HomeAgent(
 
             # Check if LLM wants to call tools
             tool_calls = response_message.get("tool_calls", [])
+
+            # Fallback for models that output tool call JSON in message content.
+            if not tool_calls and response_message.get("content"):
+                tool_calls, extraction_mode = self._extract_tool_call_from_content_fallback(
+                    response_message.get("content")
+                )
+                if tool_calls:
+                    response_message["tool_calls"] = tool_calls
+                    response_message["content"] = ""
+                    if self.config.get(CONF_DEBUG_LOGGING, False):
+                        fallback_func = tool_calls[0].get("function", {})
+                        fallback_name = fallback_func.get("name", "")
+                        fallback_args_raw = fallback_func.get("arguments", "{}")
+                        try:
+                            fallback_args = json.loads(fallback_args_raw)
+                        except Exception:  # pylint: disable=broad-except
+                            fallback_args = fallback_args_raw
+                        if extraction_mode == "flat":
+                            _LOGGER.debug(
+                                "Fallback tool extraction (flat format): %s with %s",
+                                fallback_name,
+                                fallback_args,
+                            )
+                        else:
+                            _LOGGER.debug(
+                                "Fallback tool extraction: %s with %s",
+                                fallback_name,
+                                fallback_args,
+                            )
 
             # Always log tool call detection for debugging
             if tool_calls:
