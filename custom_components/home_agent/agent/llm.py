@@ -137,23 +137,25 @@ from ..const import (
     CONF_LLM_KEEP_ALIVE,
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
+    CONF_LLM_NUM_CTX,
     CONF_LLM_PROXY_HEADERS,
     CONF_LLM_TEMPERATURE,
+    CONF_LLM_TIMEOUT,
     CONF_LLM_TOP_P,
     DEFAULT_LLM_KEEP_ALIVE,
+    DEFAULT_LLM_NUM_CTX,
+    DEFAULT_LLM_TIMEOUT,
     DEFAULT_RETRY_BACKOFF_FACTOR,
     DEFAULT_RETRY_INITIAL_DELAY,
     DEFAULT_RETRY_JITTER,
     DEFAULT_RETRY_MAX_ATTEMPTS,
     DEFAULT_RETRY_MAX_DELAY,
-    HTTP_TIMEOUT,
 )
 from ..exceptions import AuthenticationError, HomeAgentError
 from ..helpers import (
     build_api_url,
     build_auth_headers,
     is_ollama_backend,
-    normalize_keep_alive,
     redact_sensitive_data,
     render_template_value,
     retry_async,
@@ -184,7 +186,8 @@ class LLMMixin:
             Active aiohttp ClientSession
         """
         if self._session is None or self._session.closed:
-            timeout = aiohttp.ClientTimeout(total=HTTP_TIMEOUT)
+            timeout_seconds = int(self.config.get(CONF_LLM_TIMEOUT, DEFAULT_LLM_TIMEOUT))
+            timeout = aiohttp.ClientTimeout(total=timeout_seconds)
             self._session = aiohttp.ClientSession(timeout=timeout)
         return self._session
 
@@ -249,9 +252,8 @@ class LLMMixin:
         # Only include keep_alive for Ollama backends (not supported by OpenAI, etc.)
         # See: https://github.com/aradlein/home-agent/issues/65
         if is_ollama_backend(self.config[CONF_LLM_BASE_URL]):
-            payload["keep_alive"] = normalize_keep_alive(
-                self.config.get(CONF_LLM_KEEP_ALIVE), DEFAULT_LLM_KEEP_ALIVE
-            )
+            payload["keep_alive"] = self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE)
+            payload["num_ctx"] = int(self.config.get(CONF_LLM_NUM_CTX, DEFAULT_LLM_NUM_CTX))
 
         if tools:
             payload["tools"] = tools
@@ -268,8 +270,13 @@ class LLMMixin:
         async def make_llm_request() -> dict[str, Any]:
             """Make the LLM API request."""
             try:
+                timeout_seconds = int(self.config.get(CONF_LLM_TIMEOUT, DEFAULT_LLM_TIMEOUT))
                 async with session.post(
-                    url, headers=headers, json=payload, allow_redirects=False
+                    url,
+                    headers=headers,
+                    json=payload,
+                    allow_redirects=False,
+                    timeout=aiohttp.ClientTimeout(total=timeout_seconds),
                 ) as response:
                     if response.status == 401:
                         raise AuthenticationError(

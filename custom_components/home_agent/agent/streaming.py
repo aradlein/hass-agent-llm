@@ -146,11 +146,15 @@ from ..const import (
     CONF_LLM_KEEP_ALIVE,
     CONF_LLM_MAX_TOKENS,
     CONF_LLM_MODEL,
+    CONF_LLM_NUM_CTX,
     CONF_LLM_PROXY_HEADERS,
     CONF_LLM_TEMPERATURE,
+    CONF_LLM_TIMEOUT,
     CONF_LLM_TOP_P,
     CONF_STREAMING_ENABLED,
     DEFAULT_LLM_KEEP_ALIVE,
+    DEFAULT_LLM_NUM_CTX,
+    DEFAULT_LLM_TIMEOUT,
     DEFAULT_STREAMING_ENABLED,
 )
 from ..exceptions import AuthenticationError, HomeAgentError
@@ -158,7 +162,6 @@ from ..helpers import (
     build_api_url,
     build_auth_headers,
     is_ollama_backend,
-    normalize_keep_alive,
     redact_sensitive_data,
     render_template_value,
 )
@@ -251,9 +254,8 @@ class StreamingMixin:
         # Only include keep_alive for Ollama backends (not supported by OpenAI, etc.)
         # See: https://github.com/aradlein/home-agent/issues/65
         if is_ollama_backend(self.config[CONF_LLM_BASE_URL]):
-            payload["keep_alive"] = normalize_keep_alive(
-                self.config.get(CONF_LLM_KEEP_ALIVE), DEFAULT_LLM_KEEP_ALIVE
-            )
+            payload["keep_alive"] = self.config.get(CONF_LLM_KEEP_ALIVE, DEFAULT_LLM_KEEP_ALIVE)
+            payload["num_ctx"] = int(self.config.get(CONF_LLM_NUM_CTX, DEFAULT_LLM_NUM_CTX))
 
         # Add tools if available
         tool_definitions = self.tool_handler.get_tool_definitions()
@@ -273,8 +275,13 @@ class StreamingMixin:
             )
 
         try:
+            timeout_seconds = int(self.config.get(CONF_LLM_TIMEOUT, DEFAULT_LLM_TIMEOUT))
             async with session.post(
-                url, headers=headers, json=payload, allow_redirects=False
+                url,
+                headers=headers,
+                json=payload,
+                allow_redirects=False,
+                timeout=aiohttp.ClientTimeout(total=timeout_seconds),
             ) as response:
                 if response.status == 401:
                     raise AuthenticationError("LLM API authentication failed. Check your API key.")

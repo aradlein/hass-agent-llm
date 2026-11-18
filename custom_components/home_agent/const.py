@@ -5,7 +5,7 @@ from typing import Final
 # Domain and component info
 DOMAIN: Final = "home_agent"
 DEFAULT_NAME: Final = "Home Agent"
-VERSION: Final = "0.9.6"
+VERSION: Final = "0.9.5"
 
 # Configuration keys - LLM Configuration
 CONF_LLM_BASE_URL: Final = "llm_base_url"
@@ -14,7 +14,9 @@ CONF_LLM_MODEL: Final = "llm_model"
 CONF_LLM_TEMPERATURE: Final = "llm_temperature"
 CONF_LLM_MAX_TOKENS: Final = "llm_max_tokens"
 CONF_LLM_TOP_P: Final = "llm_top_p"
+CONF_LLM_TIMEOUT: Final = "llm_timeout"
 CONF_LLM_KEEP_ALIVE: Final = "llm_keep_alive"
+CONF_LLM_NUM_CTX: Final = "llm_num_ctx"
 CONF_LLM_BACKEND: Final = "llm_backend"
 CONF_LLM_PROXY_HEADERS: Final = "llm_proxy_headers"
 CONF_THINKING_ENABLED: Final = "thinking_enabled"
@@ -123,11 +125,6 @@ CONF_SESSION_PERSISTENCE_ENABLED: Final = "session_persistence_enabled"
 CONTEXT_MODE_DIRECT: Final = "direct"
 CONTEXT_MODE_VECTOR_DB: Final = "vector_db"
 
-# Markers inside the context string that the providers produce
-MEMORY_CONTEXT_HEADER: Final = "## Relevant Information from Past Conversations"
-VECTOR_DB_FALLBACK_MARKER: Final = "[Fallback mode - Vector DB unavailable]"
-NO_CONTEXT_MESSAGE: Final = "No relevant context found."
-
 # Context format options
 CONTEXT_FORMAT_JSON: Final = "json"
 CONTEXT_FORMAT_NATURAL_LANGUAGE: Final = "natural_language"
@@ -154,7 +151,9 @@ DEFAULT_LLM_MODEL: Final = "gpt-4o-mini"
 DEFAULT_TEMPERATURE: Final = 0.7
 DEFAULT_MAX_TOKENS: Final = 500
 DEFAULT_TOP_P: Final = 1.0
+DEFAULT_LLM_TIMEOUT: Final = 60
 DEFAULT_LLM_KEEP_ALIVE: Final = "5m"
+DEFAULT_LLM_NUM_CTX: Final = 8192
 DEFAULT_LLM_BACKEND: Final = LLM_BACKEND_DEFAULT
 DEFAULT_THINKING_ENABLED: Final = True  # Default: enabled (no /no_think appended)
 
@@ -894,15 +893,4 @@ entity_id,name,state,aliases,area,type,current_value,available_services
 {%- if entity.labels is defined -%},{{ entity.labels | join('/') }}{%- endif %}
 {%- endfor %}
 ```
-{%- if relevant_context %}
-
-## Context Retrieved For This Request
-Retrieved for the current request: the most relevant devices with extra detail, and things \
-remembered from past conversations. Use it together with the CSV above. When it has \
-"all_matching_devices", answer questions about all, any, which or how many devices from those \
-groups. Use remembered information to answer personal questions.
-
-{{ relevant_context }}
-{%- endif %}
-
 Now respond to the user's request:"""

@@ -12,6 +12,7 @@
           "llm_temperature": "Temperature",
           "llm_max_tokens": "Max Tokens",
           "llm_keep_alive": "Keep Alive",
+          "llm_num_ctx": "Ollama Context Window (num_ctx)",
           "llm_proxy_headers": "Proxy Headers"
         },
         "data_description": {
@@ -22,6 +23,7 @@
           "llm_temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
           "llm_max_tokens": "Maximum tokens per response",
           "llm_keep_alive": "How long Ollama keeps model in memory (e.g., 5m, 24h). Use -1 for indefinite.",
+          "llm_num_ctx": "Ollama context window size. Increase for larger prompts/tools (e.g., 8192+).",
           "llm_proxy_headers": "Optional custom HTTP headers as JSON, e.g. X-Ollama-Backend: llama-cpp"
         }
       },
@@ -196,6 +198,8 @@
           "llm_temperature": "Temperature",
           "llm_max_tokens": "Max Tokens",
           "llm_keep_alive": "Keep Alive",
+          "llm_timeout": "LLM Timeout (seconds)",
+          "llm_num_ctx": "Ollama Context Window (num_ctx)",
           "llm_proxy_headers": "Proxy Headers",
           "thinking_enabled": "Enable Thinking Mode"
         },
@@ -206,6 +210,8 @@
           "llm_temperature": "Controls randomness (0.0-2.0). Lower is more focused, higher is more creative.",
           "llm_max_tokens": "Maximum tokens per response",
           "llm_keep_alive": "How long Ollama keeps model in memory (e.g., 5m, 24h). Use -1 for indefinite.",
+          "llm_timeout": "LLM request timeout in seconds. Increase for slow local models or hybrid CPU/GPU setups.",
+          "llm_num_ctx": "Ollama context window size. Increase for larger prompts/tools and history (e.g., 8192+).",
           "llm_proxy_headers": "Optional custom HTTP headers as JSON, e.g. X-Ollama-Backend: llama-cpp",
           "thinking_enabled": "Allow reasoning models to use extended thinking. Disable to automatically append /no_think to prompts for faster responses."
         }
