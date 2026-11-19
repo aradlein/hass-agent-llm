@@ -676,7 +676,14 @@ Write every "content" value in the same language as that sentence. Do not transl
                     )
                     return
 
+                # tool_handler.execute_tool wraps the tool's return as
+                # {"success", "result": <tool.execute()>}, and query_external_llm's
+                # own execute() ALSO returns an {"success", "result": text, "error"}
+                # envelope — so result["result"] is that inner dict, not the text.
+                # Unwrap one level when present; tolerate a plain string too.
                 extraction_result = result.get("result", "[]")
+                if isinstance(extraction_result, dict):
+                    extraction_result = extraction_result.get("result", "[]")
 
             else:
                 # Use local/primary LLM
