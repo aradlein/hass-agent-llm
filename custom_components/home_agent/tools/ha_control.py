@@ -7,6 +7,7 @@ actions on Home Assistant entities (turn_on, turn_off, toggle, set_value).
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.cover import CoverEntityFeature
@@ -70,15 +71,17 @@ class HomeAssistantControlTool(BaseTool):
     def __init__(
         self,
         hass: HomeAssistant,
-        exposed_entities: set[str] | None = None,
+        exposed_entities: set[str] | Callable[[], frozenset[str] | set[str]] | None = None,
     ) -> None:
         """Initialize the Home Assistant control tool.
 
         Args:
             hass: Home Assistant instance
-            exposed_entities: Optional set of entity IDs that are exposed
-                for control. If None, all entities are accessible (not
-                recommended for production).
+            exposed_entities: Exposed entity IDs that may be controlled — either a
+                set, or a zero-arg provider returning the current set (lets the
+                agent refresh the allow-list without sharing a mutable reference).
+                If None, all entities are accessible (not recommended for
+                production).
         """
         super().__init__(hass)
         self._exposed_entities = exposed_entities
@@ -268,12 +271,22 @@ class HomeAssistantControlTool(BaseTool):
         Raises:
             PermissionDenied: If entity is not accessible
         """
+        # exposed_entities may be a set or a zero-arg provider returning the
+        # current set. The provider lets the agent hand out a fresh (immutable)
+        # set each turn instead of sharing a mutable reference the tool would
+        # have to see mutated in place.
+        exposed = (
+            self._exposed_entities()
+            if callable(self._exposed_entities)
+            else self._exposed_entities
+        )
+
         # If no exposed entities set is provided, allow all access
         # (not recommended for production, but useful for testing)
-        if self._exposed_entities is None:
+        if exposed is None:
             return
 
-        if entity_id not in self._exposed_entities:
+        if entity_id not in exposed:
             _LOGGER.warning(
                 "Attempted access to unexposed entity: %s",
                 entity_id,
