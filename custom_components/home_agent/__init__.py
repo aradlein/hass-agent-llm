@@ -198,9 +198,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register services
     await async_setup_services(hass, entry.entry_id)
 
-    # Register update listener to reload on config changes
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-
     _LOGGER.info("Home Agent setup complete")
     return True
 

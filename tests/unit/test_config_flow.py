@@ -1,4 +1,4 @@
-"""Unit tests for Home Agent config flow."""
+﻿"""Unit tests for Home Agent config flow."""
 
 from unittest.mock import Mock
 
@@ -183,7 +183,8 @@ class TestExternalLLMValidation:
 
     async def test_validate_external_llm_config_success(self):
         """Test successful external LLM config validation."""
-        options_flow = HomeAgentOptionsFlow(Mock())
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = Mock()
 
         config = {
             CONF_EXTERNAL_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -196,7 +197,8 @@ class TestExternalLLMValidation:
 
     async def test_validate_external_llm_config_empty_url(self):
         """Test validation error for empty base URL."""
-        options_flow = HomeAgentOptionsFlow(Mock())
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = Mock()
 
         config = {
             CONF_EXTERNAL_LLM_BASE_URL: "",
@@ -209,7 +211,8 @@ class TestExternalLLMValidation:
 
     async def test_validate_external_llm_config_invalid_url(self):
         """Test validation error for invalid URL format."""
-        options_flow = HomeAgentOptionsFlow(Mock())
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = Mock()
 
         config = {
             CONF_EXTERNAL_LLM_BASE_URL: "not-a-url",
@@ -222,7 +225,8 @@ class TestExternalLLMValidation:
 
     async def test_validate_external_llm_config_empty_api_key(self):
         """Test validation error for empty API key."""
-        options_flow = HomeAgentOptionsFlow(Mock())
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = Mock()
 
         config = {
             CONF_EXTERNAL_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -235,7 +239,8 @@ class TestExternalLLMValidation:
 
     async def test_validate_external_llm_config_whitespace_api_key(self):
         """Test validation error for whitespace-only API key."""
-        options_flow = HomeAgentOptionsFlow(Mock())
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = Mock()
 
         config = {
             CONF_EXTERNAL_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -248,7 +253,8 @@ class TestExternalLLMValidation:
 
     async def test_validate_external_llm_config_empty_model(self):
         """Test validation error for empty model name."""
-        options_flow = HomeAgentOptionsFlow(Mock())
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = Mock()
 
         config = {
             CONF_EXTERNAL_LLM_BASE_URL: "https://api.openai.com/v1",
@@ -265,7 +271,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_options_flow_includes_streaming_option(self, mock_config_entry, mock_hass):
         """Test that options flow includes streaming toggle in debug settings."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the debug settings form
@@ -295,7 +302,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_streaming_defaults_to_disabled(self, mock_config_entry, mock_hass):
         """Test that streaming defaults to False."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the debug settings form
@@ -311,7 +319,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_streaming_option_can_be_enabled(self, mock_config_entry, mock_hass):
         """Test that user can enable streaming."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Submit form with streaming enabled
@@ -331,7 +340,8 @@ class TestHomeAgentOptionsFlow:
         # Set initial state with streaming enabled
         mock_config_entry.options = {CONF_STREAMING_ENABLED: True}
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Submit form with streaming disabled
@@ -351,7 +361,8 @@ class TestHomeAgentOptionsFlow:
         # Enable streaming
         mock_config_entry.options = {CONF_STREAMING_ENABLED: True}
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the debug settings form
@@ -369,7 +380,8 @@ class TestHomeAgentOptionsFlow:
         # Config entry without streaming option (simulating existing installation)
         mock_config_entry.options = {CONF_DEBUG_LOGGING: True}
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the debug settings form
@@ -392,7 +404,8 @@ class TestHomeAgentOptionsFlow:
             "memory_enabled": False,
         }
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Update only streaming setting
@@ -423,7 +436,8 @@ class TestHomeAgentOptionsFlow:
             "llm_model": "llama3",
         }
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Simulate user clearing the API key field
@@ -456,7 +470,8 @@ class TestHomeAgentOptionsFlow:
             "llm_model": "llama3",
         }
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Simulate user explicitly setting API key to empty string
@@ -479,7 +494,8 @@ class TestHomeAgentOptionsFlow:
         self, mock_config_entry, mock_hass
     ):
         """Test that history_settings step includes both session_persistence_enabled fields."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the history settings form
@@ -507,7 +523,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_session_persistence_defaults(self, mock_config_entry, mock_hass):
         """Test that session_persistence_enabled defaults to True and (minutes)."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the history settings form
@@ -527,7 +544,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_session_timeout_converts_to_seconds(self, mock_config_entry, mock_hass):
         """Test that when user enters timeout in minutes (e.g., 30), it gets converted storage."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Submit form with session timeout in minutes
@@ -550,7 +568,8 @@ class TestHomeAgentOptionsFlow:
         # Set initial state with timeout in seconds (7200 seconds = 120 minutes)
         mock_config_entry.options = {CONF_SESSION_TIMEOUT: 7200}
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the history settings form
@@ -565,7 +584,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_context_settings_success(self, mock_config_entry, mock_hass):
         """Test successful context settings update."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         user_input = {
@@ -582,7 +602,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_context_settings_shows_form(self, mock_config_entry, mock_hass):
         """Test that context settings shows form without user input."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         result = await options_flow.async_step_context_settings()
@@ -592,7 +613,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_vector_db_settings_success(self, mock_config_entry, mock_hass):
         """Test successful vector DB settings update."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         user_input = {
@@ -611,7 +633,8 @@ class TestHomeAgentOptionsFlow:
         self, mock_config_entry, mock_hass
     ):
         """Test that comma-separated collections are parsed to list."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         user_input = {
@@ -630,7 +653,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_vector_db_settings_shows_form(self, mock_config_entry, mock_hass):
         """Test that vector DB settings shows form without user input."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         result = await options_flow.async_step_vector_db_settings()
@@ -640,7 +664,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_prompt_settings_success(self, mock_config_entry, mock_hass):
         """Test successful prompt settings update."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         user_input = {
@@ -656,7 +681,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_prompt_settings_shows_form(self, mock_config_entry, mock_hass):
         """Test that prompt settings shows form without user input."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         result = await options_flow.async_step_prompt_settings()
@@ -668,7 +694,8 @@ class TestHomeAgentOptionsFlow:
         self, mock_config_entry, mock_hass
     ):
         """Test that prompt settings form includes the include_labels option."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the prompt settings form
@@ -691,7 +718,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_prompt_include_labels_defaults_to_false(self, mock_config_entry, mock_hass):
         """Test that prompt_include_labels defaults to False."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the prompt settings form
@@ -707,7 +735,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_prompt_include_labels_can_be_enabled(self, mock_config_entry, mock_hass):
         """Test that user can enable prompt_include_labels."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Submit form with include_labels enabled
@@ -727,7 +756,8 @@ class TestHomeAgentOptionsFlow:
         # Set initial state with include_labels enabled
         mock_config_entry.options = {CONF_PROMPT_INCLUDE_LABELS: True}
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Submit form with include_labels disabled
@@ -747,7 +777,8 @@ class TestHomeAgentOptionsFlow:
         # Enable include_labels
         mock_config_entry.options = {CONF_PROMPT_INCLUDE_LABELS: True}
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the prompt settings form
@@ -767,7 +798,8 @@ class TestHomeAgentOptionsFlow:
         # Config entry without include_labels option (simulating existing installation)
         mock_config_entry.options = {CONF_PROMPT_USE_DEFAULT: True}
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Get the prompt settings form
@@ -790,7 +822,8 @@ class TestHomeAgentOptionsFlow:
             "memory_enabled": False,
         }
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Update only include_labels setting
@@ -810,7 +843,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_tool_settings_success(self, mock_config_entry, mock_hass):
         """Test successful tool settings update."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         user_input = {
@@ -826,7 +860,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_tool_settings_shows_form(self, mock_config_entry, mock_hass):
         """Test that tool settings shows form without user input."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         result = await options_flow.async_step_tool_settings()
@@ -836,7 +871,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_external_llm_settings_success(self, mock_config_entry, mock_hass):
         """Test successful external LLM settings update."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         user_input = {
@@ -854,7 +890,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_external_llm_settings_validation_error(self, mock_config_entry, mock_hass):
         """Test external LLM settings validation error."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         # Missing API key should trigger validation error
@@ -873,7 +910,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_external_llm_settings_shows_form(self, mock_config_entry, mock_hass):
         """Test that external LLM settings shows form without user input."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         result = await options_flow.async_step_external_llm_settings()
@@ -886,7 +924,8 @@ class TestHomeAgentOptionsFlow:
         # Enable external LLM first
         mock_config_entry.options = {CONF_EXTERNAL_LLM_ENABLED: True}
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         user_input = {
@@ -906,7 +945,8 @@ class TestHomeAgentOptionsFlow:
         # External LLM is disabled
         mock_config_entry.options = {CONF_EXTERNAL_LLM_ENABLED: False}
 
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         user_input = {
@@ -923,7 +963,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_memory_settings_shows_form(self, mock_config_entry, mock_hass):
         """Test that memory settings shows form without user input."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         result = await options_flow.async_step_memory_settings()
@@ -933,7 +974,8 @@ class TestHomeAgentOptionsFlow:
 
     async def test_llm_settings_validation_error_invalid_url(self, mock_config_entry, mock_hass):
         """Test LLM settings validation error for invalid URL."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         user_input = {
@@ -951,7 +993,8 @@ class TestHomeAgentOptionsFlow:
         self, mock_config_entry, mock_hass
     ):
         """Test LLM settings validation error for invalid proxy headers."""
-        options_flow = HomeAgentOptionsFlow(mock_config_entry)
+        options_flow = HomeAgentOptionsFlow()
+        options_flow._config_entry = mock_config_entry
         options_flow.hass = mock_hass
 
         user_input = {
