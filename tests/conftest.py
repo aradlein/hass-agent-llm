@@ -271,3 +271,44 @@ def sample_tool_call():
             ),
         },
     }
+
+
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(enable_custom_integrations):
+    """Enable custom integrations for all tests."""
+    yield
+
+
+@pytest.fixture(autouse=True)
+async def auto_setup_homeassistant_component(request):
+    """Initialize core homeassistant component for tests using real hass fixture."""
+    if "hass" not in request.fixturenames:
+        return
+
+    hass = request.getfixturevalue("hass")
+    if isinstance(hass, HomeAssistant):
+        from homeassistant.setup import async_setup_component
+
+        await async_setup_component(hass, "homeassistant", {})
+
+
+@pytest.fixture(autouse=True)
+def _mock_frame_helper_reports(monkeypatch):
+    """Disable frame helper runtime checks in lightweight test harnesses."""
+    import homeassistant.config_entries as ha_config_entries
+    from homeassistant.helpers import frame
+
+    monkeypatch.setattr(frame, "report_usage", lambda *args, **kwargs: None, raising=False)
+    monkeypatch.setattr(
+        frame,
+        "report_non_thread_safe_operation",
+        lambda *args, **kwargs: None,
+        raising=False,
+    )
+    # config_entries imports report_usage directly; patch that alias as well.
+    monkeypatch.setattr(
+        ha_config_entries,
+        "report_usage",
+        lambda *args, **kwargs: None,
+        raising=False,
+    )

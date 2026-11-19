@@ -425,7 +425,7 @@ class TestAsyncSetupEntry:
     @patch("custom_components.home_agent.HomeAgent")
     @patch("custom_components.home_agent.ha_conversation.async_set_agent")
     @patch("custom_components.home_agent.async_setup_services")
-    async def test_setup_entry_registers_update_listener(
+    async def test_setup_entry_does_not_register_update_listener(
         self,
         mock_setup_services,
         mock_set_agent,
@@ -435,7 +435,7 @@ class TestAsyncSetupEntry:
         mock_config_entry,
         mock_agent,
     ):
-        """Test that update listener is registered."""
+        """Test that no manual update listener is registered."""
         mock_agent_class.return_value = mock_agent
         mock_setup_services.return_value = AsyncMock()
         mock_session_manager = MagicMock()
@@ -445,8 +445,8 @@ class TestAsyncSetupEntry:
         result = await async_setup_entry(mock_hass, mock_config_entry)
 
         assert result is True
-        mock_config_entry.add_update_listener.assert_called_once()
-        mock_config_entry.async_on_unload.assert_called_once()
+        mock_config_entry.add_update_listener.assert_not_called()
+        mock_config_entry.async_on_unload.assert_not_called()
 
     @patch("custom_components.home_agent.ConversationSessionManager")
     @patch("custom_components.home_agent.HomeAgent")

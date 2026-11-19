@@ -448,20 +448,20 @@ class HomeAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
     @staticmethod
     @callback
     def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
+        _config_entry: config_entries.ConfigEntry,
     ) -> HomeAgentOptionsFlow:
         """Get the options flow for this handler.
 
         Args:
-            config_entry: The config entry to create options flow for
+            _config_entry: Provided by Home Assistant, not needed with OptionsFlowWithReload
 
         Returns:
             HomeAgentOptionsFlow instance
         """
-        return HomeAgentOptionsFlow(config_entry)
+        return HomeAgentOptionsFlow()
 
 
-class HomeAgentOptionsFlow(config_entries.OptionsFlow):
+class HomeAgentOptionsFlow(config_entries.OptionsFlowWithReload):
     """Handle options flow for Home Agent.
 
     This options flow provides advanced configuration settings including:
@@ -472,14 +472,6 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
     - External LLM tool configuration
     - Debug logging
     """
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize the options flow.
-
-        Args:
-            config_entry: The config entry to manage options for
-        """
-        self._config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -545,7 +537,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
                 # Merge user input with entry data (not options)
                 # LLM settings should update the entry.data
-                test_config = dict(self._config_entry.data) | user_input
+                test_config = dict(self.config_entry.data) | user_input
                 _LOGGER.debug("Merged test_config for validation: %s", test_config)
 
                 # Create a temporary config flow instance to validate
@@ -559,14 +551,14 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
                 # Update the config entry data with new LLM settings
                 # Note: async_update_entry is synchronous despite the name in HA
-                new_data = {**self._config_entry.data, **user_input}
+                new_data = {**self.config_entry.data, **user_input}
                 _LOGGER.debug("Updating config entry data to: %s", new_data)
-                self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
+                self.hass.config_entries.async_update_entry(self.config_entry, data=new_data)
                 _LOGGER.debug("Config entry data updated successfully")
 
                 # Return current options to preserve them
                 # The data update above modifies entry.data, this preserves entry.options
-                return self.async_create_entry(title="", data=self._config_entry.options)
+                return self.async_create_entry(title="", data=self.config_entry.options)
 
             except ValidationError as err:
                 _LOGGER.error("LLM validation error: %s", err)
@@ -579,7 +571,7 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                 errors["base"] = "unknown"
 
         # Get current values from entry.data (not options)
-        current_data = self._config_entry.data
+        current_data = self.config_entry.data
 
         # Convert proxy headers dict to JSON string for display
         proxy_headers = current_data.get(CONF_LLM_PROXY_HEADERS, {})
@@ -643,11 +635,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
         """
         if user_input is not None:
             # Update options with new context settings
-            updated_options = {**self._config_entry.options, **user_input}
+            updated_options = {**self.config_entry.options, **user_input}
             return self.async_create_entry(title="", data=updated_options)
 
-        current_options = self._config_entry.options
-        current_data = self._config_entry.data
+        current_options = self.config_entry.options
+        current_data = self.config_entry.data
 
         return self.async_show_form(
             step_id="context_settings",
@@ -715,11 +707,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     collections_list = [c.strip() for c in collections_str.split(",") if c.strip()]
                     user_input[CONF_ADDITIONAL_COLLECTIONS] = collections_list
 
-            updated_options = {**self._config_entry.options, **user_input}
+            updated_options = {**self.config_entry.options, **user_input}
             return self.async_create_entry(title="", data=updated_options)
 
-        current_options = self._config_entry.options
-        current_data = self._config_entry.data
+        current_options = self.config_entry.options
+        current_data = self.config_entry.data
 
         # Convert list to comma-separated string for display
         additional_collections = current_options.get(
@@ -869,11 +861,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             if CONF_SESSION_TIMEOUT in user_input:
                 user_input[CONF_SESSION_TIMEOUT] = user_input[CONF_SESSION_TIMEOUT] * 60
 
-            updated_options = {**self._config_entry.options, **user_input}
+            updated_options = {**self.config_entry.options, **user_input}
             return self.async_create_entry(title="", data=updated_options)
 
-        current_options = self._config_entry.options
-        current_data = self._config_entry.data
+        current_options = self.config_entry.options
+        current_data = self.config_entry.data
 
         return self.async_show_form(
             step_id="history_settings",
@@ -936,11 +928,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             FlowResult indicating completion or next step
         """
         if user_input is not None:
-            updated_options = {**self._config_entry.options, **user_input}
+            updated_options = {**self.config_entry.options, **user_input}
             return self.async_create_entry(title="", data=updated_options)
 
-        current_options = self._config_entry.options
-        current_data = self._config_entry.data
+        current_options = self.config_entry.options
+        current_data = self.config_entry.data
 
         return self.async_show_form(
             step_id="prompt_settings",
@@ -994,11 +986,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             FlowResult indicating completion or next step
         """
         if user_input is not None:
-            updated_options = {**self._config_entry.options, **user_input}
+            updated_options = {**self.config_entry.options, **user_input}
             return self.async_create_entry(title="", data=updated_options)
 
-        current_options = self._config_entry.options
-        current_data = self._config_entry.data
+        current_options = self.config_entry.options
+        current_data = self.config_entry.data
 
         return self.async_show_form(
             step_id="tool_settings",
@@ -1048,16 +1040,16 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
                     return self.async_show_form(
                         step_id="external_llm_settings",
                         data_schema=self._get_external_llm_schema(
-                            dict(self._config_entry.options), dict(self._config_entry.data)
+                            dict(self.config_entry.options), dict(self.config_entry.data)
                         ),
                         errors={"base": "invalid_external_llm"},
                     )
 
-            updated_options = {**self._config_entry.options, **user_input}
+            updated_options = {**self.config_entry.options, **user_input}
             return self.async_create_entry(title="", data=updated_options)
 
-        current_options = self._config_entry.options
-        current_data = self._config_entry.data
+        current_options = self.config_entry.options
+        current_data = self.config_entry.data
 
         return self.async_show_form(
             step_id="external_llm_settings",
@@ -1208,8 +1200,8 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             # Validate configuration
             if user_input.get(CONF_MEMORY_EXTRACTION_LLM) == "external":
                 # Check if external LLM is enabled
-                current_data = self._config_entry.data
-                current_options = self._config_entry.options
+                current_data = self.config_entry.data
+                current_options = self.config_entry.options
                 external_llm_enabled = current_options.get(
                     CONF_EXTERNAL_LLM_ENABLED,
                     current_data.get(CONF_EXTERNAL_LLM_ENABLED, DEFAULT_EXTERNAL_LLM_ENABLED),
@@ -1220,11 +1212,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
 
             if not errors:
                 # Update config entry options
-                updated_options = {**self._config_entry.options, **user_input}
+                updated_options = {**self.config_entry.options, **user_input}
                 return self.async_create_entry(title="", data=updated_options)
 
-        current_options = self._config_entry.options
-        current_data = self._config_entry.data
+        current_options = self.config_entry.options
+        current_data = self.config_entry.data
 
         return self.async_show_form(
             step_id="memory_settings",
@@ -1330,11 +1322,11 @@ class HomeAgentOptionsFlow(config_entries.OptionsFlow):
             FlowResult indicating completion or next step
         """
         if user_input is not None:
-            updated_options = {**self._config_entry.options, **user_input}
+            updated_options = {**self.config_entry.options, **user_input}
             return self.async_create_entry(title="", data=updated_options)
 
-        current_options = self._config_entry.options
-        current_data = self._config_entry.data
+        current_options = self.config_entry.options
+        current_data = self.config_entry.data
 
         return self.async_show_form(
             step_id="debug_settings",
